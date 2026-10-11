@@ -1,0 +1,24 @@
+# 构建产物
+target/
+*.class
+*.jar
+
+# 内置 Maven（由 ./setup.sh 现场下载，不进仓库）
+.tools/
+
+# macOS
+.DS_Store
+._*
+
+# 编辑器 / IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# 运行时可能被写进工程目录的东西
+# （正常数据在 ~/PotatoLibrary 或 ../PotatoLibrary，这里只是兜底防误提交）
+PotatoLibrary/
+*.log
+hs_err_pid*.log
+replay_pid*.log
