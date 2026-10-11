@@ -1,6 +1,6 @@
 # Potato Player（Java 版）
 
-**当前版本：`2.1.16`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
+**当前版本：`2.1.17`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
 
 > 一个本地音乐播放器：VLC 内核 + JavaFX 界面，带歌词、评分 / 块 / 流派管理、
 > 均衡器、BPM 与「动图卡点」悬浮窗（原版没有的新功能）。
@@ -15,14 +15,25 @@
 | 依赖 | 说明 |
 |---|---|
 | **JDK 21+** | 必需（Temurin / Oracle / Zulu 都行），`java -version` 能看到 21 即可 |
-| **VLC** | 必需，程序通过 `libvlc` 播放。macOS 装到 `/Applications/VLC.app` 就行；Linux 装 `vlc` / `libvlc` 包 |
+| **VLC** | 必需，程序通过 `libvlc` 播放。macOS 装到 `/Applications/VLC.app`；Windows 装到默认的 `C:\Program Files\VideoLAN\VLC`；Linux 装 `vlc` / `libvlc` 包 |
 | **Node.js** | **可选**，只有网易云在线功能（搜索 / 下载 / 登录）需要，本地播放完全用不到；服务用 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
-| 系统 Maven | **不需要**，`./setup.sh` 会往 `.tools/` 下载一份内置的（约 11MB） |
+| 系统 Maven | **不需要**，`setup.sh` / `setup.bat` 会往 `.tools/` 下载一份内置的（约 11MB） |
 
-支持平台：macOS 为主要开发平台（含桌面歌词鼠标穿透用的 Cocoa 调用）；Linux / Windows
-理论上可跑，但没在真机验证过。
+## 平台支持
+
+| 平台 | 启动脚本 | 状态 |
+|---|---|---|
+| **macOS** | `./run.sh` | **主力平台，逐版实测**（开发机就是它） |
+| **Linux** | `./run.sh` | 脚本与 macOS 同一份（bash + JDK + VLC 都是通用写法），未在真机验证 |
+| **Windows 10/11** | `run.bat`（内部调 `run.ps1`） | 脚本按 Windows 的 `;` classpath、`\` 路径、`mvn.cmd`、`JAVA_HOME` 规则写好，**未在真机验证** |
+
+跨平台差异只有一处：**桌面歌词 / 动图悬浮窗的「锁定后鼠标穿透」和「屏幕起雾」是 macOS 的 Cocoa 调用**
+（`setIgnoresMouseEvents:`，见 `ui/MacWindowClickThrough.java`）。非 macOS 上这两项会自动关闭／拒绝开启
+（屏幕起雾面板会提示不可用），其余功能——播放、歌词、均衡器、BPM、动图卡点、沉浸模式——不依赖它。
 
 ## 快速开始
+
+macOS / Linux：
 
 ```bash
 git clone https://github.com/why012123/Potatoplayer.git
@@ -32,9 +43,21 @@ cd Potatoplayer
 ./run.sh     # 启动
 ```
 
-- 源码没变时 `./run.sh` 直接起 java（不跑 Maven，快）；改了代码才会自动编译一次。
-- 想看启动各段耗时：`./run.sh > /tmp/start.log 2>&1`，日志里有 `[启动] … 本段 N ms` 打点。
-- 打包成 jar：`./build.sh` → `target/potatoplayer.jar`。
+Windows（PowerShell 5.1 即可，都是双击也能用的 `.bat`）：
+
+```bat
+git clone https://github.com/why012123/Potatoplayer.git
+cd Potatoplayer
+
+setup.bat    :: 首次运行一次：下载内置 Maven
+run.bat      :: 启动
+```
+
+- 源码没变时脚本直接起 java（不跑 Maven，快）；改了代码才会自动编译一次。
+- 想看启动各段耗时：macOS/Linux `./run.sh > /tmp/start.log 2>&1`，Windows `run.bat > start.log 2>&1`，
+  日志里有 `[启动] … 本段 N ms` 打点。
+- 打包成 jar：`./build.sh` 或 `build.bat` → `target/potatoplayer.jar`。
+- 给程序传 JVM 参数（例如换数据目录）：`./run.sh -Dpotato.baseDir=…` / `run.bat -Dpotato.baseDir=D:\Music\PotatoLibrary`。
 
 ## 第一次跑起来之后
 
@@ -134,17 +157,20 @@ node app.js       # 默认监听 3000
 ## 构建 / 目录结构
 
 ```bash
-./build.sh          # 产出 target/potatoplayer.jar
+./build.sh          # macOS / Linux：产出 target/potatoplayer.jar
+```
+```bat
+build.bat           :: Windows：产出 target\potatoplayer.jar
 ```
 
-> 打出的 jar 需要自己给 `java` 传 JavaFX 的 `--module-path`；日常使用直接 `./run.sh`。
+> 打出的 jar 需要自己给 `java` 传 JavaFX 的 `--module-path`；日常使用直接 `./run.sh` / `run.bat`。
 
 ```
 Potatoplayer/
 ├── pom.xml                 # Maven 配置（JavaFX / VLCJ / Jackson / Jaudiotagger / JNA）
-├── setup.sh                # 下载内置 Maven（.tools/，一次即可）
-├── build.sh                # 编译打包
-├── run.sh                  # 启动程序
+├── setup.sh   run.sh   build.sh      # macOS / Linux（bash）
+├── setup.bat  run.bat  build.bat     # Windows：双击即可，内部调同名的 .ps1
+├── setup.ps1  run.ps1  build.ps1     # Windows 的真正逻辑（路径、classpath 分隔符都是 Windows 规则）
 ├── docs/                   # 开发时的渲染证据图（界面细节比对）
 └── src/main/java/com/potato/player/
     ├── App.java            # JavaFX 入口
@@ -172,19 +198,44 @@ Potatoplayer/
         └── ThemeCss.java            # 主题 → JavaFX CSS
 ```
 
+## 可用的启动参数（`-Dpotato.*`）
+
+写在 `run.sh` / `run.bat` 后面即可 —— `-D` / `-X` 开头的参数会被转交给 JVM：
+
+| 参数 | 作用 | 默认 |
+|---|---|---|
+| `-Dpotato.baseDir=` | 数据目录 | 同级 `../PotatoLibrary` → `~/PotatoLibrary` |
+| `-Dpotato.libvlcDir=` | libvlc 所在目录（vlcj 自己找不到时） | 按平台常见位置兜底 |
+| `-Dpotato.vlc=` | BPM 分析用的 VLC 可执行文件 | 从 libvlc 目录推断 → 常见位置 → PATH |
+| `-Dpotato.apiDir=` | 网易云本地服务目录 | `<数据目录>/api/api-enhanced-4.35.0` |
+| `-Dpotato.apiBase=` | 网易云本地服务地址 | `http://localhost:3000` |
+| `-Dpotato.node=` | node 可执行文件 | PATH（Windows 上找 `node.exe`）→ 常见安装位置 |
+
 ## 常见问题
 
 **启动报找不到 `libvlc` / 没有声音**
-装 VLC（macOS 装到 `/Applications/VLC.app`）。程序先按 vlcj 的自动发现找，找不到会回退到
-`/Applications/VLC.app/Contents/MacOS/lib`；还是不行就给 `java` 加
-`-Djna.library.path=/path/to/libvlc`。
+装 VLC（macOS：`/Applications/VLC.app`；Windows：`C:\Program Files\VideoLAN\VLC`；Linux：`vlc` 包）。
+程序先让 vlcj 自己找，找不到再按平台常见位置兜底；还是不行就手动指：
+
+```bash
+./run.sh -Dpotato.libvlcDir=/path/to/libvlc        # 也支持 -Djna.library.path=...
+run.bat -Dpotato.libvlcDir="D:\VideoLAN\VLC"
+```
+
+**BPM 分析不动 / 报找不到 VLC**
+BPM 分析要调 VLC 可执行文件全速解码，它按「vlcj 发现的 libvlc 目录 → 各平台常见位置 → PATH 上的
+`vlc`」找，找不到就用 `-Dpotato.vlc=/path/to/vlc`（Windows：`vlc.exe`）指定。
 
 **启动说"未找到内置 Maven"**
-先跑 `./setup.sh`；没网就自己下 Apache Maven 3.9.x 解压到 `.tools/` 下（目录名保持
-`apache-maven-3.9.16`，或改 `run.sh` 里的 `MVN=` 路径）。
+先跑 `./setup.sh` / `setup.bat`；没网就自己下 Apache Maven 3.9.x 解压到 `.tools/` 下（目录名保持
+`apache-maven-3.9.16`，或改 `run.sh` / `run.ps1` 里的 `MVN` 路径）。
+
+**Windows 上双击 `run.bat` 一闪而过**
+在 PowerShell 里手动跑 `.\run.ps1`，报错信息就能看见了；另外确认 JDK 21+ 已装（`java -version`）。
 
 **在线功能点不动**
-见上面「网易云在线功能（可选）」—— 那是需要自备的本地服务，不影响本地播放。
+见上面「网易云在线功能（可选）」—— 那是需要自备的本地服务，不影响本地播放。程序按
+PATH → 常见安装位置找 `node`（Windows 上是 `node.exe`），也可以 `-Dpotato.node=…` 指定。
 
 ## 许可
 

@@ -1,0 +1,10 @@
+# 行尾统一：Windows 的批处理必须 CRLF（LF-only 的 .bat 在 cmd 里个别写法会出问题），
+# shell 脚本必须 LF（CRLF 会让 bash 报 "$'\r': command not found"）。
+# PowerShell 两种都吃，统一 LF。
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.sh   text eol=lf
+*.ps1  text eol=lf
+
+# 图片走二进制，别乱改
+*.png  binary

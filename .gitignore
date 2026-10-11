@@ -3,12 +3,16 @@ target/
 *.class
 *.jar
 
-# 内置 Maven（由 ./setup.sh 现场下载，不进仓库）
+# 内置 Maven（由 setup.sh / setup.bat 现场下载，不进仓库）
 .tools/
 
 # macOS
 .DS_Store
 ._*
+
+# Windows
+Thumbs.db
+desktop.ini
 
 # 编辑器 / IDE
 .idea/

@@ -26,11 +26,15 @@ public class PlayerEngine {
     private volatile Listener listener;
 
     public PlayerEngine(int volume) {
-        // 在 macOS 上自动发现系统安装的 VLC（/Applications/VLC.app）
+        // 先让 vlcj 自己找（macOS 的 /Applications/VLC.app、Windows 的注册表、
+        // Linux 的常见 lib 目录都在它的发现范围内）；找不到再按平台兜底。
         boolean discovered = new uk.co.caprica.vlcj.factory.discovery.NativeDiscovery().discover();
         if (!discovered) {
-            // 兜底：显式指定 libvlc 所在目录
-            System.setProperty("jna.library.path", "/Applications/VLC.app/Contents/MacOS/lib");
+            String dir = libvlcDir();
+            if (dir != null) {
+                // 显式告诉 JNA 去哪儿 dlopen libvlc
+                System.setProperty("jna.library.path", dir);
+            }
         }
         this.factory = new MediaPlayerFactory();
         this.mediaPlayer = factory.mediaPlayers().newMediaPlayer();
@@ -58,6 +62,43 @@ public class PlayerEngine {
 
     public void setListener(Listener listener) {
         this.listener = listener;
+    }
+
+    /**
+     * libvlc 所在目录（vlcj 自己找不到时的兜底）。
+     *
+     * <p>顺序：{@code -Dpotato.libvlcDir=...} → 各平台的常见安装位置。
+     * 返回 null 表示没找到，那就让 vlcj 按它自己的方式报错。</p>
+     */
+    static String libvlcDir() {
+        String override = System.getProperty("potato.libvlcDir");
+        if (override != null && !override.isBlank()) {
+            return override.trim();
+        }
+        String os = System.getProperty("os.name", "").toLowerCase();
+        String[] candidates;
+        if (os.contains("mac")) {
+            candidates = new String[]{
+                    "/Applications/VLC.app/Contents/MacOS/lib",
+                    System.getProperty("user.home") + "/Applications/VLC.app/Contents/MacOS/lib"};
+        } else if (os.contains("win")) {
+            String pf = System.getenv("ProgramFiles");
+            String pf86 = System.getenv("ProgramFiles(x86)");
+            candidates = new String[]{
+                    (pf == null ? "C:\\Program Files" : pf) + "\\VideoLAN\\VLC",
+                    (pf86 == null ? "C:\\Program Files (x86)" : pf86) + "\\VideoLAN\\VLC",
+                    "C:\\Program Files\\VideoLAN\\VLC"};
+        } else {
+            candidates = new String[]{
+                    "/usr/lib/x86_64-linux-gnu", "/usr/lib/aarch64-linux-gnu",
+                    "/usr/lib64", "/usr/lib", "/usr/local/lib", "/snap/vlc/current/usr/lib"};
+        }
+        for (String c : candidates) {
+            if (new java.io.File(c).isDirectory()) {
+                return c;
+            }
+        }
+        return null;
     }
 
     public void play(String filepath) {

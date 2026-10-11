@@ -1,6 +1,6 @@
 # Potato Player 更新日志（CHANGELOG）
 
-> **当前版本：`2.1.16`（Java + JavaFX 版）**
+> **当前版本：`2.1.17`（Java + JavaFX 版）**
 >
 > **版本规则（2026-10-07 起）**：每次改动递增最小版本号（`2.0.9` → `2.0.10` → …），
 > 除非另行指定版本号；每个版本在下面都有独立小节。
@@ -29,12 +29,13 @@
 | 在线能力 | `1.3.0` → `1.3.5` | 网易云音乐接入、api-enhanced 本地服务、智能导入 |
 | UI 现代化 | `1.4.0` | tkinter → PySide6 (Qt) |
 | **完全重写** | **`2.0.0`** | Python → Java 21 + JavaFX |
-| 增量迭代 | `2.0.1` → `2.1.16` | **均衡器 · BPM 分析 · 任务面板 · 动图卡点 · 正弦伸缩 · 省电优化 · 屏幕起雾 · 偏好统计 · **拍点网格 · 流派标识色 · 双标识带 · 进度条双色 · 按钮判定 · 歌词行距 · 歌词本句字重 · 动图播放控件 · 方向键 · 手势开关 · 空格/会话恢复 · 开箱即用的数据目录 · 在线服务出处（当前版本）** |
+| 增量迭代 | `2.0.1` → `2.1.17` | **均衡器 · BPM 分析 · 任务面板 · 动图卡点 · 正弦伸缩 · 省电优化 · 屏幕起雾 · 偏好统计 · **拍点网格 · 流派标识色 · 双标识带 · 进度条双色 · 按钮判定 · 歌词行距 · 歌词本句字重 · 动图播放控件 · 方向键 · 手势开关 · 空格/会话恢复 · 开箱即用的数据目录 · 在线服务出处 · Windows 脚本（当前版本）** |
 
 ### 全版本一览
 
 | 版本 | 日期 | 类型 | 主要更新 |
 |---|---|---|---|
+| **2.1.17** | 2026-10-08 | 移植 | **不只是 Mac 能启动**（用户指出）：新增 Windows 脚本 `setup.bat` / `run.bat` / `build.bat`（双击可用，内部调同名 `.ps1`，`;` classpath、`\` 路径、`mvn.cmd`、`JAVA_HOME` 全按 Windows 规则）；代码里的平台假设一并拔掉 —— `node` 在 Windows 上找 `node.exe`/`node.cmd`/`node.bat`、VLC 找 `vlc.exe` 与 `C:\Program Files\VideoLAN\VLC`、libvlc 兜底目录按 mac/Win/Linux 分别给；顺带修掉 `BpmAnalyzer` 里「新建实例直接问 `discoveredPath()` 永远拿到 null」的死代码（现在先 `discover()` 再问，VLC 可执行文件真的能从 libvlc 目录推断出来了） |
 | **2.1.16** | 2026-10-08 | 文档 | **把内置网易云服务（api-enhanced）的出处写进 README**：补上仓库地址 <https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced>（原 NeteaseCloudMusicApi 的维护增强版，`@neteasecloudmusicapienhanced/api` v4.35.0，MIT，作者 MoeFurina）、`pnpm i` + `node app.js`（默认 3000）与官方 Docker 镜像的起法，以及「服务目录怎么接给播放器」的两种做法；本仓库不含该服务，本地播放不依赖它 |
 | **2.1.15** | 2026-10-08 | 移植 | **开箱即用 + 首次公开**：数据目录在「没有同级 `PotatoLibrary/source`」时退回 `~/PotatoLibrary`（clone 下来直接能跑，不用迁就开发者的工作区布局；老布局与 `-Dpotato.baseDir` 完全不变）；网易云本地服务目录改为 `-Dpotato.apiDir` → 老的 `../api/api-enhanced-*` → `<数据目录>/api/...` 三级解析，`-Dpotato.apiBase` 可改地址；`node` 不再写死 `/usr/local/bin/node`（按 PATH → `/usr/local/bin` → `/opt/homebrew/bin` → `/usr/bin` 找），并且服务目录/`app.js` 不存在时直接跳过（在线功能静默不可用，**播放完全不受影响**） |
 | **2.1.14** | 2026-10-08 | 功能 | **空格 + 会话播放列表 + 晃动放宽**（用户反馈）：鼠标停在动图上时**空格 = 播放/暂停**（改用捕获阶段的按键过滤器，焦点在按钮上也拦得住）；**启动时同步上次的播放列表**（`source/session.json` 存列表+曲目下标，退出/换曲/列表改动时落盘，启动首帧后恢复，只恢复不自动播放）；晃动判定放宽（峰-峰 6~56pt、换向 ≤450ms、水平漂移 70、竖直 32） |
@@ -155,6 +156,55 @@
 | 45 | 功能 | **🌫 屏幕起雾（测试功能，默认关）**：6 点一格的密度场（双线性放大到全屏）+ 竖向拉长的噪声 + 边缘先起雾 + 对比度曲线；擦除是带衰减的圆盘，擦完会重新雾上；雾层全屏透明+鼠标穿透，拿不到穿透能力就拒绝开启 |
 | 44 | 优化 | **动画 30fps 省电开关**（设置 → ⚡ 性能，默认开、立即生效）：只影响重画频率不影响节奏；另记录一条实测结论 —— `javafx.animation.pulse` 在 macOS 上不改变实际脉冲数 |
 | 35 | 重做 | 伸缩动画全部重做为**纯正弦** `h(t)=l·(1−amp·sin(2πt/T))`：默认 **2 秒一轮**、上下对称 ±22%、**只留一条正弦**（删掉 1−cos 波形）；驱动时钟改为动画自身墙钟（VLC 的 getTime 是 255ms 台阶，会得到阶梯而非正弦）；暂停/停止冻在原地不归位，全程无跳变 |
+
+---
+
+## 2.1.17 —— 2026-10-08
+
+### 🪟 不只是 Mac 能启动（用户指出）
+
+「只有 mac 的启动脚本不行啊」——确实：仓库里只有 `run.sh`，而且代码里还有几处写死了
+macOS / Linux 的假设，拿到 Windows 上不是起不来就是功能静默失效。这一版把两边都补齐。
+
+**① Windows 脚本（新增 6 个文件）**
+
+| 文件 | 作用 |
+|---|---|
+| `setup.bat` / `setup.ps1` | 下载内置 Maven（zip + `Expand-Archive`，不依赖 curl / tar，PowerShell 5.1 就能跑） |
+| `run.bat` / `run.ps1` | 启动：与 `run.sh` 同一套逻辑（源码没变就直接起 java，不跑 Maven） |
+| `build.bat` / `build.ps1` | 打包 `target\potatoplayer.jar` |
+
+`.bat` 只是「双击也能用」的壳，真正逻辑在 `.ps1` 里（用 `-ExecutionPolicy Bypass -File`，不改系统策略）。
+Windows 那侧按 Windows 规则写：classpath 分隔符 `;`、路径 `\`、`mvn.cmd`、
+`JAVA_HOME\bin\java.exe`；JavaFX 与其余依赖的分流用 `[\\/]org[\\/]openjfx[\\/]`
+同时认两种斜杠。`-D` / `-X` 参数照样分流给 JVM（`run.bat -Dpotato.baseDir=D:\Music\PotatoLibrary`）。
+
+**② 代码里的平台假设**
+
+- `node`：原来只按名字 `node` 找 —— Windows 上可执行文件叫 `node.exe`（还有 `node.cmd` /
+  `node.bat`），等于在线功能在 Windows 上永远起不来。现在按 `os.name` 选名字，
+  兜底目录也分平台（Windows 看 `%ProgramFiles%\nodejs`）。名字与目录抽成了纯函数
+  `nodeNames(os)` / `defaultNodeDirs(os)`，所以在 mac 上也能断言 Windows 分支。
+- VLC 可执行文件（BPM 分析全速解码用）：原来只罗列 mac / Linux 路径。现在 Windows 找
+  `vlc.exe` 与 `C:\Program Files[ (x86)]\VideoLAN\VLC`；可用 `-Dpotato.vlc=` 直接指定。
+- libvlc 兜底目录：原来写死 `/Applications/VLC.app/Contents/MacOS/lib`。现在
+  `-Dpotato.libvlcDir=` → mac / Windows / Linux 各自的常见位置（Linux 覆盖
+  `/usr/lib/x86_64-linux-gnu`、`/usr/lib/aarch64-linux-gnu`、snap 等）。
+- 顺手修掉一处**从来没生效过的死代码**：`BpmAnalyzer.vlcBinary()` 里的
+  `new NativeDiscovery().discoveredPath()` 永远返回 null —— vlcj 要求同一个实例先调
+  `discover()`。实测：不先 `discover()` 得到 `null`；先调则得到
+  `/Applications/VLC.app/Contents/MacOS/lib`，而它的父目录里正是可执行文件 `VLC`。
+  修完之后 mac 上确实是**从 libvlc 目录推断**出来的，不再是碰运气撞常见路径。
+
+**③ 验证到哪一步**
+
+- 本机（macOS）实测：`PlatformProbe` **16/16**（含 Windows 分支的纯函数断言
+  `node.exe` / `vlc.exe` / `VideoLAN` 路径）、带覆盖属性的那一轮 **19/19**；
+  `PlayerEngine` 真的载入一次 libvlc 成功（499 ms）且 `release()` 正常；
+  `vlcBinary()` 现在指向 `/Applications/VLC.app/Contents/MacOS/VLC`。
+- Windows 那三个脚本**没能真机验证**（这台机器上没有 Windows，也没有 PowerShell / wine
+  可以模拟），属于「按 Windows 规则写好、逻辑与 `run.sh` 一一对应」——有问题随时说。
+- macOS 行为未变：`NativeDiscovery().discover()` 在本机仍是 true，新加的兜底分支根本不会走。
 
 ---
 

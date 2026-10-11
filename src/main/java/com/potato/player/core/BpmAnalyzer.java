@@ -155,33 +155,80 @@ public final class BpmAnalyzer {
         return cancelled;
     }
 
-    /** VLC 可执行文件路径（从 vlcj 发现的 libvlc 目录推断，失败再退回常见路径）。 */
+    /**
+     * VLC 可执行文件路径（BPM 分析要拿它全速解码，跟播放用的 libvlc 是两回事）。
+     *
+     * <p>顺序：{@code -Dpotato.vlc=...} → 从 vlcj 发现的 libvlc 目录推断
+     * （macOS 是 {@code .../Contents/MacOS/VLC}，Windows / Linux 就是同目录下的
+     * {@code vlc.exe} / {@code vlc}）→ 各平台常见安装位置 → 最后交给 PATH 上的 {@code vlc}。</p>
+     */
     public static synchronized String vlcBinary() {
         if (vlcPath != null) {
             return vlcPath;
         }
+        String override = System.getProperty("potato.vlc");
+        if (override != null && !override.isBlank() && new File(override).canExecute()) {
+            vlcPath = new File(override).getAbsolutePath();
+            return vlcPath;
+        }
+        String os = System.getProperty("os.name", "");
+        String[] names = vlcNames(os);
         try {
-            String lib = new uk.co.caprica.vlcj.factory.discovery.NativeDiscovery().discoveredPath();
+            // 注意：discoveredPath() 只在同一个实例先调过 discover() 之后才有值 ——
+            // 直接 new 一个实例去问只会拿到 null（老代码就是这么写的，等于这段推断从没生效过）。
+            uk.co.caprica.vlcj.factory.discovery.NativeDiscovery nd =
+                    new uk.co.caprica.vlcj.factory.discovery.NativeDiscovery();
+            nd.discover();
+            String lib = nd.discoveredPath();
             if (lib != null) {
-                File macos = new File(lib).getParentFile();          // .../Contents/MacOS
-                File bin = macos == null ? null : new File(macos, "VLC");
-                if (bin != null && bin.canExecute()) {
-                    vlcPath = bin.getAbsolutePath();
-                    return vlcPath;
+                File dir = new File(lib);
+                // 先看 libvlc 所在目录本身（Windows / Linux 常见），
+                // 再看它的上一级（macOS：lib 在 .../Contents/MacOS/lib，可执行文件在 .../Contents/MacOS/VLC）
+                for (File base : new File[]{dir, dir.getParentFile()}) {
+                    if (base == null) {
+                        continue;
+                    }
+                    for (String name : names) {
+                        File bin = new File(base, name);
+                        if (bin.canExecute()) {
+                            vlcPath = bin.getAbsolutePath();
+                            return vlcPath;
+                        }
+                    }
                 }
             }
         } catch (Throwable ignored) {
             // 忽略：退回下面的常见路径
         }
-        for (String c : new String[]{"/Applications/VLC.app/Contents/MacOS/VLC",
-                "/opt/homebrew/bin/vlc", "/usr/local/bin/vlc", "/usr/bin/vlc"}) {
+        for (String c : defaultVlcPaths(os)) {
             if (new File(c).canExecute()) {
                 vlcPath = c;
                 return vlcPath;
             }
         }
-        vlcPath = "vlc";
+        vlcPath = vlcNames(os)[0].equals("vlc") ? "vlc" : "vlc.exe";
         return vlcPath;
+    }
+
+    /** 各平台上 VLC 可执行文件的名字。 */
+    static String[] vlcNames(String osName) {
+        return osName != null && osName.toLowerCase().contains("win")
+                ? new String[]{"vlc.exe"}
+                : new String[]{"VLC", "vlc"};
+    }
+
+    /** 各平台上 VLC 的常见安装位置。 */
+    static String[] defaultVlcPaths(String osName) {
+        if (osName != null && osName.toLowerCase().contains("win")) {
+            String pf = System.getenv("ProgramFiles");
+            String pf86 = System.getenv("ProgramFiles(x86)");
+            return new String[]{
+                    (pf == null ? "C:\\Program Files" : pf) + "\\VideoLAN\\VLC\\vlc.exe",
+                    (pf86 == null ? "C:\\Program Files (x86)" : pf86) + "\\VideoLAN\\VLC\\vlc.exe",
+                    "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"};
+        }
+        return new String[]{"/Applications/VLC.app/Contents/MacOS/VLC",
+                "/opt/homebrew/bin/vlc", "/usr/local/bin/vlc", "/usr/bin/vlc", "/bin/vlc"};
     }
 
     /** 分析一首歌的 BPM 与拍点相位；失败返回 bpm=0。 */

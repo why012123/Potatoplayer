@@ -213,35 +213,65 @@ public class NeteaseClient {
     }
 
     /**
-     * 找 node：先 {@code -Dpotato.node=...}，再 PATH，最后两个常见安装位置。
-     * （原来写死 {@code /usr/local/bin/node}，Apple Silicon 的 Homebrew 装在
-     * {@code /opt/homebrew/bin}，写死会让在线功能静默失效。）
+     * 找 node：先 {@code -Dpotato.node=...}，再 PATH，最后几个常见安装位置。
+     *
+     * <p>原来写死 {@code /usr/local/bin/node}：Apple Silicon 的 Homebrew 在
+     * {@code /opt/homebrew/bin}、Windows 上叫 {@code node.exe}，写死等于在线功能静默失效。</p>
      */
-    private static String nodeExecutable() {
+    static String nodeExecutable() {
         String override = System.getProperty("potato.node");
         if (override != null && !override.isBlank()) {
             File f = new File(override);
             return f.canExecute() ? f.getAbsolutePath() : null;
         }
+        String[] names = nodeNames(System.getProperty("os.name", ""));
         String pathEnv = System.getenv("PATH");
         if (pathEnv != null) {
             for (String dir : pathEnv.split(File.pathSeparator)) {
                 if (dir.isBlank()) {
                     continue;
                 }
-                File f = new File(dir, "node");
+                for (String name : names) {
+                    File f = new File(dir, name);
+                    if (f.canExecute()) {
+                        return f.getAbsolutePath();
+                    }
+                }
+            }
+        }
+        for (String dir : defaultNodeDirs(System.getProperty("os.name", ""))) {
+            for (String name : names) {
+                File f = new File(dir, name);
                 if (f.canExecute()) {
                     return f.getAbsolutePath();
                 }
             }
         }
-        for (String guess : List.of("/usr/local/bin/node", "/opt/homebrew/bin/node", "/usr/bin/node")) {
-            File f = new File(guess);
-            if (f.canExecute()) {
-                return f.getAbsolutePath();
-            }
-        }
         return null;
+    }
+
+    /** 各平台上 node 可执行文件的名字（Windows 上是 node.exe / node.cmd / node.bat）。 */
+    static String[] nodeNames(String osName) {
+        return isWindows(osName)
+                ? new String[]{"node.exe", "node.cmd", "node.bat"}
+                : new String[]{"node"};
+    }
+
+    /** 兜底的 node 安装位置（PATH 里没找到时用）。 */
+    static String[] defaultNodeDirs(String osName) {
+        if (isWindows(osName)) {
+            String pf = System.getenv("ProgramFiles");
+            String pf86 = System.getenv("ProgramFiles(x86)");
+            return new String[]{
+                    pf == null ? "C:\\Program Files\\nodejs" : pf + "\\nodejs",
+                    pf86 == null ? "C:\\Program Files (x86)\\nodejs" : pf86 + "\\nodejs",
+                    "C:\\Program Files\\nodejs"};
+        }
+        return new String[]{"/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"};
+    }
+
+    private static boolean isWindows(String osName) {
+        return osName != null && osName.toLowerCase().contains("win");
     }
 
     public void serverStop() {
