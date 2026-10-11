@@ -1,6 +1,6 @@
 # Potato Player（Java 版）
 
-**当前版本：`2.1.15`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
+**当前版本：`2.1.16`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
 
 > 一个本地音乐播放器：VLC 内核 + JavaFX 界面，带歌词、评分 / 块 / 流派管理、
 > 均衡器、BPM 与「动图卡点」悬浮窗（原版没有的新功能）。
@@ -16,7 +16,7 @@
 |---|---|
 | **JDK 21+** | 必需（Temurin / Oracle / Zulu 都行），`java -version` 能看到 21 即可 |
 | **VLC** | 必需，程序通过 `libvlc` 播放。macOS 装到 `/Applications/VLC.app` 就行；Linux 装 `vlc` / `libvlc` 包 |
-| **Node.js** | **可选**，只有网易云在线功能（搜索 / 下载 / 登录）需要，本地播放完全用不到 |
+| **Node.js** | **可选**，只有网易云在线功能（搜索 / 下载 / 登录）需要，本地播放完全用不到；服务用 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
 | 系统 Maven | **不需要**，`./setup.sh` 会往 `.tools/` 下载一份内置的（约 11MB） |
 
 支持平台：macOS 为主要开发平台（含桌面歌词鼠标穿透用的 Cocoa 调用）；Linux / Windows
@@ -69,14 +69,32 @@ cd Potatoplayer
 
 ## 网易云在线功能（可选）
 
-搜索、试听、下载、歌词 / 评论、登录（手机号 / Cookie / 二维码）都走一个**本地 Node 服务**
-（`api-enhanced` 这类 NeteaseCloudMusicApi 服务）。本仓库**不包含**这个服务，
-也不需要它来播放本地音乐：
+搜索、试听、下载、歌词 / 评论、登录（手机号 / Cookie / 二维码）都走一个**本地 Node 服务**：
 
-- 想要在线功能：自己把服务放到 `<数据目录>/api/api-enhanced-4.35.0/`
-  （里面要有 `app.js`），或用 `-Dpotato.apiDir=/path/to/api-enhanced-4.35.0` 指定；
-  服务地址默认 `http://localhost:3000`，可用 `-Dpotato.apiBase=http://host:port` 改。
+> **api-enhanced** —— <https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced>
+> （原 NeteaseCloudMusicApi 的维护增强版，`@neteasecloudmusicapienhanced/api` v4.35.0，MIT，作者 MoeFurina）
+
+本仓库**不包含**这个服务，也不需要它来播放本地音乐。想用在线功能就自己起一个：
+
+```bash
+git clone https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git
+cd api-enhanced
+pnpm i            # 没有 pnpm 用 npm i 也行
+node app.js       # 默认监听 3000
+```
+
+官方也提供 Docker 镜像：`docker run -d -p 3000:3000 moefurina/ncm-api:latest`。
+
+然后把服务目录接到播放器上（二选一）：
+
+- 放在 `<数据目录>/api/api-enhanced-4.35.0/`（里面要有 `app.js`），或
+- 用 `-Dpotato.apiDir=/path/to/api-enhanced` 指定目录；服务地址默认
+  `http://localhost:3000`，端口不同就用 `-Dpotato.apiBase=http://host:port`。
+
+其它：
+
 - `node` 会按 `PATH` 找，也可以用 `-Dpotato.node=/path/to/node` 指定。
+- 服务已经在跑的话程序不会再拉一次（启动时会先探一次 `/`）。
 - 服务目录 / `app.js` / `node` 任何一个缺失，程序就**不启动这个服务**：在线面板不可用，
   本地播放、歌词、BPM、均衡器、动图卡点一切照常。
 
