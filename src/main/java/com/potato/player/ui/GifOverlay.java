@@ -3,6 +3,7 @@ package com.potato.player.ui;
 import com.potato.player.core.AnimatedGif;
 import com.potato.player.core.BpmAnalyzer;
 import com.potato.player.core.StretchWave;
+import com.potato.player.core.VideoFrames;
 import com.potato.player.core.Config;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
@@ -221,6 +222,8 @@ public class GifOverlay {
     private Stage stage;
     private AnimatedGif gif;
     private String gifPath = "";
+    /** 视频动图是后台解码：这个 token 用来作废「解到一半又导入了别的」的结果。 */
+    private volatile long videoLoadToken;
     private boolean locked;
     /** true = 只用整拍（每圈都落在正拍上）；false = 半拍粒度（速度变化更小）。 */
     private boolean integerBeats;
@@ -322,11 +325,17 @@ public class GifOverlay {
         this.gesturesOn = Config.getBool(cfg, "gif_gestures", true);
         this.gifPath = Config.getString(cfg, "gif_path", "");
         if (!gifPath.isBlank()) {
-            AnimatedGif loaded = AnimatedGif.load(new File(gifPath));
-            if (loaded != null) {
-                gif = loaded;
+            File restored = new File(gifPath);
+            if (VideoFrames.isVideo(restored)) {
+                // 视频要抓帧（一两秒），放后台：启动不能被它挡住
+                loadVideoAsync(restored);
             } else {
-                gifPath = "";
+                AnimatedGif loaded = AnimatedGif.load(restored);
+                if (loaded != null) {
+                    gif = loaded;
+                } else {
+                    gifPath = "";
+                }
             }
         }
         // 图还没读进来时算不出宽高比，所以放到最后再按屏幕压一次宽度
@@ -633,12 +642,32 @@ public class GifOverlay {
 
     // ── 导入 ──
 
-    /** 导入动图并显示；失败返回 false。 */
+    /**
+     * 导入动图并显示；失败返回 false。
+     *
+     * <p>图片（GIF/PNG/JPG）当场解完；视频（WebM / MP4…）要借 VLC 逐帧抓，
+     * 一个几秒的片子就要一两秒，所以<b>放后台线程解</b>，解完自动换上 ——
+     * 否则界面会在这段时间里卡住不动。返回 true 只表示「受理了」，
+     * 真正的成败由后台线程写进任务中心。</p>
+     */
     public boolean load(File file) {
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+        if (VideoFrames.isVideo(file)) {
+            loadVideoAsync(file);
+            return true;
+        }
         AnimatedGif loaded = AnimatedGif.load(file);
         if (loaded == null) {
             return false;
         }
+        applyLoaded(loaded, file);
+        return true;
+    }
+
+    /** 把解好的动图装上去（状态重置 + 落盘 + 重新布局）。 */
+    private void applyLoaded(AnimatedGif loaded, File file) {
         gif = loaded;
         gifPath = file.getAbsolutePath();
         lastFrame = -1;
@@ -658,7 +687,54 @@ public class GifOverlay {
         // 新图尺寸可能完全不同，按宽度重新布局
         applyWidth();
         refreshTimer();
-        return true;
+        // 设置页那一行「N 帧 · 一圈 X 秒」也跟着刷新（异步解码完才有值）
+        if (main != null && main.functionPanels != null) {
+            main.functionPanels.syncGif();
+        }
+    }
+
+    /**
+     * 后台解码视频动图。
+     *
+     * <p>用任务中心显示进度（「任务」面板里能看到），解完在 JavaFX 线程上换图。
+     * 解码期间又导入了别的动图时，这一次的结果会被丢掉（用 token 判断）。</p>
+     */
+    private void loadVideoAsync(File file) {
+        final long token = ++videoLoadToken;
+        JobCenter.Job job = main == null || main.jobCenter() == null
+                ? null
+                : main.jobCenter().start("解码视频动图：" + file.getName());
+        if (job != null) {
+            job.detail.set("用 VLC 抓帧中…（几秒的片子约 1~2 秒）");
+        }
+        Thread worker = new Thread(() -> {
+            AnimatedGif loaded = AnimatedGif.load(file);
+            javafx.application.Platform.runLater(() -> {
+                if (token != videoLoadToken) {
+                    if (job != null) {
+                        job.state.set(JobCenter.State.CANCELLED);
+                        job.detail.set("已被新的导入取代");
+                    }
+                    return;
+                }
+                if (loaded == null) {
+                    if (job != null) {
+                        job.state.set(JobCenter.State.FAILED);
+                        job.detail.set("读不了这个视频（VLC 解不开，或文件损坏）");
+                    }
+                    return;
+                }
+                applyLoaded(loaded, file);
+                if (job != null) {
+                    job.state.set(JobCenter.State.DONE);
+                    job.detail.set(loaded.frameCount() + " 帧 · " + loaded.width() + "×" + loaded.height()
+                            + " · " + Math.round(loaded.naturalMs()) + " ms");
+                }
+            });
+        }, "gif-video-decode");
+        worker.setDaemon(true);
+        worker.setPriority(Thread.MIN_PRIORITY + 1);
+        worker.start();
     }
 
     /** 移除当前动图（并隐藏窗口）。 */

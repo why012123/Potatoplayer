@@ -3871,6 +3871,8 @@ public class FunctionPanels extends VBox {
 
         container.getChildren().add(groupTitle("🎞 动图卡点"));
         Label gifHint = new Label("导入动图后单独弹出一个可拖动的置顶悬浮窗（和桌面歌词一样）。"
+                + "支持 GIF / PNG / JPG，也支持 WebM / MP4 等视频（视频借 VLC 逐帧抓成动图，"
+                + "几秒的片子后台解一两秒，解完自动换上）。"
                 + "「纵向正弦伸缩」是个独立开关：图片高度随时间走一条纯正弦 —— "
                 + "先从原高缩到 l×(1−Ay)，再涨到 l×(1+Ay)，回到原高，如此循环（T 默认 1 秒）；"
                 + "每轮幅度完全相同，处处连续，没有任何跳变或额外效果。"
@@ -4330,12 +4332,17 @@ public class FunctionPanels extends VBox {
 
     // ── 动图卡点 ──
 
-    /** 导入动图（GIF 动图 / PNG·JPG 静态图）并立即显示。 */
+    /** 导入动图（GIF 动图 / PNG·JPG 静态图 / WebM·MP4 等视频）并立即显示。 */
     private void importGif() {
         FileChooser fc = new FileChooser();
         fc.setTitle("导入动图");
         fc.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("动图 / 图片", "*.gif", "*.png", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("动图 / 图片 / 视频",
+                        "*.gif", "*.png", "*.jpg", "*.jpeg",
+                        "*.webm", "*.mp4", "*.m4v", "*.mov", "*.mkv", "*.avi", "*.wmv", "*.flv"),
+                new FileChooser.ExtensionFilter("视频（WebM 等）",
+                        "*.webm", "*.mp4", "*.m4v", "*.mov", "*.mkv", "*.avi", "*.wmv", "*.flv"),
+                new FileChooser.ExtensionFilter("图片", "*.gif", "*.png", "*.jpg", "*.jpeg"),
                 new FileChooser.ExtensionFilter("全部文件", "*.*"));
         File f = fc.showOpenDialog(mainStage());
         if (f == null) {
@@ -4343,11 +4350,18 @@ public class FunctionPanels extends VBox {
         }
         if (!main.gifOverlay().load(f)) {
             warn("导入失败", "读不了这个文件：" + f.getName()
-                    + "\n（支持 GIF / PNG / JPG；单边超过 4096 像素或像素总量过大的动图会被拒绝）");
+                    + "\n（支持 GIF / PNG / JPG 图片，以及 WebM / MP4 等视频；"
+                    + "单边超过 4096 像素或像素总量过大的动图会被拒绝）");
             return;
         }
         main.setGifOverlay(true);
         syncGif();
+        if (com.potato.player.core.VideoFrames.isVideo(f) && gifInfo != null) {
+            // 视频动图是后台抓帧（一两秒），这里给个行内提示，不弹模态框
+            // 解完 GifOverlay 会回调 syncGif()，把这一行换回真实的帧数信息
+            gifInfo.setText("正在解码视频动图：" + f.getName()
+                    + "（借 VLC 抓帧，几秒的片子约 1~2 秒；进度见「任务」面板）");
+        }
     }
 
     /** 显示/隐藏动图悬浮窗（没导入过就先提示导入）。 */
@@ -4357,7 +4371,7 @@ public class FunctionPanels extends VBox {
             return;
         }
         if (!main.setGifOverlay(true)) {
-            info("还没有动图", "先点「📂 导入动图…」选一个 GIF 文件。");
+            info("还没有动图", "先点「📂 导入动图…」选一个文件（GIF / PNG / JPG，或 WebM / MP4 等视频）。");
             return;
         }
         syncGif();

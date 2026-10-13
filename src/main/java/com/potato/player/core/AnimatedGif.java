@@ -98,6 +98,11 @@ public final class AnimatedGif {
         if (file == null || !file.isFile()) {
             return null;
         }
+        // 视频（WebM / MP4…）走 VLC 抓帧：Java 自带库解不了，但本程序本来就带 libvlc
+        if (VideoFrames.isVideo(file)) {
+            VideoFrames.Result result = VideoFrames.decode(file);
+            return result == null ? null : fromVideo(result);
+        }
         try (ImageInputStream in = ImageIO.createImageInputStream(file)) {
             if (in == null) {
                 return null;
@@ -197,9 +202,16 @@ public final class AnimatedGif {
         }
     }
 
+    /** 视频解码结果 → 同一个 AnimatedGif（帧、延时、包围盒都已经算好）。 */
+    private static AnimatedGif fromVideo(VideoFrames.Result result) {
+        if (result == null || result.frames().isEmpty()) {
+            return null;
+        }
+        return new AnimatedGif(result.frames(), result.delaysMs(), result.width(), result.height(), result.bbox());
+    }
+
     /** 一帧的元数据（延时 / 位置 / disposal / 透明索引）。 */
-    private static final class FrameMeta {
-        int delayMs = DEFAULT_DELAY_MS;
+    private static final class FrameMeta {        int delayMs = DEFAULT_DELAY_MS;
         int left;
         int top;
         /** 帧的像素宽高：restoreToBackground 的清理范围要用它（0 = 未知，用第 0 帧兜底）。 */
@@ -416,7 +428,7 @@ public final class AnimatedGif {
     }
 
     /** 统计不透明像素的包围盒（alpha &gt; 8 才算内容），逐帧取并集。 */
-    private static void updateContentBox(int[] bbox, int[] px, int w, int h) {
+    static void updateContentBox(int[] bbox, int[] px, int w, int h) {
         for (int y = 0; y < h; y++) {
             int row = y * w;
             int left = -1;

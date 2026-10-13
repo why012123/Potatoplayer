@@ -6,7 +6,7 @@
 
     <groupId>com.potato</groupId>
     <artifactId>potatoplayer-java</artifactId>
-    <version>2.1.17</version>
+    <version>2.1.18</version>
     <packaging>jar</packaging>
     <name>Potato Player (Java)</name>
     <description>Java port of the Python Potato Player music player</description>
