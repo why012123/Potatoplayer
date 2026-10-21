@@ -14,7 +14,7 @@ public final class AppInfo {
      * （2.0.10 → 2.0.10 → …），除非另行指定版本号。改动要同步记录到
      * {@code CHANGELOG.md} 与 {@code README.md}。</p>
      */
-    public static final String VERSION = "2.1.18";
+    public static final String VERSION = "2.1.19";
     /** 版本分支标识（与原 Python 版区分）。 */
     public static final String EDITION = "Java";
     /** 版本展示文本。 */

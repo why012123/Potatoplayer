@@ -1,6 +1,6 @@
 # Potato Player（Java 版）
 
-**当前版本：`2.1.18`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
+**当前版本：`2.1.19`** ｜ 完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)
 
 > 一个本地音乐播放器：VLC 内核 + JavaFX 界面，带歌词、评分 / 块 / 流派管理、
 > 均衡器、BPM 与「动图卡点」悬浮窗（原版没有的新功能）。
@@ -133,6 +133,10 @@ node app.js       # 默认监听 3000
   **后点的是主键、之前点的依次降为次级键**（点过 A → B → C 就是 C ＞ B ＞ A）
 - ☁️ 网易云音乐（**需要上面的本地服务**）：手机号/Cookie/二维码登录、账号信息、搜索下载、音质选择、单曲导入、歌单浏览（我的歌单/每日推荐）、批量绑定、批量导入歌词、评论
 - 🔐 NCM 解密（纯 Java 实现，不依赖外部工具）
+- 🐾 **迷迭香桌宠（2.1.19）**：把《明日方舟》基建模型**离线烘焙成帧序列**做成桌面宠物 ——
+  自己溜达 / 坐下 / 睡觉，点一下打招呼，双击叫出播放器，拖着走、滚轮缩放、右键菜单调大小与速度；
+  空闲且暂停听歌 3 分钟后会睡着。零新依赖（不需要 WebView / 解码库）、30fps 上限、CPU 很低。
+  **素材版权归鹰角网络，不进本仓库**：`pets/*` 只留一份说明，用 [`tools/bake-pet.mjs`](tools/bake-pet.mjs) 现场烘焙
 - 🎬 沉浸模式：点击封面进入，左右侧栏淡出滑出，左 40% 控件 + 右 60% 七行歌词（前 3 + 当前 + 后 3），ESC 或再点封面退出；切换是「先布局后动画」，过渡期间冻结周期性刷新，进出一律 300ms
 - 🖥 桌面歌词：无边框透明置顶悬浮窗（本句+翻译）、拖拽 / 滚轮调字号 / 右键菜单、描边或底条两种样式、可锁定鼠标穿透
 - 🎚️ 均衡器（**原版没有**）：10 段 ISO 倍频程 + 前级（±20 dB，0.5 dB 步进，拖动实时生效）、18 个 VLC 工厂预设、可命名预设、**全局 / 单曲双层预设 + 换曲自动切换**（单曲预设按相对路径 + 网易云 ID 双键匹配）
@@ -172,6 +176,8 @@ Potatoplayer/
 ├── setup.bat  run.bat  build.bat     # Windows：双击即可，内部调同名的 .ps1
 ├── setup.ps1  run.ps1  build.ps1     # Windows 的真正逻辑（路径、classpath 分隔符都是 Windows 规则）
 ├── docs/                   # 开发时的渲染证据图（界面细节比对）
+├── pets/                   # 桌宠素材位置（仓库里只有 README；帧要自己烘焙）
+├── tools/bake-pet.mjs      # 把基建 Spine 模型烘焙成桌宠帧（Node + Playwright）
 └── src/main/java/com/potato/player/
     ├── App.java            # JavaFX 入口
     ├── core/               # 后端逻辑（与 UI 解耦）
@@ -182,6 +188,7 @@ Potatoplayer/
     │   ├── EqPreset / EqStore.java          # 均衡器
     │   ├── BpmAnalyzer / BpmStore.java      # BPM 分析 + 拍点网格
     │   ├── AnimatedGif / StretchWave.java   # 动图解码（GIF/PNG）+ 拉伸波形
+    │   ├── PetAssets.java                   # 桌宠素材：读烘焙好的 PNG 帧序列（pets/<角色>/）
     │   ├── VideoFrames.java                 # 视频动图解码：借 VLC 回调输出逐帧抓取（WebM/MP4…）
     │   ├── Library.java                     # 歌曲库服务
     │   ├── PlayerEngine.java                # VLC 播放引擎（VLCJ）
@@ -196,6 +203,7 @@ Potatoplayer/
         ├── JobCenter.java           # 任务中心
         ├── DesktopLyrics.java       # 桌面歌词悬浮窗
         ├── GifOverlay.java          # 动图卡点悬浮窗
+        ├── DesktopPet.java          # 迷迭香桌宠（透明置顶窗 + 自己走动 + 交互）
         └── ThemeCss.java            # 主题 → JavaFX CSS
 ```
 

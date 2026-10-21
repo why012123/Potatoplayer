@@ -137,6 +137,8 @@ public class MainWindow {
     /** 动图卡点悬浮窗（懒创建）。 */
     private GifOverlay gifOverlay;
     private FogOverlay fogOverlay;
+    /** 迷迭香桌宠（懒创建）。 */
+    private DesktopPet pet;
 
     /** 沉浸模式：左右侧栏淡出屏幕外，播放面板占满整宽。 */
     public boolean immersive;
@@ -225,6 +227,15 @@ public class MainWindow {
         // 屏幕起雾（测试功能，默认关）
         if (Config.getBool(lib.config(), "fog_on", false)) {
             fogOverlay().setOn(true);
+        }
+
+        // 迷迭香桌宠（素材在 pets/rosmontis；没有素材就静默不显示）
+        if (Config.getBool(lib.config(), "pet_on", false)) {
+            if (pet().show()) {
+                syncPetUi();
+            } else {
+                lib.config().put("pet_on", false);
+            }
         }
         com.potato.player.core.StartupTimer.mark("悬浮窗/歌词恢复");
     }
@@ -414,6 +425,66 @@ public class MainWindow {
         if (functionPanels != null) {
             functionPanels.syncGif();
         }
+    }
+
+    // ── 迷迭香桌宠 ──
+
+    /** 桌宠（懒创建；创建对象本身不会弹窗）。 */
+    public DesktopPet pet() {
+        if (pet == null) {
+            pet = new DesktopPet(this);
+        }
+        return pet;
+    }
+
+    /** 已经创建过的桌宠（没有就返回 null）：给「同步设置页」用，避免为了刷新状态就把它建出来。 */
+    public DesktopPet petIfAny() {
+        return pet;
+    }
+
+    public boolean petShowing() {
+        return pet != null && pet.isShowing();
+    }
+
+    /**
+     * 显示 / 隐藏桌宠。
+     *
+     * @return false 表示素材缺失（{@code pets/rosmontis} 不存在），调用方负责提示
+     */
+    public boolean setPet(boolean on) {
+        boolean ok = true;
+        if (on) {
+            ok = pet().show();
+            if (ok) {
+                pet().setClickThrough(pet().isClickThrough());
+            }
+        } else if (pet != null) {
+            pet.hide();
+        }
+        syncPetUi();
+        lib.config().put("pet_on", on && ok);
+        lib.saveConfig();
+        return ok;
+    }
+
+    /** 桌宠状态变化后刷新设置页。 */
+    public void syncPetUi() {
+        if (functionPanels != null) {
+            functionPanels.syncPet();
+        }
+    }
+
+    /** 现在是不是真的在放声音（桌宠据此决定睡不睡）。 */
+    public boolean isPlayingAudio() {
+        return !stopped && !paused && currentSongPath() != null;
+    }
+
+    /** 把主窗口叫到前面来（双击桌宠时用）。 */
+    public void showPlayerWindow() {
+        stage.show();
+        stage.setIconified(false);
+        stage.toFront();
+        stage.requestFocus();
     }
 
     // ── 沉浸模式 ──
@@ -1128,6 +1199,9 @@ public class MainWindow {
         }
         if (fogOverlay != null) {
             fogOverlay.dispose();
+        }
+        if (pet != null) {
+            pet.dispose();
         }
         if (downloadManager != null) {
             downloadManager.shutdown();

@@ -152,6 +152,13 @@ public class FunctionPanels extends VBox {
     // ── 动图卡点 ──
     private Button gifToggleBtn;
     private Label gifInfo;
+    // ── 桌宠（迷迭香）──
+    private CheckBox petShowCheck;
+    private Label petState;
+    private Spinner<Double> petSizeSpinner;
+    private Spinner<Double> petSpeedSpinner;
+    private CheckBox petAutoCheck;
+    private CheckBox petThroughCheck;
     private Spinner<Double> gifWidthSpinner;
     private CheckBox gifLockCheck;
     private CheckBox gifIntBeatCheck;
@@ -4033,6 +4040,77 @@ public class FunctionPanels extends VBox {
         container.getChildren().add(gifBtnRow);
         syncGif();
 
+        // ── 🐾 桌宠 · 迷迭香 ──
+        container.getChildren().add(groupTitle("🐾 桌宠 · 迷迭香"));
+        Label petHint = new Label("把明日方舟基建模型「迷迭香」放到桌面上：会自己溜达、坐下、睡觉，"
+                + "点一下会跟你打招呼，按住能拖到任意位置，滚轮缩放，右键有菜单。"
+                + "素材是离线烘焙的帧序列（Spine 3.5 基建模型 → PNG，带透明通道），"
+                + "放在工程目录的 pets/rosmontis/ 下（不进公开仓库）；"
+                + "换机器/丢了素材可以运行 tools/bake-pet.mjs 重新烘焙。");
+        petHint.getStyleClass().add("small");
+        petHint.setWrapText(true);
+        container.getChildren().add(petHint);
+
+        petShowCheck = new CheckBox("显示桌宠（迷迭香）");
+        petShowCheck.setSelected(main.petShowing());
+        petShowCheck.setOnAction(e -> {
+            boolean want = petShowCheck.isSelected();
+            if (want && !main.setPet(true)) {
+                petShowCheck.setSelected(false);
+                if (petState != null) {
+                    petState.setText("⚠️ 没找到桌宠素材（pets/rosmontis）：先运行 tools/bake-pet.mjs。");
+                }
+                return;
+            }
+            if (!want) {
+                main.setPet(false);
+            }
+            syncPet();
+        });
+        container.getChildren().add(petShowCheck);
+
+        petState = new Label();
+        petState.getStyleClass().add("small");
+        petState.setWrapText(true);
+        container.getChildren().add(petState);
+
+        petSizeSpinner = new Spinner<>(70.0, 420.0, 150.0, 10.0);
+        petSizeSpinner.setEditable(true);
+        petSizeSpinner.valueProperty().addListener((o, a, b) -> main.pet().setPetWidth(b));
+        container.getChildren().add(field("大小（像素）：", petSizeSpinner));
+
+        petSpeedSpinner = new Spinner<>(10.0, 220.0, 55.0, 5.0);
+        petSpeedSpinner.setEditable(true);
+        petSpeedSpinner.valueProperty().addListener((o, a, b) -> main.pet().setSpeed(b));
+        container.getChildren().add(field("散步速度（像素/秒）：", petSpeedSpinner));
+
+        petAutoCheck = new CheckBox("自己走动（会溜达、坐下、睡觉）");
+        petAutoCheck.setOnAction(e -> main.pet().setAutoMove(petAutoCheck.isSelected()));
+        container.getChildren().add(petAutoCheck);
+
+        petThroughCheck = new CheckBox("鼠标穿透（点不到她，右键菜单也会一起关掉）");
+        petThroughCheck.setDisable(!MacWindowClickThrough.isAvailable());
+        petThroughCheck.setOnAction(e -> main.pet().setClickThrough(petThroughCheck.isSelected()));
+        container.getChildren().add(petThroughCheck);
+
+        HBox petBtnRow = new HBox(6);
+        Button petHello = new Button("👋 打个招呼");
+        petHello.setOnAction(e -> main.pet().greet());
+        Button petGround = new Button("⬇️ 回到地面");
+        petGround.setOnAction(e -> main.pet().resetToGround());
+        Button petReload = new Button("🔄 重新加载素材");
+        petReload.setOnAction(e -> {
+            java.io.File dir = com.potato.player.core.PetAssets.resolveDir(main.lib().config(),
+                    DesktopPet.CHAR_ID);
+            if (!main.pet().reloadAssets(dir)) {
+                petState.setText("⚠️ 这个目录里没有可用素材：" + dir);
+            }
+            syncPet();
+        });
+        petBtnRow.getChildren().addAll(petHello, petGround, petReload);
+        container.getChildren().add(petBtnRow);
+        syncPet();
+
         // ── 🌫 屏幕起雾（测试功能，默认关）──
         container.getChildren().add(groupTitle("🌫 屏幕起雾（测试功能）"));
         Label fogHint = new Label("放歌的时候屏幕会慢慢「起雾」，像冬天玻璃上凝的那层；想看清楚就得拿上面那个小动图"
@@ -4435,6 +4513,65 @@ public class FunctionPanels extends VBox {
             if (Math.abs(gifBeatTrimSpinner.getValue() - trimNow) > 0.01) {
                 gifBeatTrimSpinner.getValueFactory().setValue(trimNow);
             }
+        }
+    }
+
+    /** 桌宠状态变化后同步设置页控件（面板未构建时忽略）。 */
+    public void syncPet() {
+        if (petShowCheck == null) {
+            return;
+        }
+        DesktopPet pet = main.petIfAny();
+        boolean showing = main.petShowing();
+        petShowCheck.setSelected(showing);
+        if (petSizeSpinner != null) {
+            double w = pet != null ? pet.petWidth() : com.potato.player.core.Config.getDouble(
+                    main.lib().config(), "pet_width", 150);
+            if (Math.abs(petSizeSpinner.getValue() - w) > 0.01) {
+                petSizeSpinner.getValueFactory().setValue(w);
+            }
+        }
+        if (petSpeedSpinner != null) {
+            double v = pet != null ? pet.speed() : com.potato.player.core.Config.getDouble(
+                    main.lib().config(), "pet_speed", 55);
+            if (Math.abs(petSpeedSpinner.getValue() - v) > 0.01) {
+                petSpeedSpinner.getValueFactory().setValue(v);
+            }
+        }
+        if (petAutoCheck != null) {
+            petAutoCheck.setSelected(pet != null ? pet.isAutoMove()
+                    : com.potato.player.core.Config.getBool(main.lib().config(), "pet_auto", true));
+        }
+        if (petThroughCheck != null) {
+            petThroughCheck.setSelected(pet != null ? pet.isClickThrough()
+                    : com.potato.player.core.Config.getBool(main.lib().config(), "pet_click_through", false));
+        }
+        if (petState == null) {
+            return;
+        }
+        java.io.File dir = pet != null ? pet.assetDir()
+                : com.potato.player.core.PetAssets.resolveDir(main.lib().config(), DesktopPet.CHAR_ID);
+        if (!com.potato.player.core.PetAssets.available(dir)) {
+            petState.setText("⚠️ 没找到素材目录：" + dir
+                    + "\n先运行 tools/bake-pet.mjs（需要 rhodes-containment-protocol 的基建模型），"
+                    + "或用 -Dpotato.petDir=… / 配置 pet_dir 指向别处。");
+            return;
+        }
+        if (pet == null) {
+            petState.setText("素材已就绪（" + dir + "），勾选上面的开关她就出来了。");
+            return;
+        }
+        String clips = pet.loadedClips();
+        String err = pet.loadError();
+        if (err != null && !err.isBlank()) {
+            petState.setText("⚠️ 加载出错：" + err);
+        } else if (clips.isEmpty()) {
+            petState.setText("正在后台加载素材…（首次约 1~2 秒）");
+        } else {
+            petState.setText((showing ? "已出场" : "未出场")
+                    + " · 当前：" + pet.stateName()
+                    + " · 已加载动作：" + clips
+                    + " · 位置 (" + Math.round(pet.anchorX()) + ", " + Math.round(pet.anchorY()) + ")");
         }
     }
 

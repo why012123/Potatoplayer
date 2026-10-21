@@ -26,3 +26,7 @@ PotatoLibrary/
 *.log
 hs_err_pid*.log
 replay_pid*.log
+
+# 桌宠素材（明日方舟基建模型烘焙出来的帧，版权归鹰角网络；只留说明，不进仓库）
+pets/*
+!pets/README.md
