@@ -82,6 +82,8 @@ public final class DesktopPet {
     private double clipPhaseMs;
     private double stateSinceMs;
     private double nextThinkAtMs;
+    /** 上一次真的走起来的时间：太久没动就强制走两步（不然她可能连着坐下/发呆好几分钟）。 */
+    private double lastWalkAtMs;
     private double walkToX;
     private int facing = 1;
     private double lastInteractionAtMs;
@@ -253,6 +255,7 @@ public final class DesktopPet {
         lastTickNanos = System.nanoTime();
         lastPaintMs = nowMs();
         lastInteractionAtMs = nowMs();
+        lastWalkAtMs = nowMs();
         // 重新显示时把「状态」和「画面」一起拉回待机：
         // 隐藏前如果正在睡觉/坐着，只改 state 不改画面会卡在那段动作上
         enterIdle(2500 + random.nextInt(3000));
@@ -362,6 +365,11 @@ public final class DesktopPet {
 
     private void think(double now) {
         boolean playing = main.isPlayingAudio();
+        // 太久没动就强制走两步：只靠随机的话，可能连着坐/发呆好几分钟看不到她挪窝
+        if (clips.containsKey(PetAssets.CLIP_MOVE) && now - lastWalkAtMs > 18_000) {
+            startWalk();
+            return;
+        }
         double r = random.nextDouble();
         boolean idleLongEnough = now - lastInteractionAtMs > 180_000;
         if (!playing && idleLongEnough && clips.containsKey(PetAssets.CLIP_SLEEP) && r < 0.45) {
@@ -402,6 +410,7 @@ public final class DesktopPet {
             target = anchorX < (left + right) / 2 ? right : left;
         }
         walkToX = Math.max(left, Math.min(right, target));
+        lastWalkAtMs = nowMs();
         setFacing(walkToX < anchorX ? -1 : 1);
         play(PetAssets.CLIP_MOVE, true);
         state = State.WALK;
@@ -814,6 +823,8 @@ public final class DesktopPet {
         cfg.put("pet_click_through", clickThrough);
         cfg.put("pet_x", anchorX);
         cfg.put("pet_y", anchorY);
+        // 立刻落盘：主窗口 close() 不会统一 saveConfig，不存的话拖完/缩放完就丢
+        main.lib().saveConfig();
         // 刻意不写 pet_dir：那是「用户显式指定」才该存在的键，
         // 自动写进去会把素材目录钉死成本机绝对路径，换机器就判成没素材
     }
