@@ -69,6 +69,8 @@ public final class DesktopPet {
     private double anchorY;
     /** 烘焙像素 → 屏幕像素。 */
     private double scale = 1.0;
+    /** 待机动作的烘焙宽度（缩放基准；素材加载好后会更新）。 */
+    private double bakeWidth = 212;
     private double petWidth = 150;
     private double speed = 55;
     private boolean autoMove = true;
@@ -160,6 +162,10 @@ public final class DesktopPet {
             try {
                 PetAssets.load(assetDir, clip -> {
                     clips.put(clip.name(), clip);
+                    if (PetAssets.CLIP_IDLE.equals(clip.name())) {
+                        bakeWidth = Math.max(1, clip.width());
+                        scale = petWidth / bakeWidth;
+                    }
                     synchronized (readyClip) {
                         if (readyClip.length() > 0) {
                             readyClip.append('/');
@@ -247,12 +253,9 @@ public final class DesktopPet {
         lastTickNanos = System.nanoTime();
         lastPaintMs = nowMs();
         lastInteractionAtMs = nowMs();
-        state = State.IDLE;
-        stateSinceMs = nowMs();
-        nextThinkAtMs = nowMs() + 2500 + random.nextInt(3000);
-        if (current == null) {
-            play(PetAssets.CLIP_IDLE, true);
-        }
+        // 重新显示时把「状态」和「画面」一起拉回待机：
+        // 隐藏前如果正在睡觉/坐着，只改 state 不改画面会卡在那段动作上
+        enterIdle(2500 + random.nextInt(3000));
         timer = new AnimationTimer() {
             @Override
             public void handle(long now) {
@@ -727,7 +730,7 @@ public final class DesktopPet {
 
     public void setPetWidth(double width) {
         petWidth = Math.max(70, Math.min(420, width));
-        scale = petWidth / 212.0;
+        scale = petWidth / Math.max(1, bakeWidth);
         applyWindowBounds();
         clampToScreen();
         applyWindowBounds();
@@ -785,7 +788,7 @@ public final class DesktopPet {
     private void restorePreferences() {
         Map<String, Object> cfg = main.lib().config();
         petWidth = Math.max(70, Math.min(420, Config.getDouble(cfg, "pet_width", 150)));
-        scale = petWidth / 212.0;
+        scale = petWidth / Math.max(1, bakeWidth);
         speed = Math.max(10, Math.min(220, Config.getDouble(cfg, "pet_speed", 55)));
         autoMove = Config.getBool(cfg, "pet_auto", true);
         clickThrough = Config.getBool(cfg, "pet_click_through", false);
