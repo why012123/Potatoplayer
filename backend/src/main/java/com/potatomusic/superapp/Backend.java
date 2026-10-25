@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.0.2";
 
     private final Object lock = new Object();
     private final DataStore store;

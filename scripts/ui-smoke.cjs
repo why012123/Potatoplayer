@@ -77,6 +77,17 @@ function delay(ms) {
   assert.equal(state.playing, false, "pause should work");
   console.log("[ui] transport and pause responded");
 
+  await page.locator(".now-playing__art-button").click();
+  await page.waitForSelector(".immerse");
+  assert.ok((await page.locator(".immerse__lyric").count()) > 0, "immersive view should show lyrics");
+  assert.ok(await page.locator(".immerse__top").isVisible(), "immersive shell should be visible");
+  console.log("[ui] immersive playback opened from cover");
+  await page.locator(".immerse__cover-button").click();
+  await page.waitForTimeout(450);
+  assert.equal(await page.locator(".immerse").count(), 0, "cover click should leave immersive view");
+  await page.waitForSelector(".now-playing");
+  console.log("[ui] immersive playback closed from cover");
+
   await page.keyboard.press("Meta+f");
   await page.keyboard.type("Mili");
   await page.waitForSelector(".page--search", { timeout: 5_000 });

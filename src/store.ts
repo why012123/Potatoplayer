@@ -50,6 +50,7 @@ interface AppStore {
   lyricsLoading: boolean;
   lyricsTrackId: string | null;
   rightPanelOpen: boolean;
+  immersive: boolean;
   rightTab: RightTab;
   commandOpen: boolean;
   settingsOpen: boolean;
@@ -90,6 +91,7 @@ interface AppStore {
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   enqueue: (trackId: string, next: boolean) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
+  setImmersive: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
   setCommandOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
@@ -213,6 +215,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lyricsLoading: false,
   lyricsTrackId: null,
   rightPanelOpen: readRightPanel(),
+  immersive: false,
   rightTab: "lyrics",
   commandOpen: false,
   settingsOpen: false,
@@ -695,6 +698,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // Storage is optional.
     }
   },
+  setImmersive: (open) => set({ immersive: open }),
 
   setRightTab: (tab) => set({ rightTab: tab }),
   setCommandOpen: (open) => set({ commandOpen: open }),

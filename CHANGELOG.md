@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The version follows the
 original Potato Player convention: increment the smallest number for each change.
 
+## 1.0.2 — 2026-10-25
+
+### Added
+- Immersive playback: clicking the artwork in the Now Playing rail expands it
+  into a full-window listening page with ambient cover background, large artwork,
+  synced lyrics, progress, transport controls and volume.
+- Click the large artwork again (or press `Esc`) to return to the app shell.
+
 ## 1.0.1 — 2026-10-25
 
 ### Added

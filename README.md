@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`1.0.1` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`1.0.2` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
 
@@ -47,6 +47,8 @@
 | --- | --- |
 | ![Song editor](docs/screenshots/editor.jpg) | ![Expanded layout](docs/screenshots/editor-solo.jpg) |
 
+![Immersive playback](docs/screenshots/immersive.jpg)
+
 | Discover (NetEase) | Tag detail |
 | --- | --- |
 | ![Discover](docs/screenshots/discover.jpg) | ![Tag detail](docs/screenshots/tag.jpg) |
@@ -74,6 +76,7 @@
 - 播放状态由命令、VLC 错误回调和 finished 事件共同决定，避免 libVLC 启动瞬间误判。
 - 右侧 Now Playing 面板始终可见：大封面、进度、控制、音量、歌词 / 队列。
 - 折叠后变成毛玻璃 Mini Player，仍可播放、暂停和打开面板；**页面内容同时自动铺满整个右侧空间，不再留下空白列**。
+- **沉浸模式**：点击右侧正在播放歌曲的封面进入全窗口播放页；点击大封面（或按 `Esc`）退出。窗口里只剩封面、歌词、进度、播放控制与环境背景。
 
 ### 歌曲编辑
 
@@ -274,7 +277,7 @@ covers/                   封面文件
 | `⌘←` / `⌘→` | 上一首 / 下一首 |
 | `⌘E` | 打开歌曲编辑页 |
 | `⌘1` … `⌘7` | Home / Songs / Albums / Artists / Collections / Favorites / Discover |
-| `Esc` | 关闭弹层或清除搜索 |
+| `Esc` | 退出沉浸模式、关闭弹层或清除搜索 |
 | 点击 Now Playing 右上角 `›` | 收起播放器（变为 Mini Player） |
 
 ## 架构
@@ -309,7 +312,7 @@ potatomusic/
 │   ├── preload.cjs           类型化安全桥
 │   └── backend.cjs           Java 子进程 + JSON-RPC
 ├── src/
-│   ├── components/           玻璃组件、播放器、弹窗、命令面板
+│   ├── components/           玻璃组件、播放器、沉浸页、弹窗、命令面板
 │   ├── pages/                Home / Songs / Collections / Editor / Discover …
 │   ├── lib/                  封面、格式化、集合构建
 │   ├── store.ts              Zustand 应用状态

@@ -11,6 +11,7 @@ import {
   Play,
   Repeat,
   Repeat1,
+  Maximize2,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -36,6 +37,7 @@ export function NowPlaying() {
   const rightTab = useAppStore((state) => state.rightTab);
   const setRightTab = useAppStore((state) => state.setRightTab);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
+  const setImmersive = useAppStore((state) => state.setImmersive);
   const playTrack = useAppStore((state) => state.playTrack);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const next = useAppStore((state) => state.next);
@@ -162,14 +164,25 @@ export function NowPlaying() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             >
-              <Cover
-                path={track.coverPath}
-                seed={track.id}
-                label={track.title}
-                radius={24}
-                className="now-playing__art"
-                eager
-              />
+              <button
+                type="button"
+                className="now-playing__art-button"
+                onClick={() => setImmersive(true)}
+                aria-label="Enter immersive playback"
+                title="Open immersive playback"
+              >
+                <Cover
+                  path={track.coverPath}
+                  seed={track.id}
+                  label={track.title}
+                  radius={24}
+                  className="now-playing__art"
+                  eager
+                />
+                <span className="now-playing__art-hint">
+                  <Maximize2 size={13} /> Immersive
+                </span>
+              </button>
             </motion.div>
 
             <div className="now-playing__meta">

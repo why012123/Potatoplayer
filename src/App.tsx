@@ -28,6 +28,7 @@ import { TagPage } from "@/pages/TagPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
+import { ImmersiveView } from "@/components/ImmersiveView";
 
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -119,6 +120,7 @@ export default function App() {
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
+  const immersive = useAppStore((state) => state.immersive);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [palette, setPalette] = useState<{ primary: string; secondary: string } | null>(null);
@@ -191,7 +193,8 @@ export default function App() {
         return;
       }
       if (event.key === "Escape") {
-        if (state.commandOpen) state.setCommandOpen(false);
+        if (state.immersive) state.setImmersive(false);
+        else if (state.commandOpen) state.setCommandOpen(false);
         else if (state.settingsOpen) state.setSettingsOpen(false);
         else if (state.addToPlaylistTrackId) state.setAddToPlaylistTrackId(null);
         else if (state.trackMenu) state.setTrackMenu(null);
@@ -327,6 +330,8 @@ export default function App() {
       </div>
 
       <AnimatePresence>{!rightPanelOpen && <MiniPlayer key="mini-player" />}</AnimatePresence>
+
+      <AnimatePresence>{immersive && <ImmersiveView key="immersive" />}</AnimatePresence>
 
       <CommandPalette />
       <SettingsDialog />
