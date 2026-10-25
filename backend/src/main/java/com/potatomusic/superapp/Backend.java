@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.0.1";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -117,8 +117,10 @@ public final class Backend implements PlaybackController.Host {
                         if (!migrating || notBlank(old.genre)) fresh.genre = old.genre;
                         if (!migrating) {
                             fresh.rating = old.rating;
-                        } else if (old.rating > 0) {
-                            fresh.rating = old.rating;
+                            fresh.note = old.note;
+                        } else {
+                            if (old.rating > 0) fresh.rating = old.rating;
+                            if (notBlank(old.note)) fresh.note = old.note;
                         }
                         fresh.playCount = Math.max(fresh.playCount, old.playCount);
                     }
@@ -350,7 +352,7 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("blocks", copies(state.blocks), "genres", copies(state.genres));
     }
 
-    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating) {
+    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note) {
         Track track = findTrack(trackId);
         if (track == null) {
             throw new IllegalArgumentException("Unknown track.");
@@ -359,6 +361,8 @@ public final class Backend implements PlaybackController.Host {
             track.block = block == null ? "" : block.trim();
             track.genre = genre == null ? "" : genre.trim();
             track.rating = Math.max(0, Math.min(10, rating));
+            String cleanNote = note == null ? "" : note.trim();
+            track.note = cleanNote.length() > 2000 ? cleanNote.substring(0, 2000) : cleanNote;
             ensureTagForValueLocked(state.blocks, track.block);
             ensureTagForValueLocked(state.genres, track.genre);
         }
@@ -590,6 +594,9 @@ public final class Backend implements PlaybackController.Host {
         trackIndex.clear();
         for (Track track : state.tracks) {
             if (track != null && track.id != null) {
+                if (track.block == null) track.block = "";
+                if (track.genre == null) track.genre = "";
+                if (track.note == null) track.note = "";
                 trackIndex.put(track.id, track);
             }
         }
@@ -640,7 +647,8 @@ public final class Backend implements PlaybackController.Host {
                     text(p, "trackId", ""),
                     text(p, "block", ""),
                     text(p, "genre", ""),
-                    number(p, "rating", 0));
+                    number(p, "rating", 0),
+                    text(p, "note", ""));
             case "library.bulkUpdate" -> bulkUpdate(
                     stringList(p.path("trackIds")),
                     text(p, "field", "block"),

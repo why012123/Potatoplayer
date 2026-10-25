@@ -103,12 +103,24 @@ export function DiscoverPage() {
   const [cookieBusy, setCookieBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const autoStartAttempted = useRef(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const next = await window.potato.invoke<NeteaseStatus>("netease.status");
+      let next = await window.potato.invoke<NeteaseStatus>("netease.status");
+      if (!next.service && next.canStart && !autoStartAttempted.current) {
+        autoStartAttempted.current = true;
+        setStarting(true);
+        try {
+          next = await window.potato.invoke<NeteaseStatus>("netease.startService");
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setStarting(false);
+        }
+      }
       setStatus(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

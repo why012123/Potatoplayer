@@ -33,6 +33,12 @@ function delay(ms) {
 
   await page.waitForSelector(".sidebar", { timeout: 30_000 });
   await page.waitForSelector(".media-card", { timeout: 30_000 });
+  // The panel state is persisted between sessions. Tests should begin from the
+  // full three-column state even if a previous run stopped while collapsed.
+  if (await page.locator(".mini-player").count()) {
+    await page.getByRole("button", { name: "Expand now playing" }).click();
+    await page.waitForSelector(".now-playing");
+  }
   await delay(600);
   console.log("[ui] shell and library rendered");
 
@@ -49,6 +55,15 @@ function delay(ms) {
   assert.equal(state.available, true, "VLC should be available");
   assert.equal(state.playing, true, "track should be playing");
   assert.ok(state.time > 0.1, "playback clock should advance");
+  await page
+    .waitForFunction(
+      () => {
+        const image = document.querySelector(".now-playing__art img");
+        return Boolean(image && image.complete && image.naturalWidth > 0);
+      },
+      { timeout: 8_000 },
+    )
+    .catch(() => undefined);
   const cover = await page.evaluate(() => {
     const image = document.querySelector(".now-playing__art img");
     return image ? { complete: image.complete, width: image.naturalWidth } : null;
@@ -101,12 +116,34 @@ function delay(ms) {
   await blockSelect.selectOption("");
 
   await page.locator(".page--songs .track-row .row-more").first().click();
-  await page.getByRole("button", { name: "Blocks & genre…" }).click();
-  await page.waitForSelector(".tag-dialog");
-  await page.locator(".tag-edit-grid select").first().selectOption({ label: "iList Standard" });
-  await page.getByRole("button", { name: "Save song" }).click();
-  await page.waitForTimeout(450);
-  console.log("[ui] per-song block assignment saved");
+  await page.getByRole("button", { name: "Edit in song editor" }).click();
+  await page.waitForSelector(".page--editor", { timeout: 10_000 });
+  await page.locator(".editor-select-wrap select").first().selectOption({ label: "iList Standard" });
+  await page.locator(".editor-note").fill("UI editor note");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.waitForTimeout(650);
+  const editorStatus = await page.locator(".editor-status").innerText();
+  assert.ok(editorStatus.includes("Saved"), "editor should report a saved state");
+  const savedTrack = await page.evaluate(async () => {
+    const data = await window.potato.invoke("bootstrap");
+    return data.tracks.find((track) => track.note === "UI editor note");
+  });
+  assert.ok(savedTrack && savedTrack.block === "iList Standard", "editor changes should persist");
+  const editorTitleBefore = await page.locator(".editor-heading h2").innerText();
+  await page.locator(".editor-track").nth(1).click();
+  await page
+    .waitForFunction(
+      (before) => document.querySelector(".editor-heading h2")?.textContent !== before,
+      editorTitleBefore,
+      { timeout: 5_000 },
+    )
+    .catch(() => undefined);
+  const editorTitleAfter = await page.locator(".editor-heading h2").innerText();
+  assert.notEqual(editorTitleAfter, editorTitleBefore, "editor list should switch the selected song");
+  console.log("[ui] song editor saved block and note, and switched tracks");
+  await page.getByRole("button", { name: "Songs", exact: true }).click();
+  await page.waitForSelector(".page--songs", { timeout: 5_000 });
+  await page.waitForTimeout(350);
 
   await page.getByRole("button", { name: "Select", exact: true }).click();
   await page.locator(".page--songs .track-row").nth(0).click();
@@ -133,7 +170,7 @@ function delay(ms) {
 
   await page.locator(".nav-item--online").click();
   await page.waitForSelector(".page--discover");
-  await page.waitForSelector(".online-user", { timeout: 15_000 });
+  await page.waitForSelector(".online-user", { timeout: 35_000 });
   await page.locator(".online-search input").fill("Mili");
   await page.locator(".online-search button[type=submit]").click();
   await page.waitForSelector(".online-song", { timeout: 25_000 });
@@ -148,9 +185,14 @@ function delay(ms) {
   await page.screenshot({ path: path.join(root, "docs", "screenshots", "command-palette.png") });
   await page.keyboard.press("Escape");
 
+  const widthWithPanel = await page.locator(".page-shell").evaluate((element) => element.getBoundingClientRect().width);
   await page.getByRole("button", { name: "Hide now playing" }).click();
   await page.waitForSelector(".mini-player");
-  console.log("[ui] collapsing now playing shows the mini player");
+  await page.waitForSelector(".workspace-body--solo");
+  await page.waitForTimeout(500);
+  const widthWithoutPanel = await page.locator(".page-shell").evaluate((element) => element.getBoundingClientRect().width);
+  assert.ok(widthWithoutPanel > widthWithPanel + 200, "content should expand when now playing collapses");
+  console.log(`[ui] collapsing now playing expands content ${widthWithPanel} -> ${widthWithoutPanel}px`);
   await page.getByRole("button", { name: "Expand now playing" }).click();
   await page.waitForSelector(".now-playing");
 

@@ -13,7 +13,6 @@ export function TrackMenu() {
   const setTrackMenu = useAppStore((state) => state.setTrackMenu);
   const setAddToPlaylistTrackId = useAppStore((state) => state.setAddToPlaylistTrackId);
   const navigate = useAppStore((state) => state.navigate);
-  const setEditTrackId = useAppStore((state) => state.setEditTrackId);
   const track = tracks.find((item) => item.id === menu?.trackId);
   const favorite = track ? favorites.includes(track.id) : false;
 
@@ -110,12 +109,12 @@ export function TrackMenu() {
               type="button"
               className="menu-item"
               onClick={() => {
-                setEditTrackId(track.id);
+                navigate({ kind: "editor", trackId: track.id });
                 close();
               }}
             >
               <Layers3 size={15} />
-              Blocks & genre…
+              Edit in song editor
             </button>
             <button
               type="button"

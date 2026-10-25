@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`1.0.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`1.0.1` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
 
@@ -43,6 +43,10 @@
 | --- | --- |
 | ![Songs](docs/screenshots/songs.jpg) | ![Blocks and Genres](docs/screenshots/collections.jpg) |
 
+| Song editor | Right panel collapsed |
+| --- | --- |
+| ![Song editor](docs/screenshots/editor.jpg) | ![Expanded layout](docs/screenshots/editor-solo.jpg) |
+
 | Discover (NetEase) | Tag detail |
 | --- | --- |
 | ![Discover](docs/screenshots/discover.jpg) | ![Tag detail](docs/screenshots/tag.jpg) |
@@ -69,7 +73,17 @@
 - 上一首会先回到歌曲开头，再退到上一首（3.5 秒阈值）。
 - 播放状态由命令、VLC 错误回调和 finished 事件共同决定，避免 libVLC 启动瞬间误判。
 - 右侧 Now Playing 面板始终可见：大封面、进度、控制、音量、歌词 / 队列。
-- 折叠后变成毛玻璃 Mini Player，仍可播放、暂停和打开面板。
+- 折叠后变成毛玻璃 Mini Player，仍可播放、暂停和打开面板；**页面内容同时自动铺满整个右侧空间，不再留下空白列**。
+
+### 歌曲编辑
+
+- 独立 **Song editor** 页面，从侧边栏、顶栏铅笔按钮、歌曲 `···` 菜单或 `⌘E` 进入。
+- 左侧是可搜索、可按块 / 流派过滤的歌曲浏览器；右侧是当前歌曲的编辑面板。
+- 可编辑：**Block、Genre、0–10 评分、个人笔记、收藏**。
+- 笔记最多 2000 字，保存到 `library.json`，不修改音频文件标签。
+- 切换歌曲前会自动保存未提交修改；也提供手动 **Save changes / Discard**。
+- Previous / Next 可在全库中顺序编辑；列表会自动滚动到当前歌曲。
+- 编辑结果会保留在重扫和旧资料库迁移之后。
 
 ### 歌词与动效
 
@@ -91,7 +105,7 @@
 - **Tag 详情页**：封面式标签头图、统计、播放 / 随机、完整歌曲表。
 - **Songs 页面**：块 / 流派双筛选 + 数据表中的独立列 + 彩色 pill。
 - **批量归类**：Select → 勾选歌曲 → Assign block / Assign genre；可以输入新名称直接创建标签。
-- **单曲编辑**：任意歌曲的 `···` 菜单 → Blocks & genre…，修改块、流派和 0–10 分评分。
+- **单曲编辑**：任意歌曲的 `···` → **Edit in song editor**，或使用侧栏 **Editor**、顶栏铅笔、`⌘E`，在完整编辑页修改块、流派、评分、个人笔记和收藏。
 - **完整管理器**：创建、改名、改色、删除；删除只清除标签，不删除文件。
 - 用户修改在重扫后保留；已删除的旧标签不会因为再次读取旧资料库而复活。
 
@@ -102,7 +116,7 @@
 
 Discover 页面：
 
-- 本地 `api-enhanced` 服务状态检测与一键启动。
+- 本地 `api-enhanced` 服务状态检测，并会在进入 Discover 时尝试自动启动。
 - **二维码登录**：显示网易云返回的二维码，App 扫码后自动保存 cookie。
 - **Cookie 登录**：粘贴 `MUSIC_U` 即可。
 - 首次启动会读取旧 Potato Player 的 `.cookie`，所以已有登录状态可以无缝继承。
@@ -258,6 +272,7 @@ covers/                   封面文件
 | `⌘K` | 打开命令面板 |
 | `⌘F` | 搜索资料库 |
 | `⌘←` / `⌘→` | 上一首 / 下一首 |
+| `⌘E` | 打开歌曲编辑页 |
 | `⌘1` … `⌘7` | Home / Songs / Albums / Artists / Collections / Favorites / Discover |
 | `Esc` | 关闭弹层或清除搜索 |
 | 点击 Now Playing 右上角 `›` | 收起播放器（变为 Mini Player） |
@@ -295,7 +310,7 @@ potatomusic/
 │   └── backend.cjs           Java 子进程 + JSON-RPC
 ├── src/
 │   ├── components/           玻璃组件、播放器、弹窗、命令面板
-│   ├── pages/                Home / Songs / Collections / Discover …
+│   ├── pages/                Home / Songs / Collections / Editor / Discover …
 │   ├── lib/                  封面、格式化、集合构建
 │   ├── store.ts              Zustand 应用状态
 │   ├── types.ts              渲染层类型

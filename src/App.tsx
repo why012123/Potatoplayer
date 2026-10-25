@@ -22,10 +22,11 @@ import { FavoritesPage } from "@/pages/FavoritesPage";
 import { PlaylistPage } from "@/pages/PlaylistPage";
 import { SearchPage } from "@/pages/SearchPage";
 import { AlbumDetailPage, ArtistDetailPage } from "@/pages/DetailPages";
+import { SongEditorPage } from "@/pages/SongEditorPage";
 import { CollectionsPage } from "@/pages/CollectionsPage";
 import { TagPage } from "@/pages/TagPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
-import { BulkAssignDialog, EditTrackDialog, TaxonomyManager } from "@/components/TagDialogs";
+import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -210,6 +211,14 @@ export default function App() {
         void state.previous();
         return;
       }
+      if (command && event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        const current = state.viewHistory[state.viewIndex];
+        if (current.kind !== "editor") {
+          state.navigate({ kind: "editor", trackId: state.playback?.trackId ?? state.previewTrackId ?? undefined });
+        }
+        return;
+      }
       if (command && /^[1-7]$/.test(event.key)) {
         event.preventDefault();
         const views = [
@@ -247,6 +256,8 @@ export default function App() {
         return <ArtistsPage />;
       case "favorites":
         return <FavoritesPage />;
+      case "editor":
+        return <SongEditorPage />;
       case "collections":
         return <CollectionsPage />;
       case "block":
@@ -291,7 +302,7 @@ export default function App() {
         <Sidebar />
         <div className="workspace">
           <TopBar />
-          <div className="workspace-body">
+          <div className={clsx("workspace-body", !rightPanelOpen && "workspace-body--solo")}>
             <main className="page-shell glass">
               <div className="page-scroll" ref={scrollRef}>
                 <AnimatePresence mode="wait" initial={false}>
@@ -320,7 +331,6 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <TaxonomyManager />
-      <EditTrackDialog />
       <PromptDialog />
       <AddToPlaylistDialog />
       <BulkAssignDialog />

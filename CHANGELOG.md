@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The version follows the
 original Potato Player convention: increment the smallest number for each change.
 
+## 1.0.1 — 2026-10-25
+
+### Added
+- A full **Song editor** page with a searchable/filterable song browser, block and
+  genre assignment, rating, up to 2,000-character personal notes, favorites,
+  discard/save controls and previous/next stepping.
+- Access from the sidebar, the top-bar pencil, the track `···` menu, and `⌘E`.
+- Notes are persisted in `library.json`, imported from legacy ratings, and
+  preserved across rescans.
+
+### Fixed
+- Collapsing the right-hand Now Playing panel no longer leaves a reserved empty
+  column. The content area now expands to fill the window, with the Mini Player
+  remaining available for playback control.
+
 ## 1.0.0 — 2026-10-25
 
 The first **Potatoplayer Super** release — a complete UI rebuild of Potatoplayer

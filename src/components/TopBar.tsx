@@ -6,6 +6,7 @@ import {
   Command,
   RefreshCw,
   Search,
+  SquarePen,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
@@ -23,6 +24,9 @@ export function TopBar() {
   const rescan = useAppStore((state) => state.rescan);
   const setCommandOpen = useAppStore((state) => state.setCommandOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
+  const navigate = useAppStore((state) => state.navigate);
+  const currentTrackId = useAppStore((state) => state.playback?.trackId ?? state.previewTrackId);
+  const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -113,6 +117,18 @@ export function TopBar() {
             </motion.button>
           )}
         </AnimatePresence>
+        <IconButton
+          label="Song editor"
+          variant="glass"
+          size="sm"
+          onClick={() => {
+            if (currentView.kind !== "editor") {
+              navigate({ kind: "editor", trackId: currentTrackId ?? undefined });
+            }
+          }}
+        >
+          <SquarePen size={15} />
+        </IconButton>
         <IconButton label="Command palette" variant="glass" size="sm" onClick={() => setCommandOpen(true)}>
           <Command size={15} />
         </IconButton>

@@ -80,6 +80,7 @@ public final class BackendSelfTest {
                     "cover": "/covers/123.jpg",
                     "genre": "Air",
                     "block": "iList Standard",
+                    "note": "seen live",
                     "score": 8.8,
                     "play_count": 9
                   }
@@ -100,6 +101,7 @@ public final class BackendSelfTest {
         check("KAKO".equals(entry.artist), "legacy artist imported");
         check("Air".equals(entry.genre), "legacy genre imported");
         check("iList Standard".equals(entry.block), "legacy block imported");
+        check("seen live".equals(entry.note), "legacy note imported");
         check(entry.duration == 289, "duration imported from csv");
         check(Math.abs(entry.rating - 8.8) < 0.001, "rating imported");
         check(entry.playCount == 9, "play count imported");

@@ -12,6 +12,7 @@ import {
   ListMusic,
   Music2,
   Search,
+  SquarePen,
   Users,
 } from "lucide-react";
 import type { View } from "@/types";

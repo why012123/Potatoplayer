@@ -27,6 +27,7 @@ public final class LegacyData {
         public String cover;
         public String genre;
         public String block;
+        public String note;
         public double rating;
         public int playCount;
         public int duration;
@@ -87,6 +88,7 @@ public final class LegacyData {
                 entry.cover = string(value.get("cover"), entry.cover);
                 entry.genre = string(value.get("genre"), entry.genre);
                 entry.block = string(value.get("block"), entry.block);
+                entry.note = string(value.get("note"), entry.note);
                 entry.rating = number(value.get("score"), entry.rating);
                 entry.playCount = integer(value.get("play_count"), entry.playCount);
             }

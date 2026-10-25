@@ -8,6 +8,7 @@ export interface Track {
   album: string;
   genre: string;
   block: string;
+  note: string;
   coverPath: string | null;
   duration: number;
   year: number;
@@ -113,6 +114,7 @@ export type View =
   | { kind: "artists" }
   | { kind: "favorites" }
   | { kind: "collections" }
+  | { kind: "editor"; trackId?: string }
   | { kind: "block"; name: string }
   | { kind: "genre"; name: string }
   | { kind: "discover" }

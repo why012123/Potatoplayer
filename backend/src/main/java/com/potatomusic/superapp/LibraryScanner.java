@@ -113,6 +113,9 @@ public final class LibraryScanner {
             if (notBlank(legacyEntry.block)) {
                 track.block = legacyEntry.block;
             }
+            if (notBlank(legacyEntry.note)) {
+                track.note = legacyEntry.note;
+            }
             track.rating = legacyEntry.rating;
             track.playCount = Math.max(0, legacyEntry.playCount);
             track.duration = Math.max(0, legacyEntry.duration);
@@ -185,6 +188,9 @@ public final class LibraryScanner {
         }
         if (track.block == null) {
             track.block = "";
+        }
+        if (track.note == null) {
+            track.note = "";
         }
         return track;
     }

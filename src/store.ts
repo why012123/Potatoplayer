@@ -55,7 +55,6 @@ interface AppStore {
   settingsOpen: boolean;
   trackMenu: TrackMenuState | null;
   addToPlaylistTrackId: string | null;
-  editTrackId: string | null;
   taxonomyManager: TagKind | null;
   bulkAssign: BulkAssignState | null;
   prompt: PromptState | null;
@@ -96,14 +95,16 @@ interface AppStore {
   setSettingsOpen: (open: boolean) => void;
   setTrackMenu: (menu: TrackMenuState | null) => void;
   setAddToPlaylistTrackId: (id: string | null) => void;
-  setEditTrackId: (id: string | null) => void;
   setTaxonomyManager: (kind: TagKind | null) => void;
   setBulkAssign: (value: BulkAssignState | null) => void;
   createTag: (kind: TagKind, name: string, color?: string) => Promise<void>;
   renameTag: (kind: TagKind, oldName: string, name: string) => Promise<void>;
   deleteTag: (kind: TagKind, name: string) => Promise<void>;
   setTagColor: (kind: TagKind, name: string, color: string) => Promise<void>;
-  updateTrack: (trackId: string, patch: { block: string; genre: string; rating: number }) => Promise<void>;
+  updateTrack: (
+    trackId: string,
+    patch: { block: string; genre: string; rating: number; note: string },
+  ) => Promise<boolean>;
   bulkUpdate: (trackIds: string[], field: TagKind, value: string) => Promise<void>;
   openPrompt: (prompt: PromptState) => void;
   closePrompt: () => void;
@@ -138,6 +139,8 @@ function initialView(): View {
       return { kind: "favorites" };
     case "collections":
       return { kind: "collections" };
+    case "editor":
+      return { kind: "editor" };
     case "discover":
       return { kind: "discover" };
     default:
@@ -215,7 +218,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settingsOpen: false,
   trackMenu: null,
   addToPlaylistTrackId: null,
-  editTrackId: null,
   taxonomyManager: null,
   bulkAssign: null,
   prompt: null,
@@ -699,7 +701,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setTrackMenu: (menu) => set({ trackMenu: menu }),
   setAddToPlaylistTrackId: (id) => set({ addToPlaylistTrackId: id }),
-  setEditTrackId: (id) => set({ editTrackId: id }),
   setTaxonomyManager: (kind) => set({ taxonomyManager: kind }),
   setBulkAssign: (value) => set({ bulkAssign: value }),
   createTag: async (kind, name, color) => {
@@ -747,9 +748,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   updateTrack: async (trackId, patch) => {
     try {
       await bridge().invoke("library.updateTrack", { trackId, ...patch });
-      get().pushToast("Song updated", undefined, "success");
+      return true;
     } catch (error) {
       get().pushToast("Could not update song", friendlyError(error), "error");
+      return false;
     }
   },
   bulkUpdate: async (trackIds, field, value) => {
@@ -803,6 +805,8 @@ export function viewKey(view: View): string {
       return `album:${view.key}`;
     case "artist":
       return `artist:${view.name}`;
+    case "editor":
+      return `editor:${view.trackId ?? ""}`;
     case "block":
       return `block:${view.name}`;
     case "genre":

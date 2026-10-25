@@ -9,6 +9,7 @@ public class Track {
     public String album;
     public String genre;
     public String block;
+    public String note;
     public String coverPath;
     public int duration;
     public int year;
@@ -30,6 +31,7 @@ public class Track {
         t.album = album;
         t.genre = genre;
         t.block = block;
+        t.note = note;
         t.coverPath = coverPath;
         t.duration = duration;
         t.year = year;

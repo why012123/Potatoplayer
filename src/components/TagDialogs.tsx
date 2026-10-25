@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
-import {
-  Check,
-  Layers3,
-  LoaderCircle,
-  Pencil,
-  Plus,
-  Tag as TagIcon,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Layers3, LoaderCircle, Pencil, Plus, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { Tag, TagKind } from "@/types";
 import { useAppStore } from "@/store";
 import { Modal } from "@/components/Modal";
-import { Cover } from "@/components/Cover";
 
 const palette = ["#c1845f", "#8b9e73", "#7a86b8", "#bd6e82", "#a68a62", "#5f9a9a", "#9b7bb5", "#c48a4b"];
 
@@ -22,138 +12,6 @@ function defaultColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
   return palette[Math.abs(hash) % palette.length];
-}
-
-export function EditTrackDialog() {
-  const trackId = useAppStore((state) => state.editTrackId);
-  const tracks = useAppStore((state) => state.tracks);
-  const blocks = useAppStore((state) => state.blocks);
-  const genres = useAppStore((state) => state.genres);
-  const updateTrack = useAppStore((state) => state.updateTrack);
-  const setEditTrackId = useAppStore((state) => state.setEditTrackId);
-  const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
-  const track = tracks.find((item) => item.id === trackId);
-  const [block, setBlock] = useState("");
-  const [genre, setGenre] = useState("");
-  const [rating, setRating] = useState(0);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!track) return;
-    setBlock(track.block ?? "");
-    setGenre(track.genre ?? "");
-    setRating(track.rating ?? 0);
-    setBusy(false);
-  }, [track]);
-
-  const close = () => setEditTrackId(null);
-  const save = async () => {
-    if (!track || busy) return;
-    setBusy(true);
-    await updateTrack(track.id, { block, genre, rating });
-    setBusy(false);
-    close();
-  };
-
-  return (
-    <AnimatePresence>
-      {track && (
-        <Modal onClose={close} className="tag-dialog" labelledBy="edit-track-title">
-          <div className="tag-dialog__head">
-            <div className="tag-dialog__track">
-              <Cover path={track.coverPath} seed={track.id} label={track.title} radius={12} />
-              <div>
-                <span className="modal__eyebrow">Edit song</span>
-                <h2 id="edit-track-title">{track.title}</h2>
-                <p>{track.artist}</p>
-              </div>
-            </div>
-            <button type="button" className="icon-button icon-button--ghost icon-button--sm" onClick={close} aria-label="Close">
-              <X size={17} />
-            </button>
-          </div>
-
-          <div className="tag-edit-grid">
-            <label>
-              <span>
-                <Layers3 size={13} /> Block
-              </span>
-              <select className="text-field" value={block} onChange={(event) => setBlock(event.target.value)}>
-                <option value="">No block</option>
-                {blocks.map((tag) => (
-                  <option key={tag.name} value={tag.name}>
-                    {tag.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>
-                <TagIcon size={13} /> Genre
-              </span>
-              <select className="text-field" value={genre} onChange={(event) => setGenre(event.target.value)}>
-                <option value="">No genre</option>
-                {genres.map((tag) => (
-                  <option key={tag.name} value={tag.name}>
-                    {tag.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="rating-editor">
-            <div>
-              <span>Personal rating</span>
-              <strong>{rating.toFixed(1)}</strong>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={0.1}
-              value={rating}
-              onChange={(event) => setRating(Number(event.target.value))}
-              aria-label="Rating"
-            />
-          </div>
-
-          <div className="tag-dialog__links">
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => {
-                setEditTrackId(null);
-                setTaxonomyManager("block");
-              }}
-            >
-              <Plus size={12} /> Manage blocks
-            </button>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => {
-                setEditTrackId(null);
-                setTaxonomyManager("genre");
-              }}
-            >
-              <Plus size={12} /> Manage genres
-            </button>
-          </div>
-
-          <div className="modal__actions">
-            <button type="button" className="button button--glass" onClick={close}>
-              Cancel
-            </button>
-            <button type="button" className="button button--dark" disabled={busy} onClick={() => void save()}>
-              {busy ? <LoaderCircle size={15} className="is-spinning" /> : <Check size={15} />}
-              Save song
-            </button>
-          </div>
-        </Modal>
-      )}
-    </AnimatePresence>
-  );
 }
 
 export function BulkAssignDialog() {

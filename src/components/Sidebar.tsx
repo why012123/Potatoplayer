@@ -12,6 +12,7 @@ import {
   Plus,
   Settings2,
   Sparkles,
+  SquarePen,
   Users,
 } from "lucide-react";
 import clsx from "clsx";
@@ -26,6 +27,7 @@ const items: { label: string; view: View; icon: typeof Home; shortcut: string }[
   { label: "Artists", view: { kind: "artists" }, icon: Users, shortcut: "4" },
   { label: "Collections", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
   { label: "Favorites", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
+  { label: "Editor", view: { kind: "editor" }, icon: SquarePen, shortcut: "7" },
 ];
 
 export function Sidebar() {
@@ -91,7 +93,9 @@ export function Sidebar() {
               key={item.label}
               type="button"
               className={clsx("nav-item", active && "is-active")}
-              onClick={() => navigate(item.view)}
+              onClick={() => {
+                if (!active) navigate(item.view);
+              }}
             >
               {active && (
                 <motion.span

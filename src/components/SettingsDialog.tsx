@@ -156,6 +156,9 @@ export function SettingsDialog() {
                   <Kbd>⌘</Kbd> <Kbd>F</Kbd> Search library
                 </span>
                 <span>
+                  <Kbd>⌘</Kbd> <Kbd>E</Kbd> Song editor
+                </span>
+                <span>
                   <Kbd>⌘</Kbd> <Kbd>←</Kbd> Previous song
                 </span>
                 <span>
