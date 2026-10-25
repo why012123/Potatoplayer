@@ -1,0 +1,520 @@
+package com.potatomusic.superapp;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Owns playback state, the play queue and automatic advance.
+ *
+ * <p>All public methods are synchronized. VLC event callbacks are marshalled
+ * onto a small executor so that the native thread is never blocked.</p>
+ */
+public final class PlaybackController {
+    public interface Host {
+        Track findTrack(String id);
+
+        List<Track> tracks();
+
+        Settings settings();
+
+        void emit(String event, Object data);
+
+        void markPlayed(Track track);
+
+        void scheduleSave();
+    }
+
+    private final Host host;
+    private final ScheduledExecutorService ticker = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "playback-ticker");
+        t.setDaemon(true);
+        return t;
+    });
+    private final ScheduledExecutorService events = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "playback-events");
+        t.setDaemon(true);
+        return t;
+    });
+    private final Random random = new Random();
+
+    private volatile PlaybackEngine engine;
+    private List<String> queue = new ArrayList<>();
+    private int queueIndex = -1;
+    private String currentId;
+    private boolean playing;
+    private double time;
+    private double duration;
+    private String repeat;
+    private boolean shuffle;
+    private boolean muted;
+    private boolean loaded;
+    private double volumeBeforeMute;
+    private long lastPersistedPositionAt;
+    private boolean shuttingDown;
+
+    public PlaybackController(Host host) {
+        this.host = host;
+        this.repeat = normalizeRepeat(host.settings().repeat);
+        this.shuffle = host.settings().shuffle;
+        this.volumeBeforeMute = host.settings().volume;
+        restorePreview();
+        ticker.scheduleAtFixedRate(this::tick, 0, 500, TimeUnit.MILLISECONDS);
+    }
+
+    public synchronized PlaybackEngine engine() {
+        if (engine == null) {
+            PlaybackEngine created = new PlaybackEngine();
+            created.setListener(new PlaybackEngine.Listener() {
+                @Override
+                public void onFinished() {
+                    events.execute(() -> handleFinished());
+                }
+
+                @Override
+                public void onError(String message) {
+                    events.execute(() -> {
+                        synchronized (PlaybackController.this) {
+                            playing = false;
+                            host.emit("toast", Map.of("kind", "error", "message", message));
+                            emitState();
+                        }
+                    });
+                }
+            });
+            engine = created;
+        }
+        return engine;
+    }
+
+    public void warmUpAsync() {
+        Thread thread = new Thread(() -> {
+            try {
+                engine();
+            } catch (Throwable e) {
+                System.err.println("[vlc] " + e.getMessage());
+            }
+        }, "vlc-warmup");
+        thread.setDaemon(true);
+        thread.setPriority(Thread.MIN_PRIORITY);
+        thread.start();
+    }
+
+    public synchronized Map<String, Object> state() {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("trackId", currentId);
+        state.put("playing", playing);
+        state.put("time", round(time));
+        state.put("duration", round(duration));
+        state.put("volume", round(host.settings().volume));
+        state.put("muted", muted);
+        state.put("repeat", repeat);
+        state.put("shuffle", shuffle);
+        state.put("queue", List.copyOf(queue));
+        state.put("queueIndex", queueIndex);
+        PlaybackEngine e = engine;
+        state.put("available", e == null || e.available());
+        state.put("error", e == null ? null : e.error());
+        return state;
+    }
+
+    public synchronized Map<String, Object> play(String trackId, List<String> requestedQueue, double startAt) {
+        Track track = host.findTrack(trackId);
+        if (track == null) {
+            throw new IllegalArgumentException("Unknown track: " + trackId);
+        }
+        List<String> nextQueue = cleanQueue(requestedQueue);
+        if (nextQueue.isEmpty() || !nextQueue.contains(trackId)) {
+            nextQueue = new ArrayList<>();
+            nextQueue.add(trackId);
+        }
+        if (shuffle) {
+            nextQueue = shuffledAround(nextQueue, trackId);
+            queueIndex = 0;
+        } else {
+            queueIndex = nextQueue.indexOf(trackId);
+        }
+        if (queueIndex < 0) {
+            queueIndex = 0;
+        }
+        queue = new ArrayList<>(nextQueue);
+        beginCurrent(Math.max(0, startAt), true);
+        return state();
+    }
+
+    public synchronized Map<String, Object> toggle() {
+        if (currentId == null) {
+            List<Track> all = host.tracks();
+            if (all.isEmpty()) {
+                return state();
+            }
+            List<String> ids = all.stream().map(t -> t.id).toList();
+            return play(ids.get(0), ids, 0);
+        }
+        if (!loaded) {
+            beginCurrent(time >= duration - 1 ? 0 : time, true);
+            return state();
+        }
+        if (playing) {
+            engine().pause();
+            playing = false;
+            persistPosition();
+            emitState();
+        } else {
+            if (duration > 0 && time >= duration - 0.6) {
+                engine().seek(0);
+                time = 0;
+            }
+            engine().resume();
+            playing = true;
+            emitState();
+        }
+        return state();
+    }
+
+    public synchronized Map<String, Object> next(boolean automatic) {
+        syncTime();
+        if (automatic && "one".equals(repeat) && currentId != null) {
+            engine().seek(0);
+            engine().resume();
+            time = 0;
+            playing = true;
+            emitState();
+            return state();
+        }
+        if (queue.isEmpty()) {
+            return state();
+        }
+        if (!loaded) {
+            queueIndex = Math.min(queueIndex + 1, queue.size() - 1);
+            beginCurrent(0, true);
+            return state();
+        }
+        int next = queueIndex + 1;
+        if (next >= queue.size()) {
+            if ("all".equals(repeat)) {
+                next = 0;
+            } else {
+                stopAtEnd();
+                return state();
+            }
+        }
+        queueIndex = next;
+        beginCurrent(0, true);
+        return state();
+    }
+
+    public synchronized Map<String, Object> previous() {
+        syncTime();
+        if (!loaded) {
+            beginCurrent(0, true);
+            return state();
+        }
+        if (time > 3.5) {
+            engine().seek(0);
+            time = 0;
+            emitState();
+            return state();
+        }
+        if (queue.isEmpty()) {
+            return state();
+        }
+        int prev = queueIndex - 1;
+        if (prev < 0) {
+            prev = "all".equals(repeat) ? queue.size() - 1 : 0;
+        }
+        queueIndex = prev;
+        beginCurrent(0, true);
+        return state();
+    }
+
+    public synchronized Map<String, Object> seek(double seconds) {
+        if (currentId == null) {
+            return state();
+        }
+        double target = Math.max(0, Math.min(duration > 0 ? duration : seconds, seconds));
+        if (!loaded) {
+            beginCurrent(target, true);
+            return state();
+        }
+        engine().seek(target);
+        time = target;
+        host.settings().lastPosition = target;
+        host.scheduleSave();
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> setVolume(double value) {
+        double next = Math.max(0, Math.min(1, value));
+        host.settings().volume = next;
+        if (muted && next > 0) {
+            muted = false;
+        }
+        PlaybackEngine e = engine;
+        if (e != null) {
+            e.setVolume(muted ? 0 : next);
+        }
+        host.scheduleSave();
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> setMuted(boolean value) {
+        if (muted && !value) {
+            host.settings().volume = volumeBeforeMute;
+        } else if (!muted && value) {
+            volumeBeforeMute = host.settings().volume;
+        }
+        muted = value;
+        PlaybackEngine e = engine;
+        if (e != null) {
+            e.setVolume(muted ? 0 : host.settings().volume);
+        }
+        host.scheduleSave();
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> setRepeat(String mode) {
+        repeat = normalizeRepeat(mode);
+        host.settings().repeat = repeat;
+        host.scheduleSave();
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> setShuffle(boolean enabled) {
+        shuffle = enabled;
+        host.settings().shuffle = enabled;
+        if (enabled && currentId != null && !queue.isEmpty()) {
+            queue = shuffledAround(queue, currentId);
+            queueIndex = 0;
+        }
+        host.scheduleSave();
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> enqueue(String trackId, boolean playNext) {
+        if (host.findTrack(trackId) == null) {
+            throw new IllegalArgumentException("Unknown track: " + trackId);
+        }
+        if (currentId == null) {
+            queue.add(trackId);
+            if (queueIndex < 0) {
+                queueIndex = 0;
+            }
+        } else if (playNext) {
+            queue.add(Math.min(queueIndex + 1, queue.size()), trackId);
+        } else {
+            queue.add(trackId);
+        }
+        emitState();
+        return state();
+    }
+
+    public synchronized Map<String, Object> setQueue(List<String> ids) {
+        queue = cleanQueue(ids);
+        if (currentId != null) {
+            queueIndex = queue.indexOf(currentId);
+            if (queueIndex < 0) {
+                queue.add(0, currentId);
+                queueIndex = 0;
+            }
+        }
+        emitState();
+        return state();
+    }
+
+    public synchronized void savePositionNow() {
+        if (currentId != null) {
+            syncTime();
+            host.settings().lastTrackId = currentId;
+            host.settings().lastPosition = time;
+        }
+    }
+
+    public synchronized void shutdown() {
+        shuttingDown = true;
+        savePositionNow();
+        ticker.shutdownNow();
+        events.shutdownNow();
+        PlaybackEngine e = engine;
+        if (e != null) {
+            e.release();
+        }
+    }
+
+    private void beginCurrent(double startAt, boolean countPlay) {
+        String id = queueIndex >= 0 && queueIndex < queue.size() ? queue.get(queueIndex) : currentId;
+        Track track = host.findTrack(id);
+        if (track == null) {
+            stopAtEnd();
+            return;
+        }
+        currentId = track.id;
+        duration = Math.max(0, track.duration);
+        time = Math.max(0, startAt);
+        PlaybackEngine e = engine();
+        if (!e.available()) {
+            playing = false;
+            host.emit("toast", Map.of("kind", "error", "message", e.error()));
+            emitState();
+            return;
+        }
+        e.setVolume(muted ? 0 : host.settings().volume);
+        e.play(track.path);
+        loaded = true;
+        playing = true;
+        if (startAt > 0.5) {
+            e.seek(startAt);
+        }
+        host.settings().lastTrackId = track.id;
+        host.settings().lastPosition = startAt;
+        host.scheduleSave();
+        if (countPlay) {
+            host.markPlayed(track);
+        }
+        Map<String, Object> changed = new LinkedHashMap<>();
+        changed.put("trackId", track.id);
+        changed.put("state", state());
+        host.emit("playback.track", changed);
+        emitState();
+    }
+
+    private void handleFinished() {
+        synchronized (this) {
+            if (shuttingDown) {
+                return;
+            }
+            playing = false;
+            next(true);
+        }
+    }
+
+    private void stopAtEnd() {
+        PlaybackEngine e = engine;
+        if (e != null) {
+            e.stop();
+        }
+        playing = false;
+        loaded = false;
+        time = 0;
+        host.settings().lastPosition = 0;
+        host.scheduleSave();
+        emitState();
+    }
+
+    private void restorePreview() {
+        String lastId = host.settings().lastTrackId;
+        Track track = host.findTrack(lastId);
+        if (track == null) {
+            return;
+        }
+        List<String> all = new ArrayList<>();
+        for (Track item : host.tracks()) {
+            all.add(item.id);
+        }
+        if (!all.contains(track.id)) {
+            all.add(0, track.id);
+        }
+        queue = all;
+        queueIndex = Math.max(0, all.indexOf(track.id));
+        currentId = track.id;
+        duration = Math.max(0, track.duration);
+        time = Math.max(0, Math.min(host.settings().lastPosition, duration > 0 ? duration - 1 : 0));
+        loaded = false;
+        playing = false;
+    }
+
+    private void tick() {
+        if (shuttingDown) {
+            return;
+        }
+        synchronized (this) {
+            if (currentId == null) {
+                return;
+            }
+            syncTime();
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("trackId", currentId);
+            data.put("time", round(time));
+            data.put("duration", round(duration));
+            data.put("playing", playing);
+            host.emit("playback.time", data);
+            long now = System.currentTimeMillis();
+            if (now - lastPersistedPositionAt > 10_000) {
+                lastPersistedPositionAt = now;
+                host.settings().lastTrackId = currentId;
+                host.settings().lastPosition = time;
+                host.scheduleSave();
+            }
+        }
+    }
+
+    private void syncTime() {
+        PlaybackEngine e = engine;
+        if (e == null || currentId == null) {
+            return;
+        }
+        double engineTime = e.time();
+        if (engineTime >= 0) {
+            time = engineTime;
+        }
+        double engineLength = e.length();
+        if (engineLength > 1) {
+            duration = engineLength;
+        }
+        // Do not infer pause from isPlaying() here: VLC can report false for a
+        // few hundred milliseconds while it opens the output device. Explicit
+        // commands, errors and the finished callback are the source of truth.
+    }
+
+    private void persistPosition() {
+        host.settings().lastPosition = time;
+        host.settings().lastTrackId = currentId;
+        host.scheduleSave();
+    }
+
+    private void emitState() {
+        host.emit("playback.state", state());
+    }
+
+    private List<String> cleanQueue(List<String> ids) {
+        List<String> clean = new ArrayList<>();
+        if (ids == null) {
+            return clean;
+        }
+        for (String id : ids) {
+            if (id != null && host.findTrack(id) != null && !clean.contains(id)) {
+                clean.add(id);
+            }
+        }
+        return clean;
+    }
+
+    private List<String> shuffledAround(List<String> ids, String firstId) {
+        List<String> rest = new ArrayList<>(ids);
+        rest.remove(firstId);
+        Collections.shuffle(rest, random);
+        List<String> result = new ArrayList<>();
+        result.add(firstId);
+        result.addAll(rest);
+        return result;
+    }
+
+    private static String normalizeRepeat(String value) {
+        return "all".equals(value) || "one".equals(value) ? value : "off";
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 1000.0) / 1000.0;
+    }
+}

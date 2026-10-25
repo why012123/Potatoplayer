@@ -1,0 +1,41 @@
+# Node / renderer
+node_modules/
+dist/
+dist-electron/
+*.log
+npm-debug.log*
+
+# Java
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven wrapper cache / downloaded jars
+.mvn/wrapper/maven-wrapper.jar.tmp
+backend/.deps/
+
+# Runtime data (normally in ~/.potatoplayer-super)
+data/
+covers/
+
+# Local screenshots / scratch
+*.tmp.png
+docs/screenshots/*.raw.png
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Credentials and local settings that must never be committed
+netease_cookie.txt
+*.cookie
+.env

@@ -1,0 +1,49 @@
+{
+  "name": "potatoplayer-super",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Potatoplayer Super — an Electron glass music player with blocks, genres and NetEase, powered by a Java/VLC backend",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n renderer,electron -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --port 5173 --strictPort",
+    "dev:electron": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 node scripts/run-electron.cjs .",
+    "build:renderer": "vite build",
+    "build:backend": "node scripts/build-backend.cjs",
+    "build": "npm run build:backend && npm run build:renderer",
+    "prestart": "npm run build:renderer && node scripts/ensure-backend.cjs",
+    "start": "node scripts/run-electron.cjs .",
+    "typecheck": "tsc --noEmit",
+    "test:backend": "node scripts/test-backend.cjs",
+    "smoke": "node scripts/smoke-backend.cjs",
+    "predev": "node scripts/ensure-backend.cjs",
+    "test:ui": "node scripts/ui-smoke.cjs",
+    "test": "npm run test:backend && npm run test:ui"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.61.0",
+    "motion": "^14.6.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^45.0.0",
+    "playwright-core": "^1.64.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "wait-on": "^9.5.1"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
+}
