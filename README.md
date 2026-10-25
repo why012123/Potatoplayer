@@ -6,6 +6,8 @@
 
 > 当前版本：`1.0.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 
+**快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
+
 ![Home](docs/screenshots/home.jpg)
 
 ## 目录
@@ -125,9 +127,25 @@ Discover 页面：
 - JDK 21+
 - Node.js 22+ / npm 10+
 - VLC（`/Applications/VLC.app`）
-- 可选：Node 18+ 与 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)（网易云功能）
+- 可选：[api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)（网易云功能；使用已安装的 Node 运行）
 
-### 首次启动
+### 一键启动
+
+- **macOS**：双击 [`start.command`](start.command)。
+- **macOS / Linux 终端**：`./start.sh`
+- **Windows**：双击 [`start.bat`](start.bat)。
+
+脚本会自动：
+
+1. 检查 Node.js 22+、JDK 21+ 和 VLC；
+2. 首次运行时安装 npm 依赖；
+3. 构建 React 渲染层；
+4. 检查 Java 音频服务；缺失或源码更新时自动编译；
+5. 启动 Electron。
+
+macOS 双击 `.command` 时会打开一个 Terminal 窗口显示日志；关掉窗口或 `Ctrl+C` 即可退出。
+
+### 手动启动
 
 ```bash
 cd /path/to/potatomusic
@@ -136,13 +154,8 @@ npm install
 npm start
 ```
 
-`npm start` 会：
-
-1. 构建 React 渲染层；
-2. 检查 Java 服务是否缺失或过期，必要时自动编译；
-3. 启动 Electron。
-
-首次 `npm install` 会下载 Electron 运行时。若网络较慢，可以为 npm 配置镜像。
+`npm start` 也会执行构建检查。首次 `npm install` 会下载 Electron
+运行时（约 110MB）；网络较慢时可以为 npm 配置镜像。
 
 ### 开发模式
 
@@ -296,6 +309,9 @@ potatomusic/
 │       ├── Taxonomy.java
 │       ├── NeteaseService.java
 │       └── …
+├── start.command             macOS 双击启动
+├── start.sh                  macOS / Linux 终端启动
+├── start.bat                 Windows 启动
 ├── scripts/                  构建、单测、VLC smoke、Playwright 测试
 ├── build/                    应用图标
 └── docs/screenshots/
