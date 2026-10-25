@@ -154,6 +154,7 @@ public final class PlaybackController {
             queueIndex = 0;
         }
         queue = new ArrayList<>(nextQueue);
+        persistQueue();
         beginCurrent(Math.max(0, startAt), true);
         return state();
     }
@@ -216,6 +217,7 @@ public final class PlaybackController {
             }
         }
         queueIndex = next;
+        persistQueue();
         beginCurrent(0, true);
         return state();
     }
@@ -240,6 +242,7 @@ public final class PlaybackController {
             prev = "all".equals(repeat) ? queue.size() - 1 : 0;
         }
         queueIndex = prev;
+        persistQueue();
         beginCurrent(0, true);
         return state();
     }
@@ -307,6 +310,7 @@ public final class PlaybackController {
             queue = shuffledAround(queue, currentId);
             queueIndex = 0;
         }
+        persistQueue();
         host.scheduleSave();
         emitState();
         return state();
@@ -326,6 +330,7 @@ public final class PlaybackController {
         } else {
             queue.add(trackId);
         }
+        persistQueue();
         emitState();
         return state();
     }
@@ -339,6 +344,7 @@ public final class PlaybackController {
                 queueIndex = 0;
             }
         }
+        persistQueue();
         emitState();
         return state();
     }
@@ -349,6 +355,7 @@ public final class PlaybackController {
             host.settings().lastTrackId = currentId;
             host.settings().lastPosition = time;
         }
+        persistQueue();
     }
 
     public synchronized void shutdown() {
@@ -429,15 +436,19 @@ public final class PlaybackController {
         if (track == null) {
             return;
         }
-        List<String> all = new ArrayList<>();
-        for (Track item : host.tracks()) {
-            all.add(item.id);
+        List<String> all = cleanQueue(host.settings().lastQueue);
+        if (all.isEmpty()) {
+            for (Track item : host.tracks()) {
+                all.add(item.id);
+            }
         }
         if (!all.contains(track.id)) {
             all.add(0, track.id);
         }
         queue = all;
         queueIndex = Math.max(0, all.indexOf(track.id));
+        host.settings().lastQueue = new ArrayList<>(queue);
+        host.settings().lastQueueIndex = queueIndex;
         currentId = track.id;
         duration = Math.max(0, track.duration);
         time = Math.max(0, Math.min(host.settings().lastPosition, duration > 0 ? duration - 1 : 0));
@@ -491,7 +502,41 @@ public final class PlaybackController {
     private void persistPosition() {
         host.settings().lastPosition = time;
         host.settings().lastTrackId = currentId;
+        persistQueue();
         host.scheduleSave();
+    }
+
+    private void persistQueue() {
+        host.settings().lastQueue = new ArrayList<>(queue);
+        host.settings().lastQueueIndex = queueIndex;
+        host.scheduleSave();
+    }
+
+    public synchronized void removeTrack(String trackId) {
+        if (trackId == null) {
+            return;
+        }
+        boolean wasCurrent = trackId.equals(currentId);
+        queue.removeIf(trackId::equals);
+        if (wasCurrent) {
+            PlaybackEngine e = engine;
+            if (e != null) {
+                e.stop();
+            }
+            currentId = null;
+            playing = false;
+            loaded = false;
+            time = 0;
+            duration = 0;
+            queueIndex = -1;
+            host.settings().lastTrackId = null;
+            host.settings().lastPosition = 0;
+        } else if (currentId != null) {
+            queueIndex = queue.indexOf(currentId);
+        }
+        persistQueue();
+        host.scheduleSave();
+        emitState();
     }
 
     private void emitState() {

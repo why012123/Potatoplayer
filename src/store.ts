@@ -109,6 +109,7 @@ interface AppStore {
     trackId: string,
     patch: { block: string; genre: string; rating: number; note: string },
   ) => Promise<boolean>;
+  deleteTrack: (trackId: string) => Promise<boolean>;
   bulkUpdate: (trackIds: string[], field: TagKind, value: string) => Promise<void>;
   openPrompt: (prompt: PromptState) => void;
   closePrompt: () => void;
@@ -759,6 +760,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return true;
     } catch (error) {
       get().pushToast("Could not update song", friendlyError(error), "error");
+      return false;
+    }
+  },
+
+  deleteTrack: async (trackId) => {
+    try {
+      await bridge().invoke("library.deleteTrack", { trackId });
+      const remaining = get().tracks.filter((track) => track.id !== trackId);
+      set({
+        tracks: remaining,
+        favorites: get().favorites.filter((id) => id !== trackId),
+        previewTrackId: get().previewTrackId === trackId ? remaining[0]?.id ?? null : get().previewTrackId,
+      });
+      get().pushToast("Song deleted", "Removed from your library, playlists and queue.", "success");
+      return true;
+    } catch (error) {
+      get().pushToast("Could not delete song", friendlyError(error), "error");
       return false;
     }
   },

@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The version follows the
 original Potato Player convention: increment the smallest number for each change.
 
+## 1.0.4 — 2026-10-25
+
+### Added
+- Song editor now includes a confirmed **Delete song** action. The track is
+  removed from the library, favorites, all playlists and the play queue. Files
+  inside the managed library are moved to the app trash for recovery.
+- The current play queue and queue index persist with settings, so a restart
+  resumes the same queue order as well as the current track and position.
+
+### Fixed
+- Playlist create/rename/delete/add/remove now save immediately, so a playlist
+  created just before quitting survives the next launch.
+
 ## 1.0.3 — 2026-10-25
 
 ### Added

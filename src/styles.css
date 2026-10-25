@@ -7492,3 +7492,70 @@ img {
     display: none;
   }
 }
+
+/* ── Delete song dialog ──────────────────────────────────────────────────── */
+
+.delete-track-dialog {
+  width: min(430px, 100%);
+}
+
+.delete-track-eyebrow {
+  color: #b64033;
+}
+
+.delete-track-target {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 17px;
+  padding: 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.46);
+}
+
+.delete-track-target .cover {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  border-radius: 9px;
+}
+
+.delete-track-target > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.delete-track-target strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.delete-track-target span {
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.delete-track-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 11px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  color: #9a5c24;
+  background: rgba(205, 143, 62, 0.1);
+  border: 1px solid rgba(205, 143, 62, 0.14);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.delete-track-warning svg {
+  flex: none;
+  margin-top: 1px;
+}

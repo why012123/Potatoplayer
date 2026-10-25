@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -18,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "1.0.3";
+    public static final String VERSION = "1.0.4";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -218,7 +219,7 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             state.playlists.add(playlist);
         }
-        scheduleSave();
+        saveNow();
         emitPlaylists();
         return Map.of("playlist", playlist);
     }
@@ -232,7 +233,7 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             playlist.name = clean;
         }
-        scheduleSave();
+        saveNow();
         emitPlaylists();
         return Map.of("playlist", playlist);
     }
@@ -241,7 +242,7 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             state.playlists.removeIf(p -> p.id.equals(playlistId));
         }
-        scheduleSave();
+        saveNow();
         emitPlaylists();
         return Map.of("deleted", true);
     }
@@ -259,7 +260,7 @@ public final class Backend implements PlaybackController.Host {
                 playlist.trackIds.add(trackId);
             }
         }
-        scheduleSave();
+        saveNow();
         emitPlaylists();
         return Map.of("playlist", playlist);
     }
@@ -272,7 +273,7 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             playlist.trackIds.remove(trackId);
         }
-        scheduleSave();
+        saveNow();
         emitPlaylists();
         return Map.of("playlist", playlist);
     }
@@ -371,6 +372,45 @@ public final class Backend implements PlaybackController.Host {
         saveNow();
         emitter.accept("track.updated", track);
         return Map.of("track", track, "blocks", copies(state.blocks), "genres", copies(state.genres));
+    }
+
+    public Map<String, Object> deleteTrack(String trackId) {
+        Track track = findTrack(trackId);
+        if (track == null) {
+            throw new IllegalArgumentException("Unknown track.");
+        }
+        boolean fileMoved = false;
+        if (track.path != null && !track.path.isBlank()) {
+            Path source = Path.of(track.path).toAbsolutePath().normalize();
+            Path root = libraryRootPath();
+            Path normalizedRoot = root == null ? null : root.toAbsolutePath().normalize();
+            if (normalizedRoot != null && source.startsWith(normalizedRoot) && Files.isRegularFile(source)) {
+                try {
+                    Path trash = store.dataDir().resolve("trash");
+                    Files.createDirectories(trash);
+                    String safeName = source.getFileName().toString().replaceAll("[^A-Za-z0-9._-]", "_");
+                    Path target = trash.resolve(System.currentTimeMillis() + "-" + safeName);
+                    Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                    fileMoved = true;
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Could not move the audio file to trash: " + e.getMessage());
+                }
+            }
+        }
+        synchronized (lock) {
+            state.tracks.removeIf(item -> trackId.equals(item.id));
+            state.favorites.remove(trackId);
+            for (Playlist playlist : state.playlists) {
+                playlist.trackIds.remove(trackId);
+            }
+            rebuildIndex();
+        }
+        playback.removeTrack(trackId);
+        saveNow();
+        emitter.accept("library.tracks", Map.of("tracks", List.copyOf(state.tracks)));
+        emitter.accept("library.favorites", Map.of("favorites", List.copyOf(state.favorites)));
+        emitPlaylists();
+        return Map.of("deleted", true, "fileMoved", fileMoved);
     }
 
     public Map<String, Object> bulkUpdate(List<String> trackIds, String field, String value) {
@@ -759,6 +799,7 @@ public final class Backend implements PlaybackController.Host {
             case "taxonomy.rename" -> renameTag(text(p, "kind", "block"), text(p, "oldName", ""), text(p, "name", ""));
             case "taxonomy.delete" -> deleteTag(text(p, "kind", "block"), text(p, "name", ""));
             case "taxonomy.color" -> setTagColor(text(p, "kind", "block"), text(p, "name", ""), text(p, "color", ""));
+            case "library.deleteTrack" -> deleteTrack(text(p, "trackId", ""));
             case "library.updateTrack" -> updateTrack(
                     text(p, "trackId", ""),
                     text(p, "block", ""),

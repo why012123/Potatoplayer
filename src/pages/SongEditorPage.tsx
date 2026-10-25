@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
+  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -17,10 +18,12 @@ import {
   Search,
   Sparkles,
   Tag as TagIcon,
+  Trash2,
 } from "lucide-react";
 import type { TagKind, Track } from "@/types";
 import { useAppStore } from "@/store";
 import { PageHeader } from "@/components/Headers";
+import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
 import { formatTime } from "@/lib/format";
 import { coverUrl } from "@/lib/covers";
@@ -51,6 +54,7 @@ export function SongEditorPage() {
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
   const updateTrack = useAppStore((state) => state.updateTrack);
+  const deleteTrack = useAppStore((state) => state.deleteTrack);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
   const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
   const playTrack = useAppStore((state) => state.playTrack);
@@ -65,6 +69,8 @@ export function SongEditorPage() {
   const [draft, setDraft] = useState<Draft>(() => draftFor(tracks.find((track) => track.id === initialId)));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = tracks.find((track) => track.id === selectedId) ?? tracks[0] ?? null;
@@ -177,6 +183,14 @@ export function SongEditorPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  const removeSelected = async () => {
+    if (!selected || deleting) return;
+    setDeleting(true);
+    const ok = await deleteTrack(selected.id);
+    setDeleting(false);
+    if (ok) setDeleteOpen(false);
+  };
 
   if (!tracks.length) {
     return (
@@ -359,6 +373,15 @@ export function SongEditorPage() {
                     >
                       <Heart size={16} fill={favorite ? "currentColor" : "none"} />
                     </button>
+                    <button
+                      type="button"
+                      className="icon-button icon-button--glass icon-button--sm danger-hover"
+                      aria-label="Delete song"
+                      title="Delete song"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -492,6 +515,41 @@ export function SongEditorPage() {
           )}
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {deleteOpen && selected && (
+          <Modal className="delete-track-dialog" labelledBy="delete-track-title" onClose={() => setDeleteOpen(false)}>
+            <div className="modal__eyebrow delete-track-eyebrow">
+              <Trash2 size={12} /> Danger zone
+            </div>
+            <h2 id="delete-track-title">Delete “{selected.title}”?</h2>
+            <p className="modal__description">
+              This removes the song from your library and playlists. If the audio file is inside your
+              library folder, it is moved to Potatoplayer's trash so it can still be recovered.
+            </p>
+            <div className="delete-track-target">
+              <Cover path={selected.coverPath} seed={selected.id} label={selected.title} radius={10} />
+              <div>
+                <strong>{selected.title}</strong>
+                <span>{selected.artist}</span>
+              </div>
+            </div>
+            <div className="delete-track-warning">
+              <AlertTriangle size={14} />
+              The file will no longer appear in the library.
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="button button--glass" disabled={deleting} onClick={() => setDeleteOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="button button--danger" disabled={deleting} onClick={() => void removeSelected()}>
+                {deleting ? <LoaderCircle size={14} className="is-spinning" /> : <Trash2 size={14} />}
+                Delete song
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
