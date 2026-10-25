@@ -77,6 +77,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const state = await request("bootstrap");
   if (!state.tracks.length) throw new Error("no tracks available to play");
   const track = state.tracks[0];
+  const eq = await request("eq.state");
+  if (eq.available) {
+    await request("eq.setEnabled", { enabled: true });
+    await request("eq.setBand", { index: 0, value: 4 });
+    console.log(`[smoke] VLC equalizer available (${eq.factoryPresets.length} factory presets)`);
+  } else {
+    console.log("[smoke] VLC equalizer unavailable; continuing without EQ");
+  }
   console.log(`[smoke] playing: ${track.artist} — ${track.title}`);
   await request("playback.play", {
     trackId: track.id,
@@ -92,6 +100,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   if (!playing.playing) throw new Error("playback did not start");
   if (playing.time <= 0.3) throw new Error(`playback time did not advance: ${playing.time}`);
   console.log(`[smoke] VLC playback at ${playing.time.toFixed(2)}s / ${playing.duration}s`);
+  if (eq.available) {
+    await request("eq.factoryPreset", { name: "Dance" });
+    await request("eq.setBand", { index: 3, value: -2 });
+    const liveEq = await request("eq.state");
+    const stillPlaying = await request("playback.state");
+    if (!stillPlaying.playing) throw new Error("playback stopped after applying EQ");
+    console.log(`[smoke] EQ live update at preamp ${liveEq.preamp} dB, band 0 ${liveEq.bands[0]} dB`);
+  }
   await request("playback.volume", { volume: 0.4 });
   const volume = await request("playback.state");
   if (Math.abs(volume.volume - 0.4) > 0.01) throw new Error("volume did not update");

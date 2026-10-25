@@ -11,6 +11,7 @@ import {
   Repeat,
   Repeat1,
   Shuffle,
+  SlidersHorizontal,
   SkipBack,
   SkipForward,
   Volume1,
@@ -43,6 +44,7 @@ export function ImmersiveView() {
   const cycleRepeat = useAppStore((state) => state.cycleRepeat);
   const toggleShuffle = useAppStore((state) => state.toggleShuffle);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
+  const setEqOpen = useAppStore((state) => state.setEqOpen);
 
   const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const currentId = playback?.trackId ?? previewTrackId;
@@ -317,6 +319,9 @@ export function ImmersiveView() {
               </div>
 
               <div className="immerse__bottom-note">
+                <button type="button" className="immerse__eq" onClick={() => setEqOpen(true)} aria-label="Open equalizer" title="Equalizer">
+                  <SlidersHorizontal size={16} />
+                </button>
                 <span>{(muted ? 0 : Math.round(volume * 100)) + "%"}</span>
               </div>
             </div>

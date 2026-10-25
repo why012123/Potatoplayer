@@ -24,6 +24,8 @@ public final class PlaybackController {
 
         Settings settings();
 
+        EqStore eqStore();
+
         void emit(String event, Object data);
 
         void markPlayed(Track track);
@@ -88,9 +90,17 @@ public final class PlaybackController {
                     });
                 }
             });
+            created.applyEq(host.eqStore());
             engine = created;
         }
         return engine;
+    }
+
+    public synchronized void applyEq() {
+        PlaybackEngine current = engine;
+        if (current != null) {
+            current.applyEq(host.eqStore());
+        }
     }
 
     public void warmUpAsync() {
@@ -371,6 +381,7 @@ public final class PlaybackController {
         }
         e.setVolume(muted ? 0 : host.settings().volume);
         e.play(track.path);
+        e.applyEq(host.eqStore());
         loaded = true;
         playing = true;
         if (startAt > 0.5) {

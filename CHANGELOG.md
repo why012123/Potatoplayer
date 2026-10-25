@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The version follows the
 original Potato Player convention: increment the smallest number for each change.
 
+## 1.0.3 — 2026-10-25
+
+### Added
+- A global 10-band VLC equalizer with per-band gain, preamp, bypass, VLC factory
+  presets, saved custom curves and persistence in `eq.json`.
+- Access from the Now Playing rail and from immersive playback; adjustments are
+  applied to the active VLC output immediately.
+
 ## 1.0.2 — 2026-10-25
 
 ### Added

@@ -29,6 +29,7 @@ import { DiscoverPage } from "@/pages/DiscoverPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 import { ImmersiveView } from "@/components/ImmersiveView";
+import { EqualizerDialog } from "@/components/EqualizerDialog";
 
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -193,12 +194,13 @@ export default function App() {
         return;
       }
       if (event.key === "Escape") {
-        if (state.immersive) state.setImmersive(false);
-        else if (state.commandOpen) state.setCommandOpen(false);
+        if (state.commandOpen) state.setCommandOpen(false);
         else if (state.settingsOpen) state.setSettingsOpen(false);
+        else if (state.prompt) state.closePrompt();
+        else if (state.eqOpen) state.setEqOpen(false);
         else if (state.addToPlaylistTrackId) state.setAddToPlaylistTrackId(null);
         else if (state.trackMenu) state.setTrackMenu(null);
-        else if (state.prompt) state.closePrompt();
+        else if (state.immersive) state.setImmersive(false);
         else if (state.searchQuery) state.setSearchQuery("");
         return;
       }
@@ -336,6 +338,7 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <TaxonomyManager />
+      <EqualizerDialog />
       <PromptDialog />
       <AddToPlaylistDialog />
       <BulkAssignDialog />

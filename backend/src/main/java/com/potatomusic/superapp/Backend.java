@@ -18,11 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "1.0.2";
+    public static final String VERSION = "1.0.3";
 
     private final Object lock = new Object();
     private final DataStore store;
     private final Settings settings;
+    private final EqStore eqStore;
     private final LibraryState state;
     private final Map<String, Track> trackIndex = new HashMap<>();
     private final NeteaseBindings neteaseBindings;
@@ -47,6 +48,7 @@ public final class Backend implements PlaybackController.Host {
         this.store = new DataStore();
         this.store.ensure();
         this.settings = store.loadSettings();
+        this.eqStore = EqStore.load(store.eqFile());
         this.state = store.loadLibrary();
         resolveLibraryRoot();
         this.neteaseBindings = new NeteaseBindings(store.dataDir());
@@ -475,6 +477,115 @@ public final class Backend implements PlaybackController.Host {
         return tags.stream().map(Tag::copy).toList();
     }
 
+    public Map<String, Object> eqState() {
+        Map<String, Object> out = eqStore.toMap();
+        PlaybackEngine engine = playback.engine();
+        boolean available = engine != null && engine.available() && engine.eqAvailable();
+        out.put("available", available);
+        out.put("error", engine == null ? null : engine.error());
+        out.put("neutralPreamp", EqStore.NEUTRAL_PREAMP);
+        List<Float> frequencies = engine == null ? List.of() : engine.eqFrequencies();
+        if (frequencies.size() < EqStore.BANDS) {
+            frequencies = List.of(31.25f, 62.5f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f);
+        }
+        out.put("frequencies", frequencies);
+        out.put("labels", frequencies.stream().map(Backend::frequencyLabel).toList());
+        List<Map<String, Object>> factory = new ArrayList<>();
+        if (engine != null && available) {
+            for (String name : engine.eqFactoryPresetNames()) {
+                PlaybackEngine.EqCurve curve = engine.eqFactoryPreset(name);
+                if (curve == null) continue;
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("name", name);
+                item.put("preamp", curve.preamp());
+                item.put("bands", curve.bands());
+                factory.add(item);
+            }
+        }
+        out.put("factoryPresets", factory);
+        return out;
+    }
+
+    public Map<String, Object> eqSetEnabled(boolean enabled) {
+        eqStore.enabled = enabled;
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqSetBand(int index, float value) {
+        eqStore.setBand(index, value);
+        saveEq();
+        playback.applyEq();
+        return Map.of("ok", true);
+    }
+
+    public Map<String, Object> eqSetPreamp(float value) {
+        eqStore.setPreamp(value);
+        saveEq();
+        playback.applyEq();
+        return Map.of("ok", true);
+    }
+
+    public Map<String, Object> eqApplyFactoryPreset(String name) {
+        PlaybackEngine engine = playback.engine();
+        PlaybackEngine.EqCurve curve = engine == null ? null : engine.eqFactoryPreset(name);
+        if (curve == null) throw new IllegalArgumentException("Unknown factory preset.");
+        eqStore.bands = curve.bands().clone();
+        eqStore.preamp = curve.preamp();
+        eqStore.enabled = true;
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqApplyPreset(String name) {
+        EqStore.Preset preset = eqStore.presets.get(name);
+        if (preset == null) throw new IllegalArgumentException("Unknown preset.");
+        eqStore.bands = preset.bands.clone();
+        eqStore.preamp = preset.preamp;
+        eqStore.enabled = true;
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqReset() {
+        eqStore.reset();
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqSavePreset(String name) {
+        eqStore.savePreset(name);
+        saveEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqDeletePreset(String name) {
+        eqStore.deletePreset(name);
+        saveEq();
+        return eqState();
+    }
+
+    private void saveEq() {
+        try {
+            eqStore.save(store.eqFile());
+        } catch (Exception e) {
+            System.err.println("[eq] unable to save eq.json: " + e.getMessage());
+        }
+    }
+
+    private static String frequencyLabel(float hz) {
+        if (hz >= 1000f) {
+            float k = hz / 1000f;
+            long rounded = Math.round(k);
+            return (Math.abs(k - rounded) < 0.05f ? String.valueOf(rounded) : String.valueOf(k)) + "k";
+        }
+        return String.valueOf(Math.round(hz));
+    }
+
     @Override
     public Track findTrack(String id) {
         if (id == null) {
@@ -490,6 +601,11 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             return List.copyOf(state.tracks);
         }
+    }
+
+    @Override
+    public EqStore eqStore() {
+        return eqStore;
     }
 
     @Override
@@ -673,6 +789,15 @@ public final class Backend implements PlaybackController.Host {
             case "playback.enqueue" -> playback.enqueue(text(p, "trackId", ""), bool(p, "next", false));
             case "playback.setQueue" -> playback.setQueue(stringList(p.path("queue")));
             case "playback.state" -> playback.state();
+            case "eq.state" -> eqState();
+            case "eq.setEnabled" -> eqSetEnabled(bool(p, "enabled", false));
+            case "eq.setBand" -> eqSetBand((int) number(p, "index", -1), (float) number(p, "value", 0));
+            case "eq.setPreamp" -> eqSetPreamp((float) number(p, "value", EqStore.NEUTRAL_PREAMP));
+            case "eq.factoryPreset" -> eqApplyFactoryPreset(text(p, "name", ""));
+            case "eq.applyPreset" -> eqApplyPreset(text(p, "name", ""));
+            case "eq.reset" -> eqReset();
+            case "eq.savePreset" -> eqSavePreset(text(p, "name", ""));
+            case "eq.deletePreset" -> eqDeletePreset(text(p, "name", ""));
             case "lyrics.get" -> lyrics(text(p, "trackId", ""));
             case "netease.status" -> netease.status();
             case "netease.startService" -> netease.startService();

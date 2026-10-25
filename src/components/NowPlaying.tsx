@@ -12,6 +12,7 @@ import {
   Repeat,
   Repeat1,
   Maximize2,
+  SlidersHorizontal,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -38,6 +39,7 @@ export function NowPlaying() {
   const setRightTab = useAppStore((state) => state.setRightTab);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
   const setImmersive = useAppStore((state) => state.setImmersive);
+  const setEqOpen = useAppStore((state) => state.setEqOpen);
   const playTrack = useAppStore((state) => state.playTrack);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const next = useAppStore((state) => state.next);
@@ -129,6 +131,9 @@ export function NowPlaying() {
           {isPlaying ? "Now playing" : isCurrent ? "Ready to resume" : track ? "Ready when you are" : "Nothing playing"}
         </span>
         <div className="now-playing__head-actions">
+          <IconButton label="Equalizer" variant="ghost" size="sm" onClick={() => setEqOpen(true)}>
+            <SlidersHorizontal size={17} />
+          </IconButton>
           {track && (
             <IconButton
               label="More options"

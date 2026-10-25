@@ -81,12 +81,36 @@ function delay(ms) {
   await page.waitForSelector(".immerse");
   assert.ok((await page.locator(".immerse__lyric").count()) > 0, "immersive view should show lyrics");
   assert.ok(await page.locator(".immerse__top").isVisible(), "immersive shell should be visible");
+  await page.getByRole("button", { name: "Open equalizer" }).click();
+  await page.waitForSelector(".eq-dialog");
+  await page.getByRole("button", { name: "Close equalizer" }).click();
+  await page.waitForSelector(".eq-dialog", { state: "detached" });
+  assert.ok(await page.locator(".immerse__top").isVisible(), "immersive view should remain after closing EQ");
   console.log("[ui] immersive playback opened from cover");
   await page.locator(".immerse__cover-button").click();
   await page.waitForTimeout(450);
   assert.equal(await page.locator(".immerse").count(), 0, "cover click should leave immersive view");
   await page.waitForSelector(".now-playing");
   console.log("[ui] immersive playback closed from cover");
+
+  await page.getByRole("button", { name: "Equalizer" }).click();
+  await page.waitForSelector(".eq-dialog");
+  assert.equal(await page.locator(".eq-band__input").count(), 10, "equalizer should render ten bands");
+  await page.locator(".eq-preset select").selectOption({ label: "Dance" });
+  await page.waitForTimeout(450);
+  const eqState = await page.evaluate(async () => await window.potato.invoke("eq.state"));
+  assert.equal(eqState.enabled, true, "selecting an EQ preset should enable it");
+  assert.equal(eqState.bands.length, 10, "EQ state should contain ten bands");
+  await page.locator(".eq-toolbar__actions button").filter({ hasText: "Save preset" }).click();
+  await page.waitForSelector(".prompt-dialog");
+  await page.locator(".prompt-dialog input").fill("UI curve");
+  await page.locator(".prompt-dialog .button--dark").click();
+  await page.waitForSelector(".prompt-dialog", { state: "detached" });
+  const savedEq = await page.evaluate(async () => await window.potato.invoke("eq.state"));
+  assert.ok(savedEq.presets.some((preset) => preset.name === "UI curve"), "custom EQ preset should be saved");
+  await page.getByRole("button", { name: "Close equalizer" }).click();
+  await page.waitForTimeout(300);
+  console.log("[ui] equalizer rendered, preset applied and closed");
 
   await page.keyboard.press("Meta+f");
   await page.keyboard.type("Mili");

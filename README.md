@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`1.0.2` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`1.0.3` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
 
@@ -49,6 +49,8 @@
 
 ![Immersive playback](docs/screenshots/immersive.jpg)
 
+![Equalizer](docs/screenshots/eq.jpg)
+
 | Discover (NetEase) | Tag detail |
 | --- | --- |
 | ![Discover](docs/screenshots/discover.jpg) | ![Tag detail](docs/screenshots/tag.jpg) |
@@ -87,6 +89,14 @@
 - 切换歌曲前会自动保存未提交修改；也提供手动 **Save changes / Discard**。
 - Previous / Next 可在全库中顺序编辑；列表会自动滚动到当前歌曲。
 - 编辑结果会保留在重扫和旧资料库迁移之后。
+
+### 均衡器
+
+- **10 段 VLC 均衡器**：31 Hz – 16 kHz，每段 ±20 dB；前级以 `0 dB = unity` 显示。
+- 入口：右侧正在播放栏的滑杆按钮，或沉浸页右下角。
+- 支持 VLC 内置预设（Flat、Dance、Rock 等 18 个）、Bypass、Flat 复位、自定义预设保存 / 删除。
+- 调整会实时作用到当前播放；关闭后继续保留。
+- 全部设置持久化在 `~/.potatoplayer-super/eq.json`。
 
 ### 歌词与动效
 
@@ -312,7 +322,7 @@ potatomusic/
 │   ├── preload.cjs           类型化安全桥
 │   └── backend.cjs           Java 子进程 + JSON-RPC
 ├── src/
-│   ├── components/           玻璃组件、播放器、沉浸页、弹窗、命令面板
+│   ├── components/           玻璃组件、播放器、沉浸页、均衡器、弹窗、命令面板
 │   ├── pages/                Home / Songs / Collections / Editor / Discover …
 │   ├── lib/                  封面、格式化、集合构建
 │   ├── store.ts              Zustand 应用状态

@@ -2,10 +2,13 @@ package com.potatomusic.superapp;
 
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery;
+import uk.co.caprica.vlcj.player.base.Equalizer;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /** Thin, defensive wrapper around VLCJ. Audio only; no video surface is needed. */
@@ -16,14 +19,19 @@ public final class PlaybackEngine {
         void onError(String message);
     }
 
+    public record EqCurve(float preamp, float[] bands) {
+    }
+
     private final MediaPlayerFactory factory;
     private final MediaPlayer player;
+    private final Equalizer equalizer;
     private final String initError;
     private volatile Listener listener;
 
     public PlaybackEngine() {
         MediaPlayerFactory createdFactory = null;
         MediaPlayer createdPlayer = null;
+        Equalizer createdEqualizer = null;
         String error = null;
         try {
             boolean discovered = new NativeDiscovery().discover();
@@ -35,6 +43,11 @@ public final class PlaybackEngine {
             }
             createdFactory = new MediaPlayerFactory();
             createdPlayer = createdFactory.mediaPlayers().newMediaPlayer();
+            try {
+                createdEqualizer = createdFactory.equalizer().newEqualizer();
+            } catch (Throwable ignored) {
+                // Old libVLC builds may not expose the equalizer API.
+            }
             createdPlayer.events().addMediaPlayerEventListener(new MediaPlayerEventAdapter() {
                 @Override
                 public void finished(MediaPlayer mediaPlayer) {
@@ -71,6 +84,7 @@ public final class PlaybackEngine {
         }
         this.factory = createdFactory;
         this.player = createdPlayer;
+        this.equalizer = createdEqualizer;
         this.initError = error;
     }
 
@@ -138,6 +152,56 @@ public final class PlaybackEngine {
     public void setVolume(double volume) {
         if (player != null) {
             player.audio().setVolume((int) Math.round(Math.max(0, Math.min(1.2, volume)) * 100));
+        }
+    }
+
+    public boolean eqAvailable() {
+        return player != null && equalizer != null;
+    }
+
+    public void applyEq(EqStore store) {
+        if (player == null || equalizer == null || store == null) {
+            return;
+        }
+        try {
+            int count = Math.min(EqStore.BANDS, equalizer.bandCount());
+            for (int i = 0; i < count; i++) {
+                equalizer.setAmp(i, EqStore.clamp(store.bands[i]));
+            }
+            equalizer.setPreamp(EqStore.clamp(store.preamp));
+            player.audio().setEqualizer(store.enabled ? equalizer : null);
+        } catch (Throwable e) {
+            System.err.println("[eq] unable to apply equalizer: " + e.getMessage());
+        }
+    }
+
+    public List<Float> eqFrequencies() {
+        try {
+            if (factory != null) return factory.equalizer().bands();
+        } catch (Throwable ignored) {
+        }
+        return List.of(31.25f, 62.5f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f);
+    }
+
+    public List<String> eqFactoryPresetNames() {
+        try {
+            if (factory != null) return factory.equalizer().presets();
+        } catch (Throwable ignored) {
+        }
+        return List.of();
+    }
+
+    public EqCurve eqFactoryPreset(String name) {
+        if (factory == null || name == null || name.isBlank()) return null;
+        try {
+            Equalizer preset = factory.equalizer().newEqualizer(name);
+            if (preset == null) return null;
+            float[] bands = new float[EqStore.BANDS];
+            int count = Math.min(EqStore.BANDS, preset.bandCount());
+            for (int i = 0; i < count; i++) bands[i] = preset.amp(i);
+            return new EqCurve(preset.preamp(), bands);
+        } catch (Throwable e) {
+            return null;
         }
     }
 

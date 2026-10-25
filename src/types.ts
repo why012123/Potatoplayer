@@ -163,6 +163,25 @@ export interface NeteasePlaylist {
   creator: string;
 }
 
+export interface EqPresetData {
+  name: string;
+  preamp: number;
+  bands: number[];
+}
+
+export interface EqState {
+  enabled: boolean;
+  available: boolean;
+  error: string | null;
+  preamp: number;
+  neutralPreamp: number;
+  bands: number[];
+  frequencies: number[];
+  labels: string[];
+  presets: EqPresetData[];
+  factoryPresets: EqPresetData[];
+}
+
 export interface DownloadJob {
   jobId: string;
   neteaseId: string;
