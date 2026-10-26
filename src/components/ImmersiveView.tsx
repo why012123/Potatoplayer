@@ -26,6 +26,7 @@ import { Slider } from "@/components/Slider";
 import { useAppStore } from "@/store";
 import { coverUrl } from "@/lib/covers";
 import { formatTime } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 import { Lyric3DStage } from "@/components/Lyric3DStage";
 import { ImmersiveCustomizer } from "@/components/ImmersiveCustomizer";
 import {
@@ -55,6 +56,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
   const setEqOpen = useAppStore((state) => state.setEqOpen);
   const ensureLyrics = useAppStore((state) => state.ensureLyrics);
+  const tr = useTr();
   const [prefs, setPrefs] = useState<ImmersivePreferences>(() => loadImmersivePreferences());
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const view3d = prefs.lyricView === "3d";
@@ -150,6 +152,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     !prefs.showProgress && "immerse--no-progress",
     !prefs.showVolume && "immerse--no-volume",
     !prefs.showFavorite && "immerse--no-favorite",
+    !prefs.lyricsFrame && "immerse--no-lyrics-frame",
     prefs.lyricAlign === "center" && "immerse--lyrics-center",
     prefs.lyricSerif && "immerse--serif",
   );
@@ -230,19 +233,19 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
         </div>
         <div className="immerse__label">
           <EqualizerBars playing={isPlaying} />
-          Immersive listening
+          {tr("Immersive listening", "沉浸聆听")}
         </div>
         <div className="immerse__top-right">
-          <div className="immerse__view-switch" role="group" aria-label="Lyric view">
-            <button type="button" className="is-active">经典</button>
-            <button type="button" onClick={() => setView3d(true)}>3D 演出</button>
+          <div className="immerse__view-switch" role="group" aria-label={tr("Lyric view", "歌词视图")}>
+            <button type="button" className="is-active">{tr("Classic", "经典")}</button>
+            <button type="button" onClick={() => setView3d(true)}>{tr("3D stage", "3D 演出")}</button>
           </div>
-          <button type="button" className="immerse__customize" onClick={() => setCustomizerOpen(true)} title="Customize immersive mode" aria-label="Customize immersive mode">
+          <button type="button" className="immerse__customize" onClick={() => setCustomizerOpen(true)} title={tr("Customize immersive mode", "自定义沉浸模式")} aria-label={tr("Customize immersive mode", "自定义沉浸模式")}>
             <SlidersHorizontal size={15} />
           </button>
           <div className="immerse__exit-hint">
             <Minimize2 size={13} />
-            Click the artwork to exit
+            {tr("Click the artwork to exit", "点击封面退出")}
           </div>
         </div>
       </header>
@@ -262,8 +265,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                   type="button"
                   className="immerse__cover-button"
                   onClick={exit}
-                  aria-label="Exit immersive playback"
-                  title="Click artwork to exit immersive mode"
+                  aria-label={tr("Exit immersive playback", "退出沉浸播放")}
+                  title={tr("Click artwork to exit immersive mode", "点击封面退出沉浸模式")}
                 >
                   <Cover
                     path={track.coverPath}
@@ -274,7 +277,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                     eager
                   />
                   <span className="immerse__cover-hint">
-                    <Minimize2 size={14} /> Exit immersive
+                    <Minimize2 size={14} /> {tr("Exit immersive", "退出沉浸模式")}
                   </span>
                 </button>
               </motion.div>
@@ -290,12 +293,16 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                 >
                   <span className="immerse__eyebrow">
                     {isPlaying ? <EqualizerBars playing /> : <Maximize2 size={12} />}
-                    {isPlaying ? "Now playing" : isCurrent ? "Paused" : "Ready when you are"}
+                    {isPlaying
+                      ? tr("Now playing", "正在播放")
+                      : isCurrent
+                        ? tr("Paused", "已暂停")
+                        : tr("Ready when you are", "随时开始")}
                   </span>
                   <h1>{track.title}</h1>
                   <p>{track.artist}</p>
                   <div className="immerse__meta">
-                    <span>{track.album || `${track.artist} · Collection`}</span>
+                    <span>{track.album || tr("{artist} · Collection", "{artist} · 精选集", { artist: track.artist })}</span>
                     <i />
                     <span>{formatTime(track.duration)}</span>
                     {track.rating > 0 && (
@@ -307,7 +314,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                     <button
                       type="button"
                       className={`immerse__favorite ${favorite ? "is-favorite" : ""}`}
-                      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+                      aria-label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加到收藏")}
                       onClick={() => void toggleFavorite(track.id)}
                     >
                       <Heart size={16} fill={favorite ? "currentColor" : "none"} />
@@ -320,9 +327,9 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
             <section className="immerse__lyrics-side">
               <div className="immerse__lyrics-head">
                 <span>
-                  <Mic2 size={14} /> Lyrics
+                  <Mic2 size={14} /> {tr("Lyrics", "歌词")}
                 </span>
-                {lyrics?.translated && <em>Original + translation</em>}
+                {lyrics?.translated && <em>{tr("Original + translation", "原文 + 翻译")}</em>}
               </div>
               {lyrics?.found && lyrics.lines.length ? (
                 <div className="immerse__lyrics-scroll">
@@ -349,8 +356,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
               ) : (
                 <div className="immerse__no-lyrics">
                   <Disc3 size={25} />
-                  <strong>Let the music speak.</strong>
-                  <span>No lyrics file was found for this song.</span>
+                  <strong>{tr("Let the music speak.", "让音乐说话。")}</strong>
+                  <span>{tr("No lyrics file was found for this song.", "未找到这首歌的歌词文件。")}</span>
                 </div>
               )}
             </section>
@@ -360,7 +367,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
             <div className="immerse__timeline">
               <span>{formatTime(time)}</span>
               <Slider
-                label="Playback position"
+                label={tr("Playback position", "播放进度")}
                 value={Math.min(time, duration || time)}
                 max={duration || 1}
                 className="immerse-range"
@@ -379,11 +386,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
 
             <div className="immerse__control-row">
               <div className="immerse__volume">
-                <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? "Unmute" : "Mute"}>
+                <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? tr("Unmute", "取消静音") : tr("Mute", "静音")}>
                   {volumeIcon}
                 </button>
                 <Slider
-                  label="Volume"
+                  label={tr("Volume", "音量")}
                   value={muted ? 0 : volume}
                   max={1}
                   compact
@@ -397,35 +404,39 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                   type="button"
                   className={shuffle ? "is-active" : ""}
                   onClick={() => void toggleShuffle()}
-                  aria-label="Shuffle"
+                  aria-label={tr("Shuffle", "随机播放")}
                 >
                   <Shuffle size={19} />
                 </button>
-                <button type="button" onClick={() => void previous()} aria-label="Previous" disabled={!isCurrent}>
+                <button type="button" onClick={() => void previous()} aria-label={tr("Previous", "上一首")} disabled={!isCurrent}>
                   <SkipBack size={27} fill="currentColor" strokeWidth={0.6} />
                 </button>
-                <button type="button" className="immerse__play" onClick={onPlay} aria-label={isPlaying ? "Pause" : "Play"}>
+                <button type="button" className="immerse__play" onClick={onPlay} aria-label={isPlaying ? tr("Pause", "暂停") : tr("Play", "播放")}>
                   {isPlaying ? (
                     <Pause size={27} fill="currentColor" strokeWidth={0} />
                   ) : (
                     <Play size={27} fill="currentColor" strokeWidth={0} />
                   )}
                 </button>
-                <button type="button" onClick={() => void next()} aria-label="Next" disabled={!isCurrent}>
+                <button type="button" onClick={() => void next()} aria-label={tr("Next", "下一首")} disabled={!isCurrent}>
                   <SkipForward size={27} fill="currentColor" strokeWidth={0.6} />
                 </button>
                 <button
                   type="button"
                   className={repeat !== "off" ? "is-active" : ""}
                   onClick={() => void cycleRepeat()}
-                  aria-label={repeat === "one" ? "Repeat one" : repeat === "all" ? "Repeat all" : "Repeat off"}
+                  aria-label={repeat === "one"
+                    ? tr("Repeat one", "单曲循环")
+                    : repeat === "all"
+                      ? tr("Repeat all", "列表循环")
+                      : tr("Repeat off", "不循环")}
                 >
                   {repeat === "one" ? <Repeat1 size={19} /> : <Repeat size={19} />}
                 </button>
               </div>
 
               <div className="immerse__bottom-note">
-                <button type="button" className="immerse__eq" onClick={() => setEqOpen(true)} aria-label="Open equalizer" title="Equalizer">
+                <button type="button" className="immerse__eq" onClick={() => setEqOpen(true)} aria-label={tr("Open equalizer", "打开均衡器")} title={tr("Equalizer", "均衡器")}>
                   <SlidersHorizontal size={16} />
                 </button>
                 <span>{(muted ? 0 : Math.round(volume * 100)) + "%"}</span>
@@ -435,11 +446,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
         </>
       ) : (
         <div className="immerse__empty">
-          <button type="button" className="immerse__empty-cover" onClick={exit} aria-label="Exit immersive mode">
+          <button type="button" className="immerse__empty-cover" onClick={exit} aria-label={tr("Exit immersive mode", "退出沉浸模式")}>
             <Disc3 size={44} />
           </button>
-          <h1>Nothing is playing.</h1>
-          <p>Choose a song, then click its artwork to enter the listening room.</p>
+          <h1>{tr("Nothing is playing.", "暂无播放。")}</h1>
+          <p>{tr("Choose a song, then click its artwork to enter the listening room.", "选择一首歌曲，然后点击封面进入聆听室。")}</p>
         </div>
       )}
 

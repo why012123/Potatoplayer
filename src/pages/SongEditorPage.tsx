@@ -26,6 +26,7 @@ import { PageHeader } from "@/components/Headers";
 import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
 import { formatTime } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 import { coverUrl } from "@/lib/covers";
 
 type Draft = {
@@ -59,6 +60,7 @@ export function SongEditorPage() {
   const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
   const playTrack = useAppStore((state) => state.playTrack);
   const togglePlay = useAppStore((state) => state.togglePlay);
+  const tr = useTr();
 
   const initialId =
     (view.kind === "editor" && view.trackId) || playback?.trackId || previewTrackId || tracks[0]?.id || null;
@@ -75,6 +77,7 @@ export function SongEditorPage() {
 
   const selected = tracks.find((track) => track.id === selectedId) ?? tracks[0] ?? null;
   const favorite = selected ? favorites.includes(selected.id) : false;
+  const favoriteLabel = favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏");
   const playing = Boolean(selected && playback?.trackId === selected.id && playback.playing);
   const coverSeed = selected?.id ?? "editor";
 
@@ -197,16 +200,24 @@ export function SongEditorPage() {
     return (
       <div className="page">
         <PageHeader
-          eyebrow="Curation"
-          title="Song editor"
-          description="Add music to your library first, then shape how each song is filed."
+          eyebrow={tr("Curation", "策展")}
+          title={tr("Song editor", "歌曲编辑")}
+          description={tr(
+            "Add music to your library first, then shape how each song is filed.",
+            "请先向资料库添加音乐，再来整理每首歌的归档方式。",
+          )}
         />
         <div className="empty-stage glass empty-stage--compact">
           <div className="empty-stage__icon empty-stage__icon--plain">
             <Disc3 size={28} />
           </div>
-          <h2>No songs to edit yet.</h2>
-          <p>Choose a music folder from Home, then come back to edit blocks, genres, ratings and notes.</p>
+          <h2>{tr("No songs to edit yet.", "暂无可编辑的歌曲。")}</h2>
+          <p>
+            {tr(
+              "Choose a music folder from Home, then come back to edit blocks, genres, ratings and notes.",
+              "请先在首页选择音乐文件夹，再回来编辑区块、流派、评分和备注。",
+            )}
+          </p>
         </div>
       </div>
     );
@@ -215,16 +226,19 @@ export function SongEditorPage() {
   return (
     <div className="page page--editor">
       <PageHeader
-        eyebrow="Curation"
-        title="Song editor"
-        description="One song at a time: file it, rate it, leave a note. Changes save into your library, not the audio file."
+        eyebrow={tr("Curation", "策展")}
+        title={tr("Song editor", "歌曲编辑")}
+        description={tr(
+          "One song at a time: file it, rate it, leave a note. Changes save into your library, not the audio file.",
+          "一次一首歌：归档、评分、留下备注。更改只保存到资料库，不会改动音频文件。",
+        )}
         actions={
           <>
             <button type="button" className="button button--glass" onClick={() => setTaxonomyManager("block")}>
-              <Layers3 size={14} /> Blocks
+              <Layers3 size={14} /> {tr("Blocks", "区块")}
             </button>
             <button type="button" className="button button--glass" onClick={() => setTaxonomyManager("genre")}>
-              <TagIcon size={14} /> Genres
+              <TagIcon size={14} /> {tr("Genres", "流派")}
             </button>
           </>
         }
@@ -236,12 +250,12 @@ export function SongEditorPage() {
             <Search size={14} />
             <input
               value={query}
-              placeholder="Find a song…"
-              aria-label="Find a song to edit"
+              placeholder={tr("Find a song…", "查找歌曲…")}
+              aria-label={tr("Find a song to edit", "查找要编辑的歌曲")}
               onChange={(event) => setQuery(event.target.value)}
             />
             {query && (
-              <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
+              <button type="button" aria-label={tr("Clear search", "清除搜索")} onClick={() => setQuery("")}>
                 ×
               </button>
             )}
@@ -249,8 +263,12 @@ export function SongEditorPage() {
           <div className="editor-filters">
             <label>
               <span className="editor-filter-dot" style={{ background: blockColor }} />
-              <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)} aria-label="Filter by block">
-                <option value="">All blocks</option>
+              <select
+                value={blockFilter}
+                onChange={(event) => setBlockFilter(event.target.value)}
+                aria-label={tr("Filter by block", "按区块筛选")}
+              >
+                <option value="">{tr("All blocks", "全部区块")}</option>
                 {blocks.map((tag) => (
                   <option key={tag.name} value={tag.name}>
                     {tag.name}
@@ -260,8 +278,12 @@ export function SongEditorPage() {
             </label>
             <label>
               <span className="editor-filter-dot" style={{ background: genreColor }} />
-              <select value={genreFilter} onChange={(event) => setGenreFilter(event.target.value)} aria-label="Filter by genre">
-                <option value="">All genres</option>
+              <select
+                value={genreFilter}
+                onChange={(event) => setGenreFilter(event.target.value)}
+                aria-label={tr("Filter by genre", "按流派筛选")}
+              >
+                <option value="">{tr("All genres", "全部流派")}</option>
                 {genres.map((tag) => (
                   <option key={tag.name} value={tag.name}>
                     {tag.name}
@@ -271,7 +293,13 @@ export function SongEditorPage() {
             </label>
           </div>
           <div className="editor-browser__meta">
-            <span>{filtered.length} songs</span>
+            <span>
+              {tr(
+                filtered.length === 1 ? "{count} song" : "{count} songs",
+                "{count} 首歌曲",
+                { count: filtered.length },
+              )}
+            </span>
             {blockFilter || genreFilter ? (
               <button
                 type="button"
@@ -280,7 +308,7 @@ export function SongEditorPage() {
                   setGenreFilter("");
                 }}
               >
-                Clear filters
+                {tr("Clear filters", "清除筛选")}
               </button>
             ) : null}
           </div>
@@ -310,7 +338,7 @@ export function SongEditorPage() {
                 </button>
               );
             })}
-            {!filtered.length && <p className="editor-list__empty">No songs match these filters.</p>}
+            {!filtered.length && <p className="editor-list__empty">{tr("No songs match these filters.", "没有歌曲符合这些筛选条件。")}</p>}
           </div>
         </aside>
 
@@ -338,7 +366,7 @@ export function SongEditorPage() {
                 </div>
                 <div className="editor-heading">
                   <span className="eyebrow">
-                    <Sparkles size={12} /> Selected song
+                    <Sparkles size={12} /> {tr("Selected song", "已选歌曲")}
                   </span>
                   <h2>{selected.title}</h2>
                   <p>
@@ -348,7 +376,13 @@ export function SongEditorPage() {
                   <div className="editor-meta">
                     <span>{formatTime(selected.duration)}</span>
                     <i />
-                    <span>{selected.playCount} plays</span>
+                    <span>
+                      {tr(
+                        selected.playCount === 1 ? "{count} play" : "{count} plays",
+                        "{count} 次播放",
+                        { count: selected.playCount },
+                      )}
+                    </span>
                     {selected.rating > 0 && (
                       <>
                         <i />
@@ -363,13 +397,13 @@ export function SongEditorPage() {
                       onClick={() => (playing ? void togglePlay() : void playTrack(selected, tracks.map((track) => track.id)))}
                     >
                       {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                      {playing ? "Pause" : "Play"}
+                      {playing ? tr("Pause", "暂停") : tr("Play", "播放")}
                     </button>
                     <button
                       type="button"
                       className={clsx("icon-button icon-button--glass icon-button--sm", favorite && "is-favorite")}
-                      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-                      title={favorite ? "Remove from favorites" : "Add to favorites"}
+                      aria-label={favoriteLabel}
+                      title={favoriteLabel}
                       onClick={() => void toggleFavorite(selected.id)}
                     >
                       <Heart size={16} fill={favorite ? "currentColor" : "none"} />
@@ -377,8 +411,8 @@ export function SongEditorPage() {
                     <button
                       type="button"
                       className="icon-button icon-button--glass icon-button--sm danger-hover"
-                      aria-label="Delete song"
-                      title="Delete song"
+                      aria-label={tr("Delete song", "删除歌曲")}
+                      title={tr("Delete song", "删除歌曲")}
                       onClick={() => setDeleteOpen(true)}
                     >
                       <Trash2 size={16} />
@@ -390,19 +424,19 @@ export function SongEditorPage() {
               <div className="editor-form">
                 <label className="editor-field">
                   <span>
-                    <Layers3 size={12} /> Block
+                    <Layers3 size={12} /> {tr("Block", "区块")}
                   </span>
                   <div className="editor-select-wrap">
                     <i style={{ background: blockColor }} />
                     <select value={draft.block} onChange={(event) => setDraft({ ...draft, block: event.target.value })}>
-                      <option value="">No block</option>
+                      <option value="">{tr("No block", "无区块")}</option>
                       {blocks.map((tag) => (
                         <option key={tag.name} value={tag.name}>
                           {tag.name}
                         </option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => setTaxonomyManager("block")} title="Manage blocks">
+                    <button type="button" onClick={() => setTaxonomyManager("block")} title={tr("Manage blocks", "管理区块")}>
                       <Pencil size={12} />
                     </button>
                   </div>
@@ -410,19 +444,19 @@ export function SongEditorPage() {
 
                 <label className="editor-field">
                   <span>
-                    <TagIcon size={12} /> Genre
+                    <TagIcon size={12} /> {tr("Genre", "流派")}
                   </span>
                   <div className="editor-select-wrap">
                     <i style={{ background: genreColor }} />
                     <select value={draft.genre} onChange={(event) => setDraft({ ...draft, genre: event.target.value })}>
-                      <option value="">No genre</option>
+                      <option value="">{tr("No genre", "无流派")}</option>
                       {genres.map((tag) => (
                         <option key={tag.name} value={tag.name}>
                           {tag.name}
                         </option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => setTaxonomyManager("genre")} title="Manage genres">
+                    <button type="button" onClick={() => setTaxonomyManager("genre")} title={tr("Manage genres", "管理流派")}>
                       <Pencil size={12} />
                     </button>
                   </div>
@@ -430,7 +464,7 @@ export function SongEditorPage() {
 
                 <div className="editor-field editor-field--wide">
                   <span className="editor-field__label-row">
-                    <span>Rating</span>
+                    <span>{tr("Rating", "评分")}</span>
                     <strong>{draft.rating.toFixed(1)}</strong>
                   </span>
                   <div className="editor-rating">
@@ -440,26 +474,26 @@ export function SongEditorPage() {
                       max={10}
                       step={0.1}
                       value={draft.rating}
-                      aria-label="Personal rating"
+                      aria-label={tr("Personal rating", "个人评分")}
                       onChange={(event) => setDraft({ ...draft, rating: Number(event.target.value) })}
                       style={{ "--rating-progress": `${draft.rating * 10}%` } as React.CSSProperties}
                     />
                     <button type="button" className="editor-rating__reset" onClick={() => setDraft({ ...draft, rating: 0 })}>
-                      Reset
+                      {tr("Reset", "重置")}
                     </button>
                   </div>
                 </div>
 
                 <label className="editor-field editor-field--wide">
                   <span>
-                    Personal note <em>{draft.note.length} / 2000</em>
+                    {tr("Personal note", "个人备注")} <em>{draft.note.length} / 2000</em>
                   </span>
                   <textarea
                     className="editor-note"
                     value={draft.note}
                     maxLength={2000}
                     rows={4}
-                    placeholder="A memory, a mood, why it belongs here…"
+                    placeholder={tr("A memory, a mood, why it belongs here…", "一段回忆、一种心情，或它为何属于这里…")}
                     onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                   />
                 </label>
@@ -469,25 +503,25 @@ export function SongEditorPage() {
                 <span className={clsx("editor-status", dirty && "is-dirty", saved && !dirty && "is-saved")}>
                   {saving ? (
                     <>
-                      <LoaderCircle size={13} className="is-spinning" /> Saving…
+                      <LoaderCircle size={13} className="is-spinning" /> {tr("Saving…", "正在保存…")}
                     </>
                   ) : dirty ? (
                     <>
-                      <span className="editor-status__dot" /> Unsaved changes
+                      <span className="editor-status__dot" /> {tr("Unsaved changes", "有未保存的更改")}
                     </>
                   ) : saved ? (
                     <>
-                      <Check size={13} /> Saved to your library
+                      <Check size={13} /> {tr("Saved to your library", "已保存到资料库")}
                     </>
                   ) : (
                     <>
-                      <Check size={13} /> All changes saved
+                      <Check size={13} /> {tr("All changes saved", "所有更改已保存")}
                     </>
                   )}
                 </span>
                 <div className="editor-savebar__actions">
                   <button type="button" className="button button--glass button--small" disabled={!dirty || saving} onClick={revert}>
-                    <RotateCcw size={13} /> Discard
+                    <RotateCcw size={13} /> {tr("Discard", "放弃更改")}
                   </button>
                   <button
                     type="button"
@@ -496,20 +530,24 @@ export function SongEditorPage() {
                     onClick={() => void saveDraft()}
                   >
                     {saving ? <LoaderCircle size={13} className="is-spinning" /> : <Save size={13} />}
-                    Save changes
+                    {tr("Save changes", "保存更改")}
                   </button>
                 </div>
               </div>
 
               <div className="editor-stepbar">
                 <button type="button" className="text-button" onClick={() => void step(-1)}>
-                  <ChevronLeft size={14} /> Previous
+                  <ChevronLeft size={14} /> {tr("Previous", "上一首")}
                 </button>
                 <span>
-                  {selectedStep >= 0 ? selectedStep + 1 : "–"} of {stepList.length}
+                  {tr(
+                    "{current} of {total}",
+                    "{current} / {total}",
+                    { current: selectedStep >= 0 ? selectedStep + 1 : "–", total: stepList.length },
+                  )}
                 </span>
                 <button type="button" className="text-button" onClick={() => void step(1)}>
-                  Next <ChevronRight size={14} />
+                  {tr("Next", "下一首")} <ChevronRight size={14} />
                 </button>
               </div>
             </motion.section>
@@ -521,12 +559,16 @@ export function SongEditorPage() {
         {deleteOpen && selected && (
           <Modal className="delete-track-dialog" labelledBy="delete-track-title" onClose={() => setDeleteOpen(false)}>
             <div className="modal__eyebrow delete-track-eyebrow">
-              <Trash2 size={12} /> Danger zone
+              <Trash2 size={12} /> {tr("Danger zone", "危险操作")}
             </div>
-            <h2 id="delete-track-title">Delete “{selected.title}”?</h2>
+            <h2 id="delete-track-title">
+              {tr("Delete “{title}”?", "删除“{title}”？", { title: selected.title })}
+            </h2>
             <p className="modal__description">
-              This removes the song from your library and playlists. If the audio file is inside your
-              library folder, it is moved to Potatoplayer's trash so it can still be recovered.
+              {tr(
+                "This removes the song from your library and playlists. If the audio file is inside your library folder, it is moved to Potatoplayer's trash so it can still be recovered.",
+                "这会从资料库和歌单中移除这首歌。如果音频文件位于资料库文件夹中，它会被移到 Potatoplayer 的回收站，日后仍可恢复。",
+              )}
             </p>
             <div className="delete-track-target">
               <Cover path={selected.coverPath} seed={selected.id} label={selected.title} radius={10} />
@@ -537,15 +579,15 @@ export function SongEditorPage() {
             </div>
             <div className="delete-track-warning">
               <AlertTriangle size={14} />
-              The file will no longer appear in the library.
+              {tr("The file will no longer appear in the library.", "该文件将不再显示在资料库中。")}
             </div>
             <div className="modal__actions">
               <button type="button" className="button button--glass" disabled={deleting} onClick={() => setDeleteOpen(false)}>
-                Cancel
+                {tr("Cancel", "取消")}
               </button>
               <button type="button" className="button button--danger" disabled={deleting} onClick={() => void removeSelected()}>
                 {deleting ? <LoaderCircle size={14} className="is-spinning" /> : <Trash2 size={14} />}
-                Delete song
+                {tr("Delete song", "删除歌曲")}
               </button>
             </div>
           </Modal>

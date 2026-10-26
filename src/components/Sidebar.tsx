@@ -18,16 +18,17 @@ import {
 import clsx from "clsx";
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { formatLongDuration } from "@/lib/format";
 
-const items: { label: string; view: View; icon: typeof Home; shortcut: string }[] = [
-  { label: "Home", view: { kind: "home" }, icon: Home, shortcut: "1" },
-  { label: "Songs", view: { kind: "songs" }, icon: Music2, shortcut: "2" },
-  { label: "Albums", view: { kind: "albums" }, icon: Album, shortcut: "3" },
-  { label: "Artists", view: { kind: "artists" }, icon: Users, shortcut: "4" },
-  { label: "Collections", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
-  { label: "Favorites", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
-  { label: "Editor", view: { kind: "editor" }, icon: SquarePen, shortcut: "7" },
+const items: { label: string; labelZh: string; view: View; icon: typeof Home; shortcut: string }[] = [
+  { label: "Home", labelZh: "首页", view: { kind: "home" }, icon: Home, shortcut: "1" },
+  { label: "Songs", labelZh: "歌曲", view: { kind: "songs" }, icon: Music2, shortcut: "2" },
+  { label: "Albums", labelZh: "专辑", view: { kind: "albums" }, icon: Album, shortcut: "3" },
+  { label: "Artists", labelZh: "艺术家", view: { kind: "artists" }, icon: Users, shortcut: "4" },
+  { label: "Collections", labelZh: "合集", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
+  { label: "Favorites", labelZh: "收藏", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
+  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "7" },
 ];
 
 export function Sidebar() {
@@ -45,6 +46,7 @@ export function Sidebar() {
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
   const onlineSource = useAppStore((state) => state.onlineSource);
   const setOnlineSource = useAppStore((state) => state.setOnlineSource);
+  const tr = useTr();
 
   const current = viewHistory[viewIndex] ?? { kind: "home" };
   const activeKind =
@@ -56,13 +58,17 @@ export function Sidebar() {
           ? "collections"
           : current.kind;
   const totalDuration = tracks.reduce((sum, track) => sum + (track.duration || 0), 0);
+  const sourceName = onlineSource === "qq" ? "QQ Music" : "NetEase";
 
   const newPlaylist = () => {
     openPrompt({
-      title: "New playlist",
-      description: "Give this collection a name. You can add songs from any list.",
-      placeholder: "Late night drive",
-      confirmLabel: "Create playlist",
+      title: tr("New playlist", "新建歌单"),
+      description: tr(
+        "Give this collection a name. You can add songs from any list.",
+        "为这个歌单取个名字。之后可以从任意列表中添加歌曲。",
+      ),
+      placeholder: tr("Late night drive", "深夜兜风"),
+      confirmLabel: tr("Create playlist", "创建歌单"),
       onSubmit: async (name) => {
         const playlist = await createPlaylist(name);
         if (playlist) navigate({ kind: "playlist", id: playlist.id });
@@ -85,8 +91,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="side-nav" aria-label="Library">
-        <div className="nav-label">Library</div>
+      <nav className="side-nav" aria-label={tr("Library", "资料库")}>
+        <div className="nav-label">{tr("Library", "资料库")}</div>
         {items.map((item) => {
           const Icon = item.icon;
           const active = activeKind === item.view.kind;
@@ -107,7 +113,7 @@ export function Sidebar() {
                 />
               )}
               <Icon size={17} strokeWidth={1.9} />
-              <span>{item.label}</span>
+              <span>{tr(item.label, item.labelZh)}</span>
               {item.view.kind === "favorites" && favorites.length > 0 && (
                 <span className="nav-item__count">{favorites.length}</span>
               )}
@@ -117,7 +123,7 @@ export function Sidebar() {
       </nav>
 
       <div className="online-nav">
-        <div className="nav-label">Online</div>
+        <div className="nav-label">{tr("Online", "在线")}</div>
         <div
           className={clsx("nav-item nav-item--online", current.kind === "discover" && "is-active")}
           role="button"
@@ -138,12 +144,16 @@ export function Sidebar() {
             />
           )}
           <Cloud size={17} strokeWidth={1.9} />
-          <span>Discover</span>
+          <span>{tr("Discover", "发现")}</span>
           <button
             type="button"
             className="nav-item__source"
-            title={`Switch online source (current: ${onlineSource === "qq" ? "QQ Music" : "NetEase"})`}
-            aria-label={`Switch online source, current ${onlineSource === "qq" ? "QQ Music" : "NetEase"}`}
+            title={tr("Switch online source (current: {source})", "切换在线音源（当前：{source}）", {
+              source: sourceName,
+            })}
+            aria-label={tr("Switch online source, current {source}", "切换在线音源，当前 {source}", {
+              source: sourceName,
+            })}
             onClick={(event) => {
               event.stopPropagation();
               const next = onlineSource === "qq" ? "netease" : "qq";
@@ -158,13 +168,21 @@ export function Sidebar() {
 
       <div className="side-playlists">
         <div className="nav-label nav-label--row">
-          <span>Playlists</span>
-          <button type="button" className="tiny-button" aria-label="New playlist" title="New playlist" onClick={newPlaylist}>
+          <span>{tr("Playlists", "歌单")}</span>
+          <button
+            type="button"
+            className="tiny-button"
+            aria-label={tr("New playlist", "新建歌单")}
+            title={tr("New playlist", "新建歌单")}
+            onClick={newPlaylist}
+          >
             <Plus size={14} strokeWidth={2.2} />
           </button>
         </div>
         <div className="side-playlists__list">
-          {playlists.length === 0 && <div className="playlist-hint">Playlists you make will live here.</div>}
+          {playlists.length === 0 && (
+            <div className="playlist-hint">{tr("Playlists you make will live here.", "你创建的歌单会显示在这里。")}</div>
+          )}
           {playlists.map((playlist) => {
             const active = current.kind === "playlist" && current.id === playlist.id;
             return (
@@ -197,29 +215,32 @@ export function Sidebar() {
             />
             {scanning
               ? scanProgress?.total
-                ? `Scanning ${scanProgress.done} / ${scanProgress.total}`
-                : "Scanning library"
-              : "Local library"}
+                ? tr("Scanning {done} / {total}", "正在扫描 {done}/{total}", {
+                    done: scanProgress.done,
+                    total: scanProgress.total,
+                  })
+                : tr("Scanning library", "正在扫描资料库")
+              : tr("Local library", "本地资料库")}
           </span>
         </div>
         <div className="library-card__numbers">
           <strong>{tracks.length}</strong>
-          <span>songs</span>
+          <span>{tracks.length === 1 ? tr("song", "首歌曲") : tr("songs", "首歌曲")}</span>
           <i />
           <strong>{formatLongDuration(totalDuration)}</strong>
         </div>
         <button type="button" className="library-card__open" onClick={() => void chooseLibrary()}>
           <FolderOpen size={13} />
-          Change folder
+          {tr("Change folder", "更换文件夹")}
         </button>
       </div>
 
       <div className="sidebar-footer">
         <button type="button" className="sidebar-settings" onClick={() => setSettingsOpen(true)}>
           <Settings2 size={16} strokeWidth={1.9} />
-          <span>Settings</span>
+          <span>{tr("Settings", "设置")}</span>
         </button>
-        <div className="sidebar-avatar" title="Local listener">
+        <div className="sidebar-avatar" title={tr("Local listener", "本地听众")}>
           P
         </div>
       </div>

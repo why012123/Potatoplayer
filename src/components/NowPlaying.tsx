@@ -27,9 +27,11 @@ import { EqualizerBars } from "@/components/EqualizerBars";
 import { Slider } from "@/components/Slider";
 import { IconButton } from "@/components/IconButton";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { formatTime } from "@/lib/format";
 
 export function NowPlaying() {
+  const tr = useTr();
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
@@ -69,6 +71,20 @@ export function NowPlaying() {
   const queueTracks = queue.map((id) => trackBy.get(id)).filter((item): item is Track => Boolean(item));
   const repeat = playback?.repeat ?? "off";
   const shuffle = playback?.shuffle ?? false;
+
+  const statusLabel = isPlaying
+    ? tr("Now playing", "正在播放")
+    : isCurrent
+      ? tr("Ready to resume", "已暂停")
+      : track
+        ? tr("Ready when you are", "随时开始")
+        : tr("Nothing playing", "暂无播放");
+  const repeatLabel =
+    repeat === "one"
+      ? tr("Repeat one", "单曲循环")
+      : repeat === "all"
+        ? tr("Repeat all", "列表循环")
+        : tr("Repeat off", "不循环");
 
   const activeLyric = useMemo(() => {
     if (!lyrics?.found || !lyrics.lines.length) return -1;
@@ -130,20 +146,30 @@ export function NowPlaying() {
       <div className="now-playing__head">
         <span className="eyebrow">
           {isPlaying ? <EqualizerBars playing className="eyebrow__eq" /> : null}
-          {isPlaying ? "Now playing" : isCurrent ? "Ready to resume" : track ? "Ready when you are" : "Nothing playing"}
+          {statusLabel}
         </span>
         <div className="now-playing__head-actions">
           {track && (
-            <IconButton label="Find MV on Bilibili" variant="ghost" size="sm" onClick={() => setMvTrackId(track.id)}>
-              <Clapperboard size={17} />
+            <IconButton
+              label={tr("Find MV on Bilibili", "在 Bilibili 查找 MV")}
+              variant="ghost"
+              size="sm"
+              onClick={() => setMvTrackId(track.id)}
+            >
+              <Clapperboard size={16} />
             </IconButton>
           )}
-          <IconButton label="Equalizer" variant="ghost" size="sm" onClick={() => setEqOpen(true)}>
-            <SlidersHorizontal size={17} />
+          <IconButton
+            label={tr("Equalizer", "均衡器")}
+            variant="ghost"
+            size="sm"
+            onClick={() => setEqOpen(true)}
+          >
+            <SlidersHorizontal size={16} />
           </IconButton>
           {track && (
             <IconButton
-              label="More options"
+              label={tr("More options", "更多操作")}
               variant="ghost"
               size="sm"
               onClick={(event) => {
@@ -154,8 +180,13 @@ export function NowPlaying() {
               <MoreHorizontal size={18} />
             </IconButton>
           )}
-          <IconButton label="Hide now playing" variant="ghost" size="sm" onClick={() => setRightPanelOpen(false)}>
-            <ChevronRight size={18} />
+          <IconButton
+            label={tr("Hide now playing", "收起正在播放")}
+            variant="ghost"
+            size="sm"
+            onClick={() => setRightPanelOpen(false)}
+          >
+            <ChevronRight size={17} />
           </IconButton>
         </div>
       </div>
@@ -180,8 +211,8 @@ export function NowPlaying() {
                 type="button"
                 className="now-playing__art-button"
                 onClick={() => setImmersive(true)}
-                aria-label="Enter immersive playback"
-                title="Open immersive playback"
+                aria-label={tr("Enter immersive playback", "进入沉浸式播放")}
+                title={tr("Open immersive playback", "打开沉浸式播放")}
               >
                 <Cover
                   path={track.coverPath}
@@ -192,7 +223,7 @@ export function NowPlaying() {
                   eager
                 />
                 <span className="now-playing__art-hint">
-                  <Maximize2 size={13} /> Immersive
+                  <Maximize2 size={13} /> {tr("Immersive", "沉浸式")}
                 </span>
               </button>
             </motion.div>
@@ -210,7 +241,7 @@ export function NowPlaying() {
                   </button>
                 </div>
                 <IconButton
-                  label={favorite ? "Remove from favorites" : "Add to favorites"}
+                  label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
                   variant="ghost"
                   size="sm"
                   className={clsx(favorite && "is-favorite")}
@@ -220,7 +251,9 @@ export function NowPlaying() {
                 </IconButton>
               </div>
               <div className="now-playing__subline">
-                <span>{track.album || `${track.artist} · Collection`}</span>
+                <span>
+                  {track.album || tr("{artist} · Collection", "{artist} · 合集", { artist: track.artist })}
+                </span>
                 {track.year > 0 && <span>{track.year}</span>}
                 {track.rating > 0 && <span className="rating-inline">★ {track.rating.toFixed(1)}</span>}
               </div>
@@ -228,7 +261,7 @@ export function NowPlaying() {
 
             <div className="now-playing__progress">
               <Slider
-                label="Playback position"
+                label={tr("Playback position", "播放进度")}
                 value={Math.min(time, duration || time)}
                 max={duration || 1}
                 onChange={(value) => {
@@ -249,7 +282,7 @@ export function NowPlaying() {
 
             <div className="transport">
               <IconButton
-                label={shuffle ? "Turn shuffle off" : "Turn shuffle on"}
+                label={shuffle ? tr("Turn shuffle off", "关闭随机播放") : tr("Turn shuffle on", "开启随机播放")}
                 variant="ghost"
                 size="sm"
                 active={shuffle}
@@ -257,10 +290,21 @@ export function NowPlaying() {
               >
                 <Shuffle size={17} />
               </IconButton>
-              <IconButton label="Previous" variant="ghost" size="md" onClick={() => void previous()} disabled={!isCurrent}>
+              <IconButton
+                label={tr("Previous", "上一首")}
+                variant="ghost"
+                size="md"
+                onClick={() => void previous()}
+                disabled={!isCurrent}
+              >
                 <SkipBack size={21} fill="currentColor" strokeWidth={0.8} />
               </IconButton>
-              <button type="button" className="transport__play" onClick={onPlay} aria-label={isPlaying ? "Pause" : "Play"}>
+              <button
+                type="button"
+                className="transport__play"
+                onClick={onPlay}
+                aria-label={isPlaying ? tr("Pause", "暂停") : tr("Play", "播放")}
+              >
                 <AnimatePresence mode="wait" initial={false}>
                   {isPlaying ? (
                     <motion.span
@@ -285,11 +329,17 @@ export function NowPlaying() {
                   )}
                 </AnimatePresence>
               </button>
-              <IconButton label="Next" variant="ghost" size="md" onClick={() => void next()} disabled={!isCurrent}>
+              <IconButton
+                label={tr("Next", "下一首")}
+                variant="ghost"
+                size="md"
+                onClick={() => void next()}
+                disabled={!isCurrent}
+              >
                 <SkipForward size={21} fill="currentColor" strokeWidth={0.8} />
               </IconButton>
               <IconButton
-                label={repeat === "one" ? "Repeat one" : repeat === "all" ? "Repeat all" : "Repeat off"}
+                label={repeatLabel}
                 variant="ghost"
                 size="sm"
                 active={repeat !== "off"}
@@ -303,13 +353,13 @@ export function NowPlaying() {
               <button
                 type="button"
                 className="volume-row__icon"
-                aria-label={muted ? "Unmute" : "Mute"}
+                aria-label={muted ? tr("Unmute", "取消静音") : tr("Mute", "静音")}
                 onClick={() => setMuted(!muted)}
               >
                 {volumeIcon}
               </button>
               <Slider
-                label="Volume"
+                label={tr("Volume", "音量")}
                 value={muted ? 0 : volume}
                 max={1}
                 step={0.01}
@@ -324,12 +374,12 @@ export function NowPlaying() {
               <button type="button" className={clsx(rightTab === "lyrics" && "is-active")} onClick={() => setRightTab("lyrics")}>
                 {rightTab === "lyrics" && <motion.span layoutId="np-tab" className="np-tabs__pill" />}
                 <Mic2 size={14} />
-                Lyrics
+                {tr("Lyrics", "歌词")}
               </button>
               <button type="button" className={clsx(rightTab === "queue" && "is-active")} onClick={() => setRightTab("queue")}>
                 {rightTab === "queue" && <motion.span layoutId="np-tab" className="np-tabs__pill" />}
                 <ListMusic size={14} />
-                Up next
+                {tr("Up next", "即将播放")}
                 {queue.length > 0 && <em>{queue.length}</em>}
               </button>
             </div>
@@ -380,8 +430,13 @@ export function NowPlaying() {
                     ) : (
                       <div className="lyrics-empty">
                         <Mic2 size={20} />
-                        <strong>No lyrics for this one</strong>
-                        <span>Add a matching .lrc file next to the song, or in the library’s lyrics folder.</span>
+                        <strong>{tr("No lyrics for this one", "这首歌暂无歌词")}</strong>
+                        <span>
+                          {tr(
+                            "Add a matching .lrc file next to the song, or in the library’s lyrics folder.",
+                            "在歌曲同目录或资料库的歌词文件夹中放入匹配的 .lrc 文件。",
+                          )}
+                        </span>
                       </div>
                     )}
                   </motion.div>
@@ -421,8 +476,13 @@ export function NowPlaying() {
                     ) : (
                       <div className="lyrics-empty">
                         <ListMusic size={20} />
-                        <strong>Your queue is empty</strong>
-                        <span>Play an album or shuffle a playlist and the next songs will appear here.</span>
+                        <strong>{tr("Your queue is empty", "播放队列为空")}</strong>
+                        <span>
+                          {tr(
+                            "Play an album or shuffle a playlist and the next songs will appear here.",
+                            "播放一张专辑或随机播放歌单，接下来的歌曲会显示在这里。",
+                          )}
+                        </span>
                       </div>
                     )}
                   </motion.div>
@@ -443,10 +503,19 @@ export function NowPlaying() {
               <span className="vinyl vinyl--2" />
               <ListMusic size={28} />
             </div>
-            <h2>Give the room a soundtrack.</h2>
-            <p>Pick any song from your library and it will appear here with artwork, lyrics and queue.</p>
-            <button type="button" className="button button--dark" onClick={() => useAppStore.getState().navigate({ kind: "songs" })}>
-              Browse songs
+            <h2>{tr("Give the room a soundtrack.", "给房间一点配乐。")}</h2>
+            <p>
+              {tr(
+                "Pick any song from your library and it will appear here with artwork, lyrics and queue.",
+                "从资料库中任选一首歌，封面、歌词和播放队列都会显示在这里。",
+              )}
+            </p>
+            <button
+              type="button"
+              className="button button--dark"
+              onClick={() => useAppStore.getState().navigate({ kind: "songs" })}
+            >
+              {tr("Browse songs", "浏览歌曲")}
             </button>
           </motion.div>
         )}

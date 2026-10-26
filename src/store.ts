@@ -20,6 +20,17 @@ import type {
   View,
 } from "@/types";
 import { applyTheme, readTheme } from "@/lib/theme";
+import {
+  applyAppearance,
+  loadAppearance,
+  normalizeAppearance,
+  presetFor,
+  saveAppearance,
+  type AppearancePreferences,
+  type UiStyle,
+} from "@/lib/appearance";
+import type { Language, TextVars } from "@/lib/text";
+import { pickText } from "@/lib/text";
 
 export type SortMode = "title" | "artist" | "album" | "recent" | "plays" | "rating";
 export type RightTab = "lyrics" | "queue";
@@ -68,6 +79,7 @@ interface AppStore {
   prompt: PromptState | null;
   reducedMotion: boolean;
   theme: Theme;
+  appearance: AppearancePreferences;
   downloads: DownloadJob[];
   imports: PlaylistImport[];
   onlineSource: OnlineSource;
@@ -129,6 +141,10 @@ interface AppStore {
   closePrompt: () => void;
   setReducedMotion: (value: boolean) => void;
   setTheme: (value: Theme) => void;
+  setAppearance: (patch: Partial<AppearancePreferences>) => void;
+  setStylePreset: (style: UiStyle) => void;
+  setLanguage: (language: Language) => void;
+  resetAppearance: () => void;
   pushToast: (title: string, detail?: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   dismissDownload: (jobId: string) => void;
@@ -148,6 +164,11 @@ const bridge = () => {
   if (!window.potato) throw new Error("The desktop bridge is not available.");
   return window.potato;
 };
+
+/** Localized strings for store-level toasts and status messages. */
+function lx(en: string, zh: string, vars?: TextVars): string {
+  return pickText(useAppStore.getState().appearance.language, en, zh, vars);
+}
 
 let subscribed = false;
 let initializing = false;
@@ -264,13 +285,15 @@ function pickPreview(
   return favorites[0] ?? tracks[0]?.id ?? null;
 }
 
+applyAppearance(loadAppearance());
+
 const view = initialView();
 
 export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.0.7",
+  version: "s1.1.0",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -305,6 +328,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   prompt: null,
   reducedMotion: readReducedMotion(),
   theme: readTheme(),
+  appearance: loadAppearance(),
   downloads: [],
   imports: [],
   downloadPanelOpen: false,
@@ -346,7 +370,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           await bridge().invoke("library.scan");
         } catch (error) {
           set({ scanning: false });
-          get().pushToast("Could not scan your library", friendlyError(error), "error");
+          get().pushToast(lx("Could not scan your library", "无法扫描你的资料库"), friendlyError(error), "error");
         }
       }
     } catch (error) {
@@ -395,16 +419,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
         });
         if (state.previewTrackId) void get().ensureLyrics(state.previewTrackId);
         if (payload.legacyImport) {
-          get().pushToast("Library imported", `${payload.tracks.length} songs, covers and ratings from Potato Player.`, "success");
+          get().pushToast(lx("Library imported", "资料库已导入"), lx("{count} songs, covers and ratings from Potato Player.", "已从 Potato Player 导入 {count} 首歌曲、封面与评分。", { count: payload.tracks.length }), "success");
         } else {
-          get().pushToast("Library is ready", `${payload.tracks.length} songs indexed.`, "success");
+          get().pushToast(lx("Library is ready", "资料库已就绪"), lx("{count} songs indexed.", "已索引 {count} 首歌曲。", { count: payload.tracks.length }), "success");
         }
         break;
       }
       case "scan.error": {
         const message = (data as { message?: string }).message ?? "Scan failed.";
         set({ scanning: false, scanProgress: null });
-        get().pushToast("Scan failed", message, "error");
+        get().pushToast(lx("Scan failed", "扫描失败"), message, "error");
         break;
       }
       case "playback.state": {
@@ -469,7 +493,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       case "toast": {
         const payload = data as { kind?: Toast["tone"]; title?: string; message: string };
         get().pushToast(
-          payload.title ?? (payload.kind === "error" ? "Something went wrong" : "Potatoplayer Super"),
+          payload.title ?? (payload.kind === "error" ? lx("Something went wrong", "出了点问题") : "Potatoplayer Super"),
           payload.message,
           payload.kind,
         );
@@ -541,7 +565,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         if (!next.importId) {
           get().pushToast(
-            payload.duplicate ? "Already in your library" : "Downloaded to your library",
+            payload.duplicate ? lx("Already in your library", "已存在于资料库") : lx("Downloaded to your library", "已下载到资料库"),
             payload.duplicate ? payload.title : `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`,
             "success",
           );
@@ -593,7 +617,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             });
           }
         }
-        if (!current?.importId) get().pushToast("Download failed", payload.message, "error");
+        if (!current?.importId) get().pushToast(lx("Download failed", "下载失败"), payload.message, "error");
         break;
       }
       case "backend.fatal": {
@@ -601,7 +625,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "backend.error": {
-        get().pushToast("Backend error", (data as { message: string }).message, "error");
+        get().pushToast(lx("Backend error", "后台服务错误"), (data as { message: string }).message, "error");
         break;
       }
       default:
@@ -645,7 +669,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         startAt,
       });
     } catch (error) {
-      get().pushToast("Could not play this track", friendlyError(error), "error");
+      get().pushToast(lx("Could not play this track", "无法播放这首歌曲"), friendlyError(error), "error");
     }
   },
 
@@ -655,7 +679,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         await bridge().invoke("playback.toggle");
       } catch (error) {
-        get().pushToast("Playback unavailable", friendlyError(error), "error");
+        get().pushToast(lx("Playback unavailable", "播放暂不可用"), friendlyError(error), "error");
       }
       return;
     }
@@ -668,7 +692,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playback.next");
     } catch (error) {
-      get().pushToast("Could not skip", friendlyError(error), "error");
+      get().pushToast(lx("Could not skip", "无法切歌"), friendlyError(error), "error");
     }
   },
 
@@ -676,7 +700,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playback.previous");
     } catch (error) {
-      get().pushToast("Could not go back", friendlyError(error), "error");
+      get().pushToast(lx("Could not go back", "无法返回上一首"), friendlyError(error), "error");
     }
   },
 
@@ -712,7 +736,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playback.repeat", { mode: next });
     } catch (error) {
-      get().pushToast("Could not change repeat", friendlyError(error), "error");
+      get().pushToast(lx("Could not change repeat", "无法更改循环模式"), friendlyError(error), "error");
     }
   },
 
@@ -724,7 +748,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playback.shuffle", { enabled });
     } catch (error) {
-      get().pushToast("Could not change shuffle", friendlyError(error), "error");
+      get().pushToast(lx("Could not change shuffle", "无法更改随机播放"), friendlyError(error), "error");
     }
   },
 
@@ -736,7 +760,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await bridge().invoke("library.toggleFavorite", { trackId });
     } catch (error) {
       set({ favorites: before });
-      get().pushToast("Could not update favorite", friendlyError(error), "error");
+      get().pushToast(lx("Could not update favorite", "无法更新收藏"), friendlyError(error), "error");
     }
   },
 
@@ -762,7 +786,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await bridge().invoke("library.scan");
     } catch (error) {
       set({ scanning: false, scanProgress: null });
-      get().pushToast("Scan failed", friendlyError(error), "error");
+      get().pushToast(lx("Scan failed", "扫描失败"), friendlyError(error), "error");
     }
   },
 
@@ -774,7 +798,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await bridge().invoke("library.setRoot", { path: folder });
     } catch (error) {
       set({ scanning: false, scanProgress: null });
-      get().pushToast("Could not open that folder", friendlyError(error), "error");
+      get().pushToast(lx("Could not open that folder", "无法打开该文件夹"), friendlyError(error), "error");
     }
   },
 
@@ -784,10 +808,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (trackId) {
         await bridge().invoke("playlist.addTrack", { playlistId: result.playlist.id, trackId });
       }
-      get().pushToast("Playlist created", result.playlist.name, "success");
+      get().pushToast(lx("Playlist created", "歌单已创建"), result.playlist.name, "success");
       return result.playlist;
     } catch (error) {
-      get().pushToast("Could not create playlist", friendlyError(error), "error");
+      get().pushToast(lx("Could not create playlist", "无法创建歌单"), friendlyError(error), "error");
       return null;
     }
   },
@@ -796,7 +820,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playlist.rename", { playlistId, name });
     } catch (error) {
-      get().pushToast("Could not rename playlist", friendlyError(error), "error");
+      get().pushToast(lx("Could not rename playlist", "无法重命名歌单"), friendlyError(error), "error");
     }
   },
 
@@ -809,7 +833,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         get().navigate({ kind: "home" });
       }
     } catch (error) {
-      get().pushToast("Could not delete playlist", friendlyError(error), "error");
+      get().pushToast(lx("Could not delete playlist", "无法删除歌单"), friendlyError(error), "error");
     }
   },
 
@@ -818,9 +842,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!ids.length) return;
     try {
       await bridge().invoke("playback.enqueueMany", { trackIds: ids, next });
-      get().pushToast(next ? "Playing next" : "Added to queue", `${ids.length} song${ids.length === 1 ? "" : "s"}`, "success");
+      get().pushToast(next ? lx("Playing next", "接下来播放") : lx("Added to queue", "已加入队列"), lx("{count} songs", "{count} 首歌曲", { count: ids.length }), "success");
     } catch (error) {
-      get().pushToast("Could not update queue", friendlyError(error), "error");
+      get().pushToast(lx("Could not update queue", "无法更新播放队列"), friendlyError(error), "error");
     }
   },
 
@@ -828,9 +852,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playlist.addTrack", { playlistId, trackId });
       const playlist = get().playlists.find((item) => item.id === playlistId);
-      get().pushToast("Added to playlist", playlist?.name, "success");
+      get().pushToast(lx("Added to playlist", "已加入歌单"), playlist?.name, "success");
     } catch (error) {
-      get().pushToast("Could not add to playlist", friendlyError(error), "error");
+      get().pushToast(lx("Could not add to playlist", "无法加入歌单"), friendlyError(error), "error");
     }
   },
 
@@ -840,9 +864,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playlist.addTracks", { playlistId, trackIds: ids });
       const playlist = get().playlists.find((item) => item.id === playlistId);
-      get().pushToast("Added to playlist", `${ids.length} song${ids.length === 1 ? "" : "s"} · ${playlist?.name ?? ""}`, "success");
+      get().pushToast(lx("Added to playlist", "已加入歌单"), lx("{count} songs · {name}", "{count} 首歌曲 · {name}", { count: ids.length, name: playlist?.name ?? "" }), "success");
     } catch (error) {
-      get().pushToast("Could not add to playlist", friendlyError(error), "error");
+      get().pushToast(lx("Could not add to playlist", "无法加入歌单"), friendlyError(error), "error");
     }
   },
 
@@ -850,16 +874,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await bridge().invoke("playlist.removeTrack", { playlistId, trackId });
     } catch (error) {
-      get().pushToast("Could not remove song", friendlyError(error), "error");
+      get().pushToast(lx("Could not remove song", "无法移除歌曲"), friendlyError(error), "error");
     }
   },
 
   enqueue: async (trackId, next) => {
     try {
       await bridge().invoke("playback.enqueue", { trackId, next });
-      get().pushToast(next ? "Playing next" : "Added to queue", undefined, "success");
+      get().pushToast(next ? lx("Playing next", "接下来播放") : lx("Added to queue", "已加入队列"), undefined, "success");
     } catch (error) {
-      get().pushToast("Could not update queue", friendlyError(error), "error");
+      get().pushToast(lx("Could not update queue", "无法更新播放队列"), friendlyError(error), "error");
     }
   },
 
@@ -886,9 +910,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   createTag: async (kind, name, color) => {
     try {
       await bridge().invoke("taxonomy.create", { kind, name, color: color ?? "" });
-      get().pushToast("Collection updated", `${name} added.`, "success");
+      get().pushToast(lx("Collection updated", "分类已更新"), lx("{name} added.", "已添加 {name}。", { name }), "success");
     } catch (error) {
-      get().pushToast("Could not create", friendlyError(error), "error");
+      get().pushToast(lx("Could not create", "无法创建"), friendlyError(error), "error");
     }
   },
   renameTag: async (kind, oldName, name) => {
@@ -902,27 +926,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ viewHistory: history });
       }
     } catch (error) {
-      get().pushToast("Could not rename", friendlyError(error), "error");
+      get().pushToast(lx("Could not rename", "无法重命名"), friendlyError(error), "error");
     }
   },
   deleteTag: async (kind, name) => {
     try {
       await bridge().invoke("taxonomy.delete", { kind, name });
-      get().pushToast("Collection removed", name, "success");
+      get().pushToast(lx("Collection removed", "分类已删除"), name, "success");
       const state = get();
       const current = state.viewHistory[state.viewIndex];
       if ((current.kind === "block" || current.kind === "genre") && current.kind === kind && current.name === name) {
         state.navigate({ kind: "collections" });
       }
     } catch (error) {
-      get().pushToast("Could not remove", friendlyError(error), "error");
+      get().pushToast(lx("Could not remove", "无法删除"), friendlyError(error), "error");
     }
   },
   setTagColor: async (kind, name, color) => {
     try {
       await bridge().invoke("taxonomy.color", { kind, name, color });
     } catch (error) {
-      get().pushToast("Could not update colour", friendlyError(error), "error");
+      get().pushToast(lx("Could not update colour", "无法更新颜色"), friendlyError(error), "error");
     }
   },
   updateTrack: async (trackId, patch) => {
@@ -930,7 +954,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await bridge().invoke("library.updateTrack", { trackId, ...patch });
       return true;
     } catch (error) {
-      get().pushToast("Could not update song", friendlyError(error), "error");
+      get().pushToast(lx("Could not update song", "无法更新歌曲"), friendlyError(error), "error");
       return false;
     }
   },
@@ -944,19 +968,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
         favorites: get().favorites.filter((id) => id !== trackId),
         previewTrackId: get().previewTrackId === trackId ? remaining[0]?.id ?? null : get().previewTrackId,
       });
-      get().pushToast("Song deleted", "Removed from your library, playlists and queue.", "success");
+      get().pushToast(lx("Song deleted", "歌曲已删除"), lx("Removed from your library, playlists and queue.", "已从资料库、歌单与队列中移除。"), "success");
       return true;
     } catch (error) {
-      get().pushToast("Could not delete song", friendlyError(error), "error");
+      get().pushToast(lx("Could not delete song", "无法删除歌曲"), friendlyError(error), "error");
       return false;
     }
   },
   bulkUpdate: async (trackIds, field, value) => {
     try {
       await bridge().invoke("library.bulkUpdate", { trackIds, field, value });
-      get().pushToast("Songs updated", `${trackIds.length} songs moved.`, "success");
+      get().pushToast(lx("Songs updated", "歌曲已更新"), lx("{count} songs moved.", "已移动 {count} 首歌曲。", { count: trackIds.length }), "success");
     } catch (error) {
-      get().pushToast("Could not update songs", friendlyError(error), "error");
+      get().pushToast(lx("Could not update songs", "无法更新歌曲"), friendlyError(error), "error");
     }
   },
   openPrompt: (prompt) => set({ prompt }),
@@ -974,6 +998,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setTheme: (value) => {
     set({ theme: value });
     applyTheme(value, true);
+  },
+
+  setAppearance: (patch) => {
+    const next = normalizeAppearance({ ...get().appearance, ...patch });
+    applyAppearance(next);
+    saveAppearance(next);
+    set({ appearance: next });
+  },
+
+  setStylePreset: (style) => {
+    const preset = presetFor(style);
+    get().setAppearance({ ...preset });
+  },
+
+  setLanguage: (language) => {
+    get().setAppearance({ language });
+  },
+
+  resetAppearance: () => {
+    const current = get().appearance;
+    get().setAppearance({ ...presetFor("classic"), accent: "cover", language: current.language });
   },
 
   pushToast: (title, detail, tone = "default") => {
@@ -1027,16 +1072,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         downloads: [...get().downloads.filter((item) => item.jobId !== jobId), refreshed],
       });
-      get().pushToast("Retry queued", job.title);
+      get().pushToast(lx("Retry queued", "已重新排队"), job.title);
     } catch (error) {
-      get().pushToast("Could not retry download", friendlyError(error), "error");
+      get().pushToast(lx("Could not retry download", "无法重试下载"), friendlyError(error), "error");
     }
   },
 
   importNeteasePlaylist: async (source, quality = "high") => {
     const songs = source.tracks.filter((song) => song?.id);
     if (!songs.length) {
-      get().pushToast("Nothing to import", "This NetEase playlist is empty.", "error");
+      get().pushToast(lx("Nothing to import", "没有可导入的内容"), lx("This NetEase playlist is empty.", "这个网易云歌单是空的。"), "error");
       return;
     }
     const onlineSource = get().onlineSource;
@@ -1106,10 +1151,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
     const recordAfter = currentRecord() ?? record;
     get().pushToast(
-      "NetEase playlist imported",
+      lx("NetEase playlist imported", "网易云歌单已导入"),
       active
-        ? `${recordAfter.resolved} ready · ${recordAfter.queued} downloading · ${recordAfter.failed} failed`
-        : `${recordAfter.resolved} matched · ${recordAfter.failed} failed`,
+        ? lx("{ready} ready · {queued} downloading · {failed} failed", "{ready} 首就绪 · {queued} 首下载中 · {failed} 首失败", {
+            ready: recordAfter.resolved,
+            queued: recordAfter.queued,
+            failed: recordAfter.failed,
+          })
+        : lx("{ready} matched · {failed} failed", "{ready} 首已匹配 · {failed} 首失败", {
+            ready: recordAfter.resolved,
+            failed: recordAfter.failed,
+          }),
       active || recordAfter.resolved ? "success" : "error",
     );
     if (active) void get().resolvePlaylistImports();
@@ -1156,8 +1208,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const finished = get().imports.filter((item) => activeBefore.has(item.id) && !item.active);
       for (const item of finished) {
         get().pushToast(
-          "Playlist import complete",
-          `${item.playlistName} · ${item.resolved} songs ready${item.failed ? ` · ${item.failed} failed` : ""}`,
+          lx("Playlist import complete", "歌单导入完成"),
+          item.failed
+            ? lx("{name} · {ready} songs ready · {failed} failed", "{name} · {ready} 首歌曲就绪 · {failed} 首失败", {
+                name: item.playlistName,
+                ready: item.resolved,
+                failed: item.failed,
+              })
+            : lx("{name} · {ready} songs ready", "{name} · {ready} 首歌曲就绪", {
+                name: item.playlistName,
+                ready: item.resolved,
+              }),
           item.failed ? "default" : "success",
         );
       }

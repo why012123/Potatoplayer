@@ -1,9 +1,11 @@
 import { AnimatePresence } from "motion/react";
 import { ListMusic, Plus } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { Modal } from "@/components/Modal";
 
 export function AddToPlaylistDialog() {
+  const tr = useTr();
   const trackId = useAppStore((state) => state.addToPlaylistTrackId);
   const manyIds = useAppStore((state) => state.addToPlaylistTrackIds);
   const tracks = useAppStore((state) => state.tracks);
@@ -26,10 +28,14 @@ export function AddToPlaylistDialog() {
     if (!ids.length) return;
     close();
     openPrompt({
-      title: "New playlist",
-      description: many ? `Create a playlist with ${ids.length} songs.` : `Create a playlist for “${track?.title ?? "this song"}”.`,
-      placeholder: "Playlist name",
-      confirmLabel: "Create & add",
+      title: tr("New playlist", "新建歌单"),
+      description: many
+        ? tr("Create a playlist with {count} songs.", "创建一个包含 {count} 首歌曲的歌单。", { count: ids.length })
+        : tr("Create a playlist for “{title}”.", "为“{title}”创建歌单。", {
+            title: track?.title ?? tr("this song", "这首歌曲"),
+          }),
+      placeholder: tr("Playlist name", "歌单名称"),
+      confirmLabel: tr("Create & add", "创建并添加"),
       onSubmit: async (name) => {
         const playlist = await createPlaylist(name);
         if (playlist) await addManyToPlaylist(playlist.id, ids);
@@ -43,10 +49,16 @@ export function AddToPlaylistDialog() {
         <Modal onClose={close} className="playlist-dialog" labelledBy="add-playlist-title">
           <div className="modal__eyebrow">
             <ListMusic size={13} />
-            Add to playlist
+            {tr("Add to playlist", "添加到歌单")}
           </div>
-          <h2 id="add-playlist-title">{many ? `${ids.length} selected songs` : track.title}</h2>
-          <p className="modal__description">{many ? "Choose a destination playlist." : track.artist}</p>
+          <h2 id="add-playlist-title">
+            {many
+              ? tr("{count} selected songs", "已选择 {count} 首歌曲", { count: ids.length })
+              : track.title}
+          </h2>
+          <p className="modal__description">
+            {many ? tr("Choose a destination playlist.", "选择目标歌单。") : track.artist}
+          </p>
           <div className="playlist-dialog__list">
             {playlists.map((playlist) => (
               <button
@@ -63,9 +75,11 @@ export function AddToPlaylistDialog() {
                 </span>
                 <span>
                   <strong>{playlist.name}</strong>
-                  <em>{playlist.trackIds.length} songs</em>
+                  <em>{tr("{count} songs", "{count} 首歌曲", { count: playlist.trackIds.length })}</em>
                 </span>
-                {ids.every((id) => playlist.trackIds.includes(id)) && <small>Already added</small>}
+                {ids.every((id) => playlist.trackIds.includes(id)) && (
+                  <small>{tr("Already added", "已添加")}</small>
+                )}
               </button>
             ))}
           </div>
@@ -74,13 +88,19 @@ export function AddToPlaylistDialog() {
               <Plus size={17} />
             </span>
             <span>
-              <strong>New playlist</strong>
-              <em>{many ? `Create one with ${ids.length} songs` : "Create one with this song"}</em>
+              <strong>{tr("New playlist", "新建歌单")}</strong>
+              <em>
+                {many
+                  ? tr("Create one with {count} songs", "创建一个包含 {count} 首歌曲的歌单", {
+                      count: ids.length,
+                    })
+                  : tr("Create one with this song", "用这首歌曲创建歌单")}
+              </em>
             </span>
           </button>
           <div className="modal__actions">
-            <button type="button" className="button button--glass" onClick={close}>
-              Done
+            <button type="button" className="button button--dark" onClick={close}>
+              {tr("Done", "完成")}
             </button>
           </div>
         </Modal>

@@ -5,6 +5,7 @@ import { Cover } from "@/components/Cover";
 import { EqualizerBars } from "@/components/EqualizerBars";
 import { formatTime } from "@/lib/format";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 interface TrackRowProps {
   track: Track;
@@ -39,6 +40,7 @@ export function TrackRow({
   selected,
   onSelect,
 }: TrackRowProps) {
+  const tr = useTr();
   const blocks = useAppStore((state) => state.blocks);
   const genres = useAppStore((state) => state.genres);
   const blockColor = blocks.find((tag) => tag.name === track.block)?.color;
@@ -113,7 +115,9 @@ export function TrackRow({
       </div>
       {showPlays && (
         <div className="track-row__plays">
-          {track.playCount ? `${track.playCount} plays` : "—"}
+          {track.playCount
+            ? tr("{count} plays", "{count} 次播放", { count: track.playCount })
+            : "—"}
           {showRating && track.rating > 0 && <em>★ {track.rating.toFixed(1)}</em>}
         </div>
       )}
@@ -121,8 +125,8 @@ export function TrackRow({
       <button
         type="button"
         className={clsx("row-heart", favorite && "is-favorite")}
-        aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-        title={favorite ? "Remove from favorites" : "Add to favorites"}
+        aria-label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
+        title={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
         onClick={(event) => {
           event.stopPropagation();
           onToggleFavorite();
@@ -133,8 +137,8 @@ export function TrackRow({
       <button
         type="button"
         className="row-more"
-        aria-label="More options"
-        title="More options"
+        aria-label={tr("More options", "更多操作")}
+        title={tr("More options", "更多操作")}
         onClick={(event) => {
           event.stopPropagation();
           onMenu(event);

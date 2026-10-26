@@ -1,4 +1,5 @@
 import type { Track } from "@/types";
+import { documentLanguage } from "@/lib/text";
 
 export function formatTime(seconds: number, showHours = false): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -13,23 +14,26 @@ export function formatTime(seconds: number, showHours = false): string {
 }
 
 export function formatLongDuration(seconds: number): string {
-  if (!seconds) return "0 min";
+  const zh = documentLanguage() === "zh";
+  if (!seconds) return zh ? "0 分钟" : "0 min";
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return zh ? `${minutes} 分钟` : `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
+  if (zh) return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
   return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
 
 export function formatRelativeDate(timestamp: number): string {
   if (!timestamp) return "";
+  const zh = documentLanguage() === "zh";
   const diff = Date.now() - timestamp;
   const days = Math.floor(diff / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (days <= 0) return zh ? "今天" : "Today";
+  if (days === 1) return zh ? "昨天" : "Yesterday";
+  if (days < 7) return zh ? `${days} 天前` : `${days} days ago`;
+  if (days < 30) return zh ? `${Math.floor(days / 7)} 周前` : `${Math.floor(days / 7)} weeks ago`;
+  return new Date(timestamp).toLocaleDateString(zh ? "zh-CN" : undefined, { month: "short", day: "numeric" });
 }
 
 export function initials(value: string): string {
@@ -45,14 +49,21 @@ export function initials(value: string): string {
 
 export function greeting(): string {
   const hour = new Date().getHours();
-  if (hour < 5) return "Still awake.";
-  if (hour < 12) return "Good morning.";
-  if (hour < 18) return "Good afternoon.";
-  return "Good evening.";
+  const zh = documentLanguage() === "zh";
+  if (hour < 5) return zh ? "还在熬夜。" : "Still awake.";
+  if (hour < 12) return zh ? "早上好。" : "Good morning.";
+  if (hour < 18) return zh ? "下午好。" : "Good afternoon.";
+  return zh ? "晚上好。" : "Good evening.";
 }
 
 export function todayLine(): string {
-  return new Date().toLocaleDateString("en-US", {
+  const now = new Date();
+  if (documentLanguage() === "zh") {
+    const date = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(now);
+    const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(now);
+    return `${date} · ${weekday}`;
+  }
+  return now.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -60,7 +71,8 @@ export function todayLine(): string {
 }
 
 export function albumLabel(track: Track): string {
-  return track.album?.trim() || `${track.artist} · Collection`;
+  if (track.album?.trim()) return track.album.trim();
+  return `${track.artist} · ${documentLanguage() === "zh" ? "合集" : "Collection"}`;
 }
 
 export function uniqueArtists(tracks: Track[]): string[] {

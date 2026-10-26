@@ -4,8 +4,9 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.0.7`. The line started at `s1.0.0`; every subsequent
-  change increments the smallest version number by one: `s1.0.1`, `s1.0.2`, …
+- **Current release:** `s1.1.0`. The line started at `s1.0.0`; patch releases use
+  the familiar `s1.0.x` sequence, while this release introduces the first
+  feature-level minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
@@ -13,6 +14,63 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.1.0 — 2026-10-26
+
+### Added
+- **Appearance Studio.** Settings now contains a complete visual system:
+  two preset views (**Classic** and **Editorial**), a cover-following or fixed
+  accent colour (coral, sage, ocean, plum, amber), headline typeface
+  (serif/sans), corner treatment (soft/crisp), density (airy/compact) and
+  background atmosphere (rich/still). A live miniature preview and one-click
+  reset make the controls self-explanatory.
+- **Chinese / English interface.** Every page, shell component, dialog,
+  empty state, tooltip, toast and accessible label is localized. Switching in
+  Settings applies immediately and persists across reloads; dates, greetings
+  and long durations are localized too. The v1.0 glass room remains the default
+  for continuity, and English remains the default language.
+- **Classic view preserved.** The original warm iOS-glass surfaces, pill
+  controls, pink daylight wash, full-width Now Playing artwork and sans-serif
+  headings are available as a first-class preset. The Editorial view adds paper
+  surfaces, New York/Songti display type, grouped tools, tapered cards and the
+  compact playback rail.
+- **Immersive lyrics frame toggle.** The customizer can hide the glass box
+  around the lyrics while keeping the lyric type scale, alignment, translations
+  and active-line highlight.
+- **Appearance persistence.** `potato:appearance:v1` stores style, accent,
+  typeface, corners, density, atmosphere and language; `theme-init.js` applies
+  them before the first paint to avoid flashes.
+
+### Changed
+- Rebalanced the shell around a quieter command bar, grouped utility actions,
+  one library control card and a compact Now Playing deck.
+- Reworked Home, library grids, table typography, tag cards, detail heroes,
+  playlist mosaics, Search, Discover, Settings, the command palette, track menu,
+  download panel and toasts for consistent spacing and hierarchy.
+- Added responsive rules for 1080 px windows and short screens; compact action
+  rails use labelled primary actions plus icon-only secondary actions with
+  tooltips.
+- New artworks that lack cover files use a subdued record-label fallback rather
+  than a flat saturated block.
+- Restored the Bilibili MV shortcut in the Now Playing header.
+
+### Fixed
+- Removed the stray artist initial that appeared below circular artist covers.
+- Fixed the Lyrics tab label being covered by its animated active pill.
+- Removed double focus outlines from search fields, the command palette, MV
+  search and settings inputs.
+- Kept toast stacks above the Songs bulk-selection bar.
+
+### Verified
+- `npm run typecheck` passes.
+- `npm run test:backend`: 53 checks passed.
+- `npm run test:ui`: full playback, queue, editor, taxonomy, search, Discover,
+  appearance presets, language switch, lyrics-frame toggle, collapsed panel,
+  dark/light reload and persistence checks pass. The UI test mutes its isolated
+  backend before starting playback.
+- `npm run build:renderer` produces the production bundle successfully.
+- Existing real user data is untouched; the separate UI preview profile is the
+  only profile used during visual verification.
 
 ## s1.0.7 — 2026-10-26
 

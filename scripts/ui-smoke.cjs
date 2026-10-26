@@ -37,7 +37,32 @@ function delay(ms) {
   });
 
   await page.waitForSelector(".sidebar", { timeout: 30_000 });
+
+  // The product now supports both languages and two visual languages. Keep
+  // this functional smoke test deterministic and silent before touching UI.
+  await page.evaluate(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("potato:appearance:v1") || "{}");
+      raw.language = "en";
+      raw.style = "editorial";
+      raw.display = "serif";
+      raw.corners = "soft";
+      raw.density = "comfortable";
+      raw.atmosphere = "rich";
+      raw.accent = "cover";
+      localStorage.setItem("potato:appearance:v1", JSON.stringify(raw));
+      localStorage.setItem("potato:theme", "light");
+    } catch {
+      // The app still boots with defaults if storage is unavailable.
+    }
+  });
+  await page.reload();
+  await page.waitForSelector(".sidebar", { timeout: 30_000 });
   await page.waitForSelector(".media-card", { timeout: 30_000 });
+  await page.evaluate(async () => {
+    await window.potato.invoke("playback.volume", { volume: 0 });
+    await window.potato.invoke("playback.mute", { muted: true });
+  });
   // The panel state is persisted between sessions. Tests should begin from the
   // full three-column state even if a previous run stopped while collapsed.
   if (await page.locator(".mini-player").count()) {
@@ -46,6 +71,24 @@ function delay(ms) {
   }
   await delay(600);
   console.log("[ui] shell and library rendered");
+
+  // Exercise the new appearance studio and language switch before the core
+  // playback flow. CSS class hooks stay stable across both languages.
+  await page.locator(".topbar-avatar").click();
+  await page.waitForSelector(".settings-dialog");
+  await page.locator(".style-preset").nth(1).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.style), "classic");
+  await page.locator(".style-preset").nth(0).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.style), "editorial");
+  await page.locator(".language-choice .settings-choice").nth(1).click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator("#settings-title").innerText(), "设置");
+  await page.locator(".language-choice .settings-choice").nth(0).click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator("#settings-title").innerText(), "Settings");
+  await page.getByRole("button", { name: "Close settings" }).click();
+  await page.waitForSelector(".settings-dialog", { state: "detached" });
+  console.log("[ui] appearance presets and language switch responded");
 
   await page.getByRole("button", { name: "Songs", exact: true }).click();
   await page.waitForSelector(".page--songs", { timeout: 10_000 });
@@ -95,6 +138,16 @@ function delay(ms) {
   await page.waitForSelector(".immersive-customizer");
   assert.equal(await page.locator(".immersive-customizer-scrim").count(), 0, "customizer should not dim the scene");
   assert.ok(await page.locator(".immerse__lyrics-side").isVisible(), "lyrics should remain visible beside the panel");
+  const frameToggle = page.locator(".custom-toggle").filter({ hasText: "Lyrics frame" });
+  assert.equal(await frameToggle.getAttribute("aria-checked"), "true", "lyrics frame should start enabled");
+  await frameToggle.click();
+  await page.waitForSelector(".immerse--no-lyrics-frame");
+  const frameBackground = await page
+    .locator(".immerse__lyrics-side")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  assert.equal(frameBackground, "rgba(0, 0, 0, 0)", "lyrics frame toggle should remove the panel surface");
+  await frameToggle.click();
+  await page.waitForSelector(".immerse--no-lyrics-frame", { state: "detached" });
   await page.getByRole("button", { name: "Close customizer" }).click();
   await page.waitForSelector(".immersive-customizer", { state: "detached" });
   await page.getByRole("button", { name: "Open equalizer" }).click();
@@ -283,7 +336,7 @@ function delay(ms) {
   await page.keyboard.press("Meta+k");
   await page.waitForSelector(".command-palette");
   assert.ok((await page.locator(".command-item").count()) > 0, "command palette should have actions");
-  await page.screenshot({ path: path.join(root, "docs", "screenshots", "command-palette.png") });
+  await page.screenshot({ path: path.join(root, "dist", "test-command-palette.png") });
   await page.keyboard.press("Escape");
 
   const widthWithPanel = await page.locator(".page-shell").evaluate((element) => element.getBoundingClientRect().width);
@@ -299,7 +352,7 @@ function delay(ms) {
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.waitForSelector(".page--home .hero");
-  await page.screenshot({ path: path.join(root, "docs", "screenshots", "ui-home.png") });
+  await page.screenshot({ path: path.join(root, "dist", "test-ui-home.png") });
 
   await page.getByRole("button", { name: "Switch to dark theme" }).click();
   await page.waitForTimeout(500);
@@ -315,9 +368,15 @@ function delay(ms) {
   appearance = await page.evaluate(() => ({
     attr: document.documentElement.dataset.theme,
     stored: localStorage.getItem("potato:theme"),
+    style: document.documentElement.dataset.style,
+    display: document.documentElement.dataset.display,
+    lang: document.documentElement.lang,
   }));
   assert.equal(appearance.attr, "dark", "dark theme should survive a renderer reload");
   assert.equal(appearance.stored, "dark", "stored theme should survive a renderer reload");
+  assert.equal(appearance.style, "editorial", "visual style should survive a renderer reload");
+  assert.equal(appearance.display, "serif", "display font should survive a renderer reload");
+  assert.equal(appearance.lang, "en", "language should survive a renderer reload");
   await page.getByRole("button", { name: "Switch to light theme" }).click();
   await page.waitForTimeout(350);
   appearance = await page.evaluate(() => ({

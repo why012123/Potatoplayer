@@ -1,8 +1,10 @@
 import { AnimatePresence, motion } from "motion/react";
 import { CloudDownload, X } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 export function DownloadTray() {
+  const tr = useTr();
   const downloads = useAppStore((state) => state.downloads);
   const dismiss = useAppStore((state) => state.dismissDownload);
   const setPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
@@ -12,8 +14,13 @@ export function DownloadTray() {
   return (
     <div className="download-tray">
       <button type="button" className="download-tray__head" onClick={() => setPanelOpen(true)}>
-        <span><CloudDownload size={13} /> {running.length} download{running.length === 1 ? "" : "s"}</span>
-        <em>View all tasks</em>
+        <span>
+          <CloudDownload size={13} />{" "}
+          {running.length === 1
+            ? tr("1 download", "1 项下载")
+            : tr("{count} downloads", "{count} 项下载", { count: running.length })}
+        </span>
+        <em>{tr("View all tasks", "查看全部任务")}</em>
       </button>
       <AnimatePresence>
         {running.map((job) => {
@@ -34,16 +41,21 @@ export function DownloadTray() {
                 <strong>{job.title}</strong>
                 <span>
                   {job.phase === "resolving"
-                    ? "Finding the best audio…"
+                    ? tr("Finding the best audio…", "正在查找最佳音质…")
                     : job.phase === "queued"
-                      ? "Waiting in the queue…"
-                      : `${pct}% of ${job.total > 0 ? `${Math.round(job.total / 1024 / 1024)} MB` : "download"}`}
+                      ? tr("Waiting in the queue…", "正在排队…")
+                      : job.total > 0
+                        ? tr("{pct}% of {size}", "已下载 {pct}% · {size}", {
+                            pct,
+                            size: `${Math.round(job.total / 1024 / 1024)} MB`,
+                          })
+                        : tr("{pct}% downloaded", "已下载 {pct}%", { pct })}
                 </span>
                 <div className="download-item__bar">
                   <i style={{ width: `${Math.max(4, pct)}%` }} />
                 </div>
               </div>
-              <button type="button" className="download-item__close" aria-label="Dismiss" onClick={() => dismiss(job.jobId)}>
+              <button type="button" className="download-item__close" aria-label={tr("Dismiss", "忽略")} onClick={() => dismiss(job.jobId)}>
                 <X size={12} />
               </button>
             </motion.div>

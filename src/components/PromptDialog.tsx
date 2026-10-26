@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { LoaderCircle } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
 import { Modal } from "@/components/Modal";
 
 export function PromptDialog() {
+  const tr = useTr();
   const prompt = useAppStore((state) => state.prompt);
   const closePrompt = useAppStore((state) => state.closePrompt);
   const [value, setValue] = useState("");
@@ -47,7 +49,7 @@ export function PromptDialog() {
         >
           <div className="modal__eyebrow">
             <span className="modal__dot" />
-            {prompt.destructive ? "Please confirm" : "Potatoplayer Super"}
+            {prompt.destructive ? tr("Please confirm", "请确认") : "Potatoplayer Super"}
           </div>
           <h2 id="prompt-title">{prompt.title}</h2>
           {prompt.description && <p className="modal__description">{prompt.description}</p>}
@@ -57,7 +59,7 @@ export function PromptDialog() {
               className="text-field"
               value={value}
               maxLength={60}
-              placeholder={prompt.placeholder ?? "Name"}
+              placeholder={prompt.placeholder ?? tr("Name", "名称")}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={(event) => {
                 if (isCommitEnter(event)) void submit();
@@ -66,7 +68,7 @@ export function PromptDialog() {
           )}
           <div className="modal__actions">
             <button type="button" className="button button--glass" disabled={busy} onClick={closePrompt}>
-              Cancel
+              {tr("Cancel", "取消")}
             </button>
             <button
               type="button"

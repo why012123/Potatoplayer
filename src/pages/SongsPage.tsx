@@ -7,17 +7,9 @@ import { useAppStore, type SortMode } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 
 type Filter = "all" | "favorites" | "rated";
-
-const sortLabels: Record<SortMode, string> = {
-  title: "Title",
-  artist: "Artist",
-  album: "Album",
-  recent: "Recently added",
-  plays: "Most played",
-  rating: "Highest rated",
-};
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -29,6 +21,7 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 export function SongsPage() {
+  const tr = useTr();
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
   const favoritesSet = new Set(favorites);
@@ -47,6 +40,15 @@ export function SongsPage() {
   const setBulkAssign = useAppStore((state) => state.setBulkAssign);
   const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const enqueueMany = useAppStore((state) => state.enqueueMany);
+
+  const sortLabels: Record<SortMode, string> = {
+    title: tr("Title", "标题"),
+    artist: tr("Artist", "艺术家"),
+    album: tr("Album", "专辑"),
+    recent: tr("Recently added", "最近添加"),
+    plays: tr("Most played", "播放最多"),
+    rating: tr("Highest rated", "评分最高"),
+  };
 
   const visible = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -107,15 +109,15 @@ export function SongsPage() {
   if (!tracks.length) {
     return (
       <div className="page">
-        <PageHeader title="Songs" description="Every track in your local library." />
+        <PageHeader title={tr("Songs", "歌曲")} description={tr("Every track in your local library.", "本地资料库中的全部曲目。")} />
         <div className="empty-stage glass empty-stage--compact">
           <div className="empty-stage__icon empty-stage__icon--plain">
             <FolderOpen size={28} />
           </div>
-          <h2>No songs indexed yet.</h2>
-          <p>Choose a folder with audio files and they will show up here.</p>
+          <h2>{tr("No songs indexed yet.", "尚未索引任何歌曲。")}</h2>
+          <p>{tr("Choose a folder with audio files and they will show up here.", "选择包含音频文件的文件夹，歌曲就会显示在这里。")}</p>
           <button type="button" className="button button--dark" onClick={() => void chooseLibrary()}>
-            <FolderOpen size={16} /> Choose music folder
+            <FolderOpen size={16} /> {tr("Choose music folder", "选择音乐文件夹")}
           </button>
         </div>
       </div>
@@ -125,8 +127,15 @@ export function SongsPage() {
   return (
     <div className="page page--songs">
       <PageHeader
-        title="Songs"
-        description={`${tracks.length} tracks · ${formatLongDuration(tracks.reduce((sum, track) => sum + track.duration, 0))} of listening`}
+        eyebrow={tr("Your library", "你的资料库")}
+        title={tr("Songs", "歌曲")}
+        description={tr("{tracks} · {duration} of listening", "{tracks} · 聆听时长 {duration}", {
+          tracks:
+            tracks.length === 1
+              ? tr("1 track", "1 首歌曲")
+              : tr("{count} tracks", "{count} 首歌曲", { count: tracks.length }),
+          duration: formatLongDuration(tracks.reduce((sum, track) => sum + track.duration, 0)),
+        })}
         actions={
           <>
             <button
@@ -135,7 +144,7 @@ export function SongsPage() {
               onClick={() => (selecting ? exitSelection() : setSelecting(true))}
             >
               <CheckSquare size={15} />
-              {selecting ? "Done" : "Select"}
+              {selecting ? tr("Done", "完成") : tr("Select", "选择")}
             </button>
             <button
               type="button"
@@ -146,7 +155,7 @@ export function SongsPage() {
               }}
             >
               <Shuffle size={15} />
-              Shuffle
+              {tr("Shuffle", "随机播放")}
             </button>
             <button
               type="button"
@@ -156,19 +165,20 @@ export function SongsPage() {
               }}
             >
               <Play size={15} fill="currentColor" />
-              Play
+              {tr("Play", "播放")}
             </button>
           </>
         }
       />
 
-      <div className="list-toolbar glass">
+      <div className="library-controls glass">
+      <div className="list-toolbar">
         <div className="filter-chips">
           {(
             [
-              ["all", "All songs", tracks.length],
-              ["favorites", "Favorites", favorites.length],
-              ["rated", "Rated 8+", tracks.filter((track) => track.rating >= 8).length],
+              ["all", tr("All songs", "全部歌曲"), tracks.length],
+              ["favorites", tr("Favorites", "收藏"), favorites.length],
+              ["rated", tr("Rated 8+", "评分 8+"), tracks.filter((track) => track.rating >= 8).length],
             ] as const
           ).map(([value, label, count]) => (
             <button
@@ -184,11 +194,15 @@ export function SongsPage() {
         </div>
         <div className="toolbar-right">
           <span className="toolbar-count">
-            {visible.length} of {tracks.length}
+            {tr("{shown} of {total}", "显示 {shown} / {total}", { shown: visible.length, total: tracks.length })}
           </span>
           <label className="sort-control">
             <ArrowDownUp size={13} />
-            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} aria-label="Sort songs">
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              aria-label={tr("Sort songs", "歌曲排序")}
+            >
               {Object.entries(sortLabels).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -199,14 +213,18 @@ export function SongsPage() {
         </div>
       </div>
 
-      <div className="taxonomy-filterbar glass">
+      <div className="taxonomy-filterbar">
         <span className="taxonomy-filterbar__label">
-          <Layers3 size={13} /> Focus
+          <Layers3 size={13} /> {tr("Focus", "筛选")}
         </span>
         <label className="taxonomy-select">
           <span className="taxonomy-select__dot" style={{ background: blocks.find((tag) => tag.name === blockFilter)?.color ?? "transparent" }} />
-          <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)} aria-label="Filter by block">
-            <option value="">All blocks</option>
+          <select
+            value={blockFilter}
+            onChange={(event) => setBlockFilter(event.target.value)}
+            aria-label={tr("Filter by block", "按区块筛选")}
+          >
+            <option value="">{tr("All blocks", "全部区块")}</option>
             {blocks.map((tag) => (
               <option key={tag.name} value={tag.name}>
                 {tag.name}
@@ -216,8 +234,12 @@ export function SongsPage() {
         </label>
         <label className="taxonomy-select">
           <span className="taxonomy-select__dot" style={{ background: genres.find((tag) => tag.name === genreFilter)?.color ?? "transparent" }} />
-          <select value={genreFilter} onChange={(event) => setGenreFilter(event.target.value)} aria-label="Filter by genre">
-            <option value="">All genres</option>
+          <select
+            value={genreFilter}
+            onChange={(event) => setGenreFilter(event.target.value)}
+            aria-label={tr("Filter by genre", "按流派筛选")}
+          >
+            <option value="">{tr("All genres", "全部流派")}</option>
             {genres.map((tag) => (
               <option key={tag.name} value={tag.name}>
                 {tag.name}
@@ -234,14 +256,18 @@ export function SongsPage() {
               setGenreFilter("");
             }}
           >
-            <X size={12} /> Clear focus
+            <X size={12} /> {tr("Clear focus", "清除筛选")}
           </button>
         )}
-        <span className="taxonomy-filterbar__count">{visible.length} matched</span>
+        <span className="taxonomy-filterbar__count">
+          {visible.length === 1
+            ? tr("1 match", "匹配 1 首")
+            : tr("{count} matches", "匹配 {count} 首", { count: visible.length })}
+        </span>
         {selecting && (
           <button type="button" className="taxonomy-filterbar__all" onClick={toggleAll}>
             {allSelected ? <Check size={12} /> : <CheckSquare size={12} />}
-            {allSelected ? "All selected" : "Select all"}
+            {allSelected ? tr("All selected", "已全选") : tr("Select all", "全选")}
           </button>
         )}
       </div>
@@ -249,11 +275,13 @@ export function SongsPage() {
       {searchQuery && (
         <div className="query-note">
           <span>
-            Results for <strong>“{searchQuery}”</strong>
+            {tr("Results for ", "搜索结果：")}
+            <strong>“{searchQuery}”</strong>
           </span>
           <em>{formatLongDuration(duration)}</em>
         </div>
       )}
+      </div>
 
       {visible.length ? (
         <TrackTable
@@ -266,8 +294,8 @@ export function SongsPage() {
       ) : (
         <motion.div className="search-empty glass" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <SearchX size={24} />
-          <h3>No matching songs</h3>
-          <p>Try a different title, artist or album.</p>
+          <h3>{tr("No matching songs", "没有匹配的歌曲")}</h3>
+          <p>{tr("Try a different title, artist or album.", "试试其他标题、艺术家或专辑。")}</p>
         </motion.div>
       )}
 
@@ -279,45 +307,45 @@ export function SongsPage() {
           exit={{ opacity: 0, y: 10 }}
         >
           <span>
-            <strong>{selectedCount}</strong> selected
+            <strong>{selectedCount}</strong> {tr("selected", "首已选中")}
           </span>
           <button
             type="button"
             className="button button--glass button--small"
             onClick={() => void enqueueMany([...selected], true)}
           >
-            <ListEnd size={14} /> Play next
+            <ListEnd size={14} /> {tr("Play next", "下一首播放")}
           </button>
           <button
             type="button"
             className="button button--glass button--small"
             onClick={() => void enqueueMany([...selected], false)}
           >
-            <ListPlus size={14} /> Add to queue
+            <ListPlus size={14} /> {tr("Add to queue", "添加到队列")}
           </button>
           <button
             type="button"
             className="button button--glass button--small"
             onClick={() => setAddToPlaylistTrackIds([...selected])}
           >
-            <ListMusic size={14} /> Add to playlist
+            <ListMusic size={14} /> {tr("Add to playlist", "添加到歌单")}
           </button>
           <button
             type="button"
             className="button button--glass button--small"
             onClick={() => setBulkAssign({ trackIds: [...selected], field: "block" })}
           >
-            <Layers3 size={14} /> Assign block
+            <Layers3 size={14} /> {tr("Assign block", "分配区块")}
           </button>
           <button
             type="button"
             className="button button--glass button--small"
             onClick={() => setBulkAssign({ trackIds: [...selected], field: "genre" })}
           >
-            <TagIcon size={14} /> Assign genre
+            <TagIcon size={14} /> {tr("Assign genre", "分配流派")}
           </button>
           <button type="button" className="button button--dark button--small" onClick={exitSelection}>
-            Done
+            {tr("Done", "完成")}
           </button>
         </motion.div>,
         document.body,

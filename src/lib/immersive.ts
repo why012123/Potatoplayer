@@ -12,6 +12,7 @@ export interface ImmersivePreferences {
   showProgress: boolean;
   showVolume: boolean;
   showFavorite: boolean;
+  lyricsFrame: boolean;
   lyricScale: number;
   lyricAlign: "left" | "center";
   lyricSerif: boolean;
@@ -36,6 +37,7 @@ export const DEFAULT_IMMERSIVE: ImmersivePreferences = {
   showProgress: true,
   showVolume: true,
   showFavorite: true,
+  lyricsFrame: true,
   lyricScale: 1,
   lyricAlign: "left",
   lyricSerif: false,

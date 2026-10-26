@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { Play } from "lucide-react";
 import type { ArtistSummary, Collection, Track } from "@/types";
 import { Cover } from "@/components/Cover";
-import { initials } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 
 export function TrackCard({
   track,
@@ -50,6 +50,7 @@ export function CollectionCard({
   onPlay: () => void;
   index?: number;
 }) {
+  const tr = useTr();
   return (
     <motion.div
       className="collection-card"
@@ -58,7 +59,7 @@ export function CollectionCard({
       transition={{ delay: Math.min(index * 0.02, 0.18), duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -4 }}
     >
-      <button type="button" className="collection-card__open" onClick={onOpen} tabIndex={-1} aria-label={`Open ${collection.title}`} />
+      <button type="button" className="collection-card__open" onClick={onOpen} tabIndex={-1} aria-label={tr("Open {name}", "打开 {name}", { name: collection.title })} />
       <Cover path={collection.coverPath} seed={collection.key} label={collection.title} radius={18} className="collection-card__cover" />
       <div className="collection-card__meta">
         <strong>{collection.title}</strong>
@@ -67,7 +68,7 @@ export function CollectionCard({
       <button
         type="button"
         className="collection-card__play"
-        title={`Play ${collection.title}`}
+        title={tr("Play {name}", "播放 {name}", { name: collection.title })}
         onClick={(event) => {
           event.stopPropagation();
           onPlay();
@@ -90,6 +91,7 @@ export function ArtistCard({
   onPlay: () => void;
   index?: number;
 }) {
+  const tr = useTr();
   return (
     <motion.div
       className="artist-card"
@@ -98,7 +100,7 @@ export function ArtistCard({
       transition={{ delay: Math.min(index * 0.025, 0.2), duration: 0.32 }}
       whileHover={{ y: -4 }}
     >
-      <button type="button" className="artist-card__open" onClick={onOpen} tabIndex={-1} aria-label={`Open ${artist.name}`} />
+      <button type="button" className="artist-card__open" onClick={onOpen} tabIndex={-1} aria-label={tr("Open {name}", "打开 {name}", { name: artist.name })} />
       <Cover
         path={artist.coverPath}
         seed={artist.name}
@@ -106,13 +108,12 @@ export function ArtistCard({
         radius="50%"
         className="artist-card__cover"
       />
-      <div className="artist-card__fallback">{initials(artist.name)}</div>
       <strong>{artist.name}</strong>
-      <span>{artist.tracks.length} songs</span>
+      <span>{tr("{count} songs", "{count} 首歌曲", { count: artist.tracks.length })}</span>
       <button
         type="button"
         className="artist-card__play"
-        title={`Play ${artist.name}`}
+        title={tr("Play {name}", "播放 {name}", { name: artist.name })}
         onClick={(event) => {
           event.stopPropagation();
           onPlay();

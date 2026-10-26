@@ -11,8 +11,9 @@ export function coverGradient(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
   const hue = Math.abs(hash) % 360;
-  const hue2 = (hue + 48) % 360;
-  return `linear-gradient(145deg, hsl(${hue} 42% 72%), hsl(${hue2} 55% 48%))`;
+  const hue2 = (hue + 42) % 360;
+  return `radial-gradient(85% 85% at 28% 18%, hsl(${hue} 24% 38% / 78%), transparent 66%),
+    linear-gradient(148deg, hsl(${hue} 22% 26%), hsl(${hue2} 28% 14%))`;
 }
 
 

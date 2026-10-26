@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { LoaderCircle, Pause, Play, RotateCcw, SkipBack, SkipForward, SlidersHorizontal, X } from "lucide-react";
 import type { LyricsPayload, Track } from "@/types";
 import { formatTime } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 
 type Palette = { primary: string; secondary: string } | null;
 
@@ -51,6 +52,7 @@ export function Lyric3DStage({
   const [loaded, setLoaded] = useState(false);
   const [booted, setBooted] = useState(false);
   const [stageError, setStageError] = useState<string | null>(null);
+  const tr = useTr();
   const lyricLines = lyrics?.found ? lyrics.lines : [];
   const hasLyrics = lyricLines.length > 0;
 
@@ -62,7 +64,7 @@ export function Lyric3DStage({
     const onMessage = (event: MessageEvent<HostMessage>) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type === "lyric3d:error") {
-        setStageError(event.data.message ?? "The 3D stage could not start.");
+        setStageError(event.data.message ?? tr("The 3D stage could not start.", "3D 舞台无法启动。"));
       }
       if (event.data?.type === "lyric3d:ready" || event.data?.type === "lyric3d:booted") {
         setBooted(true);
@@ -72,7 +74,7 @@ export function Lyric3DStage({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -124,7 +126,7 @@ export function Lyric3DStage({
       <iframe
         ref={iframeRef}
         className="lyric3d-stage__frame"
-        title="3D lyric performance"
+        title={tr("3D lyric performance", "3D 歌词演出")}
         src="./lyric3d/index.html?embed=1"
         onLoad={() => setLoaded(true)}
         tabIndex={-1}
@@ -134,33 +136,33 @@ export function Lyric3DStage({
         <div className="lyric3d-brand">
           <span className="lyric3d-brand__mark">3D</span>
           <span>
-            <strong>LYRIC PERFORMANCE</strong>
+            <strong>{tr("LYRIC PERFORMANCE", "歌词演出")}</strong>
             <em>{track.artist} · {track.title}</em>
           </span>
         </div>
         <div className="lyric3d-view-switch">
-          <button type="button" onClick={onClassic}>经典</button>
-          <button type="button" className="is-active">3D 演出</button>
+          <button type="button" onClick={onClassic}>{tr("Classic", "经典")}</button>
+          <button type="button" className="is-active">{tr("3D stage", "3D 演出")}</button>
         </div>
-        <button type="button" className="lyric3d-customize" onClick={onCustomize} aria-label="Customize 3D stage">
+        <button type="button" className="lyric3d-customize" onClick={onCustomize} aria-label={tr("Customize 3D stage", "自定义 3D 舞台")}>
           <SlidersHorizontal size={15} />
         </button>
-        <button type="button" className="lyric3d-exit" onClick={onExit} aria-label="Exit immersive mode">
+        <button type="button" className="lyric3d-exit" onClick={onExit} aria-label={tr("Exit immersive mode", "退出沉浸模式")}>
           <X size={17} />
         </button>
       </div>
 
       {(!hasLyrics || stageError) && (
         <div className="lyric3d-message">
-          <strong>{stageError ? "3D stage unavailable" : "No timed lyrics"}</strong>
-          <span>{stageError ?? "This song has no LRC timeline to perform."}</span>
-          <button type="button" onClick={onClassic}>Back to classic</button>
+          <strong>{stageError ? tr("3D stage unavailable", "3D 舞台不可用") : tr("No timed lyrics", "没有时间轴歌词")}</strong>
+          <span>{stageError ?? tr("This song has no LRC timeline to perform.", "这首歌没有可供演出的 LRC 时间轴。")}</span>
+          <button type="button" onClick={onClassic}>{tr("Back to classic", "返回经典")}</button>
         </div>
       )}
 
       {!loaded && !stageError && (
         <div className="lyric3d-loading">
-          <LoaderCircle size={16} className="is-spinning" /> Building 3D stage…
+          <LoaderCircle size={16} className="is-spinning" /> {tr("Building 3D stage…", "正在构建 3D 舞台…")}
         </div>
       )}
 
@@ -173,29 +175,29 @@ export function Lyric3DStage({
             max={duration || 1}
             step={0.01}
             value={Math.min(time, duration || 1)}
-            aria-label="Playback position"
+            aria-label={tr("Playback position", "播放进度")}
             style={{ "--progress": `${duration ? (time / duration) * 100 : 0}%` } as React.CSSProperties}
             onChange={(event) => onSeek(Number(event.target.value))}
           />
           <span>{formatTime(duration)}</span>
         </div>
         <div className="lyric3d-controls">
-          <button type="button" onClick={() => onSeek(Math.max(0, time - 10))} aria-label="Back 10 seconds">−10</button>
-          <button type="button" onClick={onPrevious} aria-label="Previous" disabled={!isCurrent}>
+          <button type="button" onClick={() => onSeek(Math.max(0, time - 10))} aria-label={tr("Back 10 seconds", "快退 10 秒")}>−10</button>
+          <button type="button" onClick={onPrevious} aria-label={tr("Previous", "上一首")} disabled={!isCurrent}>
             <SkipBack size={18} fill="currentColor" strokeWidth={0.7} />
           </button>
-          <button type="button" className="lyric3d-play" onClick={onToggle} aria-label={playing ? "Pause" : "Play"}>
+          <button type="button" className="lyric3d-play" onClick={onToggle} aria-label={playing ? tr("Pause", "暂停") : tr("Play", "播放")}>
             {playing ? <Pause size={20} fill="currentColor" strokeWidth={0} /> : <Play size={20} fill="currentColor" strokeWidth={0} />}
           </button>
-          <button type="button" onClick={onNext} aria-label="Next" disabled={!isCurrent}>
+          <button type="button" onClick={onNext} aria-label={tr("Next", "下一首")} disabled={!isCurrent}>
             <SkipForward size={18} fill="currentColor" strokeWidth={0.7} />
           </button>
-          <button type="button" onClick={() => onSeek(Math.min(duration, time + 10))} aria-label="Forward 10 seconds">+10</button>
+          <button type="button" onClick={() => onSeek(Math.min(duration, time + 10))} aria-label={tr("Forward 10 seconds", "快进 10 秒")}>+10</button>
         </div>
         <div className="lyric3d-live">
           <span className={playing ? "is-live" : ""} />
-          {playing ? "PLAYING" : "PAUSED"} · IMMERSIVE 3D
-          <button type="button" onClick={() => onSeek(0)} aria-label="Restart track"><RotateCcw size={13} /></button>
+          {playing ? tr("PLAYING", "播放中") : tr("PAUSED", "已暂停")} · {tr("IMMERSIVE 3D", "沉浸 3D")}
+          <button type="button" onClick={() => onSeek(0)} aria-label={tr("Restart track", "重新播放")}><RotateCcw size={13} /></button>
         </div>
       </footer>
     </motion.div>

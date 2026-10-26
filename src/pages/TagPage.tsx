@@ -4,6 +4,7 @@ import { ArrowLeft, Clock3, ListEnd, ListMusic, ListPlus, Pencil, Play, Shuffle,
 import { useAppStore } from "@/store";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -27,6 +28,7 @@ export function TagPage() {
   const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
   const setTagColor = useAppStore((state) => state.setTagColor);
   const [hoverColor, setHoverColor] = useState(false);
+  const tr = useTr();
 
   const kind = view.kind === "genre" ? "genre" : "block";
   const name = "name" in view ? view.name : "";
@@ -44,11 +46,15 @@ export function TagPage() {
     return (
       <div className="page">
         <button type="button" className="back-link" onClick={goBack}>
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft size={15} /> {tr("Back", "返回")}
         </button>
         <div className="empty-stage glass empty-stage--compact">
-          <h2>This {kind} no longer exists.</h2>
-          <p>It may have been removed from your collection system.</p>
+          <h2>
+            {kind === "block"
+              ? tr("This block no longer exists.", "这个区块已不存在。")
+              : tr("This genre no longer exists.", "这个流派已不存在。")}
+          </h2>
+          <p>{tr("It may have been removed from your collection system.", "它可能已从你的分类体系中移除。")}</p>
         </div>
       </div>
     );
@@ -63,7 +69,7 @@ export function TagPage() {
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
     >
       <button type="button" className="back-link" onClick={goBack}>
-        <ArrowLeft size={15} /> Blocks & Genres
+        <ArrowLeft size={15} /> {tr("Blocks & Genres", "区块与流派")}
       </button>
       <header className="tag-hero glass">
         <div className="tag-hero__mark">
@@ -71,10 +77,16 @@ export function TagPage() {
           <TagIcon size={28} />
         </div>
         <div className="tag-hero__copy">
-          <span className="eyebrow">{kind}</span>
+          <span className="eyebrow">{kind === "block" ? tr("Block", "区块") : tr("Genre", "流派")}</span>
           <h1>{tag.name}</h1>
           <div className="detail-hero__facts">
-            <span>{filtered.length} songs</span>
+            <span>
+              {tr(
+                filtered.length === 1 ? "{count} song" : "{count} songs",
+                "{count} 首歌曲",
+                { count: filtered.length },
+              )}
+            </span>
             <i />
             <span>
               <Clock3 size={13} /> {formatLongDuration(duration)}
@@ -83,7 +95,11 @@ export function TagPage() {
               <>
                 <i />
                 <span className="rating-inline">
-                  ★ {avg.toFixed(1)} from {rated.length} ratings
+                  {tr(
+                    rated.length === 1 ? "★ {avg} from {count} rating" : "★ {avg} from {count} ratings",
+                    "★ {avg} · {count} 人评分",
+                    { avg: avg.toFixed(1), count: rated.length },
+                  )}
                 </span>
               </>
             )}
@@ -95,62 +111,74 @@ export function TagPage() {
               disabled={!filtered.length}
               onClick={() => filtered[0] && void playTrack(filtered[0], queue)}
             >
-              <Play size={15} fill="currentColor" /> Play
+              <Play size={15} fill="currentColor" /> {tr("Play", "播放")}
             </button>
             <button
               type="button"
               className="button button--glass"
+              title={tr("Shuffle", "随机播放")}
+              aria-label={tr("Shuffle", "随机播放")}
               disabled={!filtered.length}
               onClick={() => {
                 const ordered = shuffle(filtered);
                 if (ordered[0]) void playTrack(ordered[0], ordered.map((track) => track.id));
               }}
             >
-              <Shuffle size={15} /> Shuffle
+              <Shuffle size={15} /> {tr("Shuffle", "随机播放")}
             </button>
             <button
               type="button"
-              className="button button--glass"
+              className="button button--glass button--compact"
+              title={tr("Play next", "下一首播放")}
+              aria-label={tr("Play next", "下一首播放")}
               disabled={!filtered.length}
               onClick={() => void enqueueMany(queue, true)}
             >
-              <ListEnd size={15} /> Play next
+              <ListEnd size={15} /> {tr("Play next", "下一首播放")}
             </button>
             <button
               type="button"
-              className="button button--glass"
+              className="button button--glass button--compact"
+              title={tr("Add to queue", "添加到队列")}
+              aria-label={tr("Add to queue", "添加到队列")}
               disabled={!filtered.length}
               onClick={() => void enqueueMany(queue, false)}
             >
-              <ListPlus size={15} /> Add to queue
+              <ListPlus size={15} /> {tr("Add to queue", "添加到队列")}
             </button>
             <button
               type="button"
-              className="button button--glass"
-              title="Add all to playlist"
-              aria-label="Add all to playlist"
+              className="button button--glass button--compact"
+              title={tr("Add all to playlist", "全部添加到歌单")}
+              aria-label={tr("Add all to playlist", "全部添加到歌单")}
               disabled={!filtered.length}
               onClick={() => setAddToPlaylistTrackIds(queue)}
             >
-              <ListMusic size={15} /> Add to playlist
+              <ListMusic size={15} /> {tr("Add to playlist", "添加到歌单")}
             </button>
-            <button type="button" className="button button--glass" onClick={() => setTaxonomyManager(kind)}>
-              <Pencil size={14} /> Manage
+            <button
+              type="button"
+              className="button button--glass button--compact"
+              title={tr("Manage this tag", "管理此标签")}
+              aria-label={tr("Manage this tag", "管理此标签")}
+              onClick={() => setTaxonomyManager(kind)}
+            >
+              <Pencil size={14} /> {tr("Manage", "管理")}
             </button>
             <label
               className="tag-color-picker"
               onMouseEnter={() => setHoverColor(true)}
               onMouseLeave={() => setHoverColor(false)}
-              title="Change colour"
+              title={tr("Change colour", "更改颜色")}
             >
               <span style={{ background: tag.color }} />
               <input
                 type="color"
                 value={tag.color}
-                aria-label="Tag colour"
+                aria-label={tr("Tag colour", "标签颜色")}
                 onChange={(event) => void setTagColor(kind, tag.name, event.target.value)}
               />
-              {hoverColor && <em>Colour</em>}
+              {hoverColor && <em>{tr("Colour", "颜色")}</em>}
             </label>
           </div>
         </div>
@@ -168,10 +196,20 @@ export function TagPage() {
           <div className="empty-stage__icon empty-stage__icon--plain">
             <TagIcon size={28} />
           </div>
-          <h2>Nothing assigned here yet.</h2>
-          <p>Select songs in the library and use “Assign block” or “Assign genre” to fill this {kind}.</p>
+          <h2>{tr("Nothing assigned here yet.", "这里还没有分配内容。")}</h2>
+          <p>
+            {kind === "block"
+              ? tr(
+                  "Select songs in the library and use “Assign block” or “Assign genre” to fill this block.",
+                  "在资料库中选择歌曲，使用“分配区块”或“分配流派”来填充这个区块。",
+                )
+              : tr(
+                  "Select songs in the library and use “Assign block” or “Assign genre” to fill this genre.",
+                  "在资料库中选择歌曲，使用“分配区块”或“分配流派”来填充这个流派。",
+                )}
+          </p>
           <button type="button" className="button button--dark" onClick={() => navigate({ kind: "songs" })}>
-            Browse songs
+            {tr("Browse songs", "浏览歌曲")}
           </button>
         </div>
       )}

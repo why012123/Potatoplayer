@@ -12,10 +12,12 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 type Filter = "active" | "done" | "failed" | "all";
 
 export function DownloadTasks() {
+  const tr = useTr();
   const open = useAppStore((state) => state.downloadPanelOpen);
   const setOpen = useAppStore((state) => state.setDownloadPanelOpen);
   const downloads = useAppStore((state) => state.downloads);
@@ -42,6 +44,15 @@ export function DownloadTasks() {
   const activeImports = imports.filter((item) => item.active);
   const finishedImports = imports.filter((item) => !item.active);
 
+  const filterLabel = (item: Filter) =>
+    item === "active"
+      ? tr("Active", "进行中")
+      : item === "done"
+        ? tr("Finished", "已完成")
+        : item === "failed"
+          ? tr("Failed", "失败")
+          : tr("All", "全部");
+
   return (
     <AnimatePresence>
       {open && (
@@ -61,15 +72,21 @@ export function DownloadTasks() {
             exit={{ opacity: 0, x: 28 }}
             transition={{ type: "spring", stiffness: 360, damping: 34 }}
             role="dialog"
-            aria-label="Download tasks"
+            aria-label={tr("Download tasks", "下载任务")}
           >
             <header className="download-panel__head">
               <div>
-                <span className="eyebrow">Transfers</span>
-                <h2>Download tasks</h2>
-                <p>{activeCount ? `${activeCount} task${activeCount === 1 ? "" : "s"} in progress` : "Everything is quiet."}</p>
+                <span className="eyebrow">{tr("Transfers", "传输")}</span>
+                <h2>{tr("Download tasks", "下载任务")}</h2>
+                <p>
+                  {activeCount
+                    ? activeCount === 1
+                      ? tr("1 task in progress", "1 个任务进行中")
+                      : tr("{count} tasks in progress", "{count} 个任务进行中", { count: activeCount })
+                    : tr("Everything is quiet.", "一切安静。")}
+                </p>
               </div>
-              <button type="button" className="download-panel__close" onClick={() => setOpen(false)} aria-label="Close">
+              <button type="button" className="download-panel__close" onClick={() => setOpen(false)} aria-label={tr("Close", "关闭")}>
                 <X size={16} />
               </button>
             </header>
@@ -77,7 +94,7 @@ export function DownloadTasks() {
             {(activeImports.length > 0 || finishedImports.length > 0) && (
               <section className="download-panel__imports">
                 <div className="download-panel__section-label">
-                  <ListPlus size={13} /> Playlist imports
+                  <ListPlus size={13} /> {tr("Playlist imports", "歌单导入")}
                 </div>
                 {[...activeImports, ...finishedImports].slice(0, 4).map((item) => (
                   <div className={clsx("download-import", !item.active && "is-finished")} key={item.id}>
@@ -87,15 +104,20 @@ export function DownloadTasks() {
                     <div className="download-import__copy">
                       <strong>{item.playlistName}</strong>
                       <span>
-                        {item.resolved} ready · {item.queued} queued
-                        {item.failed ? ` · ${item.failed} failed` : ""}
+                        {tr("{ready} ready · {queued} queued", "{ready} 首已就绪 · {queued} 首排队中", {
+                          ready: item.resolved,
+                          queued: item.queued,
+                        })}
+                        {item.failed
+                          ? ` · ${tr("{count} failed", "{count} 首失败", { count: item.failed })}`
+                          : ""}
                       </span>
                       <div className="download-import__bar">
                         <i style={{ width: `${Math.max(3, (item.resolved / Math.max(1, item.total)) * 100)}%` }} />
                       </div>
                     </div>
                     {!item.active && (
-                      <button type="button" className="download-row__dismiss" onClick={() => dismissImport(item.id)} aria-label="Dismiss import">
+                      <button type="button" className="download-row__dismiss" onClick={() => dismissImport(item.id)} aria-label={tr("Dismiss import", "忽略导入")}>
                         <X size={12} />
                       </button>
                     )}
@@ -104,7 +126,7 @@ export function DownloadTasks() {
               </section>
             )}
 
-            <div className="download-panel__tabs" role="tablist" aria-label="Download filters">
+            <div className="download-panel__tabs" role="tablist" aria-label={tr("Download filters", "下载筛选")}>
               {(["active", "done", "failed", "all"] as Filter[]).map((item) => (
                 <button
                   key={item}
@@ -114,7 +136,7 @@ export function DownloadTasks() {
                   className={clsx(filter === item && "is-active")}
                   onClick={() => setFilter(item)}
                 >
-                  {item === "active" ? "Active" : item === "done" ? "Finished" : item === "failed" ? "Failed" : "All"}
+                  {filterLabel(item)}
                   <em>
                     {item === "active"
                       ? activeCount
@@ -132,8 +154,14 @@ export function DownloadTasks() {
               {visible.length === 0 ? (
                 <div className="download-panel__empty">
                   <CloudDownload size={24} />
-                  <strong>No {filter === "all" ? "" : filter} tasks</strong>
-                  <span>Downloads from Discover will appear here.</span>
+                  <strong>
+                    {filter === "all"
+                      ? tr("No tasks", "暂无任务")
+                      : tr("No {filter} tasks", "暂无{filter}任务", { filter: filterLabel(filter) })}
+                  </strong>
+                  <span>
+                    {tr("Downloads from Discover will appear here.", "来自“发现”页的下载会显示在这里。")}
+                  </span>
                 </div>
               ) : (
                 visible.map((job) => {
@@ -155,14 +183,14 @@ export function DownloadTasks() {
                           {job.status === "error"
                             ? job.message
                             : job.status === "done"
-                              ? "Added to your library"
+                              ? tr("Added to your library", "已添加到资料库")
                               : job.phase === "resolving"
-                                ? "Resolving the best audio…"
+                                ? tr("Resolving the best audio…", "正在解析最佳音质…")
                                 : job.phase === "queued"
-                                  ? "Waiting in the queue…"
+                                  ? tr("Waiting in the queue…", "正在排队…")
                                   : job.total > 0
                                     ? `${pct}% · ${Math.round(job.total / 1024 / 1024)} MB`
-                                    : "Downloading…"}
+                                    : tr("Downloading…", "下载中…")}
                         </span>
                         {job.status === "running" && (
                           <div className="download-row__bar">
@@ -172,12 +200,12 @@ export function DownloadTasks() {
                       </div>
                       <div className="download-row__actions">
                         {job.status === "error" && (
-                          <button type="button" onClick={() => void retry(job.jobId)} title="Retry download" aria-label="Retry download">
+                          <button type="button" onClick={() => void retry(job.jobId)} title={tr("Retry download", "重试下载")} aria-label={tr("Retry download", "重试下载")}>
                             <RefreshCw size={13} />
                           </button>
                         )}
                         {job.status !== "running" && (
-                          <button type="button" onClick={() => dismiss(job.jobId)} title="Dismiss" aria-label="Dismiss download">
+                          <button type="button" onClick={() => dismiss(job.jobId)} title={tr("Dismiss", "忽略")} aria-label={tr("Dismiss download", "忽略下载")}>
                             <X size={13} />
                           </button>
                         )}
@@ -189,9 +217,13 @@ export function DownloadTasks() {
             </div>
 
             <footer className="download-panel__foot">
-              <span>{downloads.length} total · stored in your library</span>
+              <span>
+                {tr("{count} total · stored in your library", "共 {count} 个 · 存储于资料库", {
+                  count: downloads.length,
+                })}
+              </span>
               <button type="button" onClick={clear} disabled={!finishedCount && !imports.some((item) => !item.active)}>
-                <Trash2 size={12} /> Clear finished
+                <Trash2 size={12} /> {tr("Clear finished", "清除已完成")}
               </button>
             </footer>
           </motion.aside>

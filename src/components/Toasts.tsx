@@ -2,8 +2,10 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 export function Toasts() {
+  const tr = useTr();
   const toasts = useAppStore((state) => state.toasts);
   const dismiss = useAppStore((state) => state.dismissToast);
 
@@ -32,7 +34,12 @@ export function Toasts() {
               <strong>{toast.title}</strong>
               {toast.detail && <em>{toast.detail}</em>}
             </span>
-            <button type="button" className="toast__close" onClick={() => dismiss(toast.id)} aria-label="Dismiss">
+            <button
+              type="button"
+              className="toast__close"
+              onClick={() => dismiss(toast.id)}
+              aria-label={tr("Dismiss", "关闭提示")}
+            >
               <X size={13} />
             </button>
           </motion.div>

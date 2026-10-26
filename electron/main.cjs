@@ -13,6 +13,8 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const capturePath = process.env.POTATO_CAPTURE_PATH || null;
 const captureView = process.env.POTATO_CAPTURE_VIEW || process.env.POTATO_START_VIEW || null;
 const shouldExitAfterCapture = process.env.POTATO_CAPTURE_EXIT !== "0";
+const previewMode = Boolean(process.env.POTATO_PREVIEW);
+const windowTitle = previewMode ? "Potatoplayer Super — UI Preview" : "Potatoplayer Super";
 
 let mainWindow = null;
 let backend = null;
@@ -115,7 +117,7 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 700,
     show: false,
-    title: "Potatoplayer Super",
+    title: windowTitle,
     backgroundColor: "#ece6dc",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 20 } : undefined,
@@ -127,6 +129,16 @@ function createWindow() {
       spellcheck: false,
       backgroundThrottling: false,
     },
+  });
+
+  mainWindow.on("page-title-updated", (event) => {
+    if (!previewMode) return;
+    event.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle(windowTitle);
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (previewMode && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle(windowTitle);
   });
 
   mainWindow.once("ready-to-show", () => {

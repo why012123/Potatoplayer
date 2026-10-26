@@ -33,6 +33,9 @@ import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
 import { BilibiliMvDialog } from "@/components/BilibiliMvDialog";
 import { applyTheme } from "@/lib/theme";
+import { applyAppearance, resolveAccent } from "@/lib/appearance";
+import { useTr } from "@/lib/i18n";
+import { documentLanguage, pickText } from "@/lib/text";
 
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -49,10 +52,10 @@ class PageBoundary extends Component<{ children: ReactNode }, { error: Error | n
     if (this.state.error) {
       return (
         <div className="empty-stage glass empty-stage--compact">
-          <h2>This page could not be rendered.</h2>
+          <h2>{pickText(documentLanguage(), "This page could not be rendered.", "这个页面暂时无法显示。")}</h2>
           <p>{this.state.error.message}</p>
           <button type="button" className="button button--dark" onClick={() => this.setState({ error: null })}>
-            Try again
+            {pickText(documentLanguage(), "Try again", "重试")}
           </button>
         </div>
       );
@@ -62,6 +65,7 @@ class PageBoundary extends Component<{ children: ReactNode }, { error: Error | n
 }
 
 function LoadingScreen() {
+  const tr = useTr();
   return (
     <div className="boot-screen">
       <div className="boot-orb boot-orb--one" />
@@ -83,28 +87,29 @@ function LoadingScreen() {
         <div className="boot-loader">
           <span />
         </div>
-        <p>Opening your listening room…</p>
+        <p>{tr("Opening your listening room…", "正在打开你的聆听室…")}</p>
       </motion.div>
     </div>
   );
 }
 
 function FatalScreen({ message }: { message: string }) {
+  const tr = useTr();
   return (
     <div className="boot-screen">
       <motion.div className="fatal-card glass-strong" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <span className="fatal-card__icon">
           <AlertTriangle size={25} />
         </span>
-        <h1>The player could not start.</h1>
+        <h1>{tr("The player could not start.", "播放器未能启动。")}</h1>
         <p>{message}</p>
         <div className="fatal-card__steps">
-          <strong>Try this</strong>
+          <strong>{tr("Try this", "可以试试")}</strong>
           <code>npm run build:backend</code>
-          <span>Then reopen Potatoplayer Super.</span>
+          <span>{tr("Then reopen Potatoplayer Super.", "然后重新打开 Potatoplayer Super。")}</span>
         </div>
         <button type="button" className="button button--dark" onClick={() => window.location.reload()}>
-          <RefreshCw size={15} /> Try again
+          <RefreshCw size={15} /> {tr("Try again", "重试")}
         </button>
       </motion.div>
     </div>
@@ -127,11 +132,12 @@ export default function App() {
   const immersive = useAppStore((state) => state.immersive);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
   const theme = useAppStore((state) => state.theme);
+  const appearance = useAppStore((state) => state.appearance);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [palette, setPalette] = useState<{ primary: string; secondary: string } | null>(null);
   const captureNotified = useRef(false);
   const view = viewHistory[viewIndex] ?? { kind: "home" as const };
-  const pageKey = searchQuery.trim() ? "search" : viewKey(view);
+  const pageKey = `${searchQuery.trim() ? "search" : viewKey(view)}:${appearance.language}`;
   const activeCover =
     tracks.find((track) => track.id === (playback?.trackId ?? previewTrackId))?.coverPath ?? null;
 
@@ -142,6 +148,10 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    applyAppearance(appearance);
+  }, [appearance]);
 
   useEffect(() => {
     if (!activeCover) {
@@ -162,11 +172,12 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty("--accent", palette?.primary ?? "#f2654a");
-    root.style.setProperty("--accent-secondary", palette?.secondary ?? "#f0a25c");
+    const resolved = resolveAccent(appearance.accent, palette);
+    root.style.setProperty("--accent", resolved.primary);
+    root.style.setProperty("--accent-secondary", resolved.secondary);
     root.style.setProperty("--cover-primary", palette?.primary ?? "#d8b6a5");
     root.style.setProperty("--cover-secondary", palette?.secondary ?? "#b8c7d6");
-  }, [palette]);
+  }, [palette, appearance.accent]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -325,10 +336,10 @@ export default function App() {
                   <motion.div
                     key={pageKey}
                     className="page-motion"
-                    initial={{ opacity: 0, y: 7 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: reducedMotion ? 0.1 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: reducedMotion ? 0.08 : 0.28, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <PageBoundary>{page}</PageBoundary>
                   </motion.div>

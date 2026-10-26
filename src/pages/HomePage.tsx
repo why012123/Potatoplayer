@@ -22,6 +22,7 @@ import { EqualizerBars } from "@/components/EqualizerBars";
 import { buildArtists } from "@/lib/collections";
 import { formatLongDuration, greeting, todayLine } from "@/lib/format";
 import { coverUrl } from "@/lib/covers";
+import { useTr } from "@/lib/i18n";
 
 function shuffled<T>(items: T[]): T[] {
   const copy = [...items];
@@ -33,6 +34,7 @@ function shuffled<T>(items: T[]): T[] {
 }
 
 export function HomePage() {
+  const tr = useTr();
   const tracks = useAppStore((state) => state.tracks);
   const playback = useAppStore((state) => state.playback);
   const favorites = useAppStore((state) => state.favorites);
@@ -113,11 +115,17 @@ export function HomePage() {
       <div className="page page--empty">
         <PageHeader
           eyebrow={todayLine()}
-          title={scanning ? "Making room for your music." : "A quiet room, for now."}
+          title={scanning ? tr("Making room for your music.", "正在为你的音乐腾出空间。") : tr("A quiet room, for now.", "此刻，房间很安静。")}
           description={
             scanning
-              ? "Reading your folder, artwork and ratings. This only takes a moment."
-              : "Point Potatoplayer Super at a music folder. Your files stay exactly where they are."
+              ? tr(
+                  "Reading your folder, artwork and ratings. This only takes a moment.",
+                  "正在读取文件夹、封面与评分，很快就好。",
+                )
+              : tr(
+                  "Point Potatoplayer Super at a music folder. Your files stay exactly where they are.",
+                  "让 Potatoplayer Super 指向一个音乐文件夹。文件仍留在原处，不会移动。",
+                )
           }
         />
         <div className="empty-stage glass">
@@ -131,24 +139,38 @@ export function HomePage() {
           </div>
           {scanning ? (
             <>
-              <h2>Scanning your library…</h2>
-              <p>{scanProgress?.total ? `${scanProgress.done} of ${scanProgress.total} songs` : "Looking for audio files"}</p>
+              <h2>{tr("Scanning your library…", "正在扫描资料库…")}</h2>
+              <p>
+                {scanProgress?.total
+                  ? scanProgress.total === 1
+                    ? tr("{done} of 1 song", "正在扫描 {done} / 1 首歌曲", { done: scanProgress.done })
+                    : tr("{done} of {total} songs", "正在扫描 {done} / {total} 首歌曲", {
+                        done: scanProgress.done,
+                        total: scanProgress.total,
+                      })
+                  : tr("Looking for audio files", "正在查找音频文件")}
+              </p>
               <div className="big-progress">
                 <span style={{ width: `${scanPct}%` }} />
               </div>
             </>
           ) : (
             <>
-              <h2>Good music starts with a folder.</h2>
-              <p>MP3, FLAC, M4A, OGG, WAV and AIFF. Existing Potato Player ratings and covers are picked up automatically.</p>
+              <h2>{tr("Good music starts with a folder.", "好音乐，从一个文件夹开始。")}</h2>
+              <p>
+                {tr(
+                  "MP3, FLAC, M4A, OGG, WAV and AIFF. Existing Potato Player ratings and covers are picked up automatically.",
+                  "MP3、FLAC、M4A、OGG、WAV 与 AIFF。Potato Player 中已有的评分和封面会自动读取。",
+                )}
+              </p>
               <div className="empty-stage__actions">
                 <button type="button" className="button button--dark" onClick={() => void chooseLibrary()}>
                   <FolderOpen size={16} />
-                  Choose music folder
+                  {tr("Choose music folder", "选择音乐文件夹")}
                 </button>
                 <button type="button" className="button button--glass" onClick={() => void rescan()}>
                   <RefreshCw size={16} />
-                  Retry scan
+                  {tr("Retry scan", "重新扫描")}
                 </button>
               </div>
             </>
@@ -157,15 +179,15 @@ export function HomePage() {
         <div className="empty-tips">
           <div>
             <Heart size={16} />
-            Favorites and playlists are remembered.
+            {tr("Favorites and playlists are remembered.", "收藏与歌单会被记住。")}
           </div>
           <div>
             <Mic2 size={16} />
-            Sidecar LRC lyrics, including translations.
+            {tr("Sidecar LRC lyrics, including translations.", "支持同目录 LRC 歌词，包含翻译。")}
           </div>
           <div>
             <Sparkles size={16} />
-            Covers and scores imported from your old library.
+            {tr("Covers and scores imported from your old library.", "从旧资料库导入封面与评分。")}
           </div>
         </div>
       </div>
@@ -177,48 +199,23 @@ export function HomePage() {
       <PageHeader
         eyebrow={todayLine()}
         title={greeting()}
-        description={`${
-          playback?.playing ? "The room is filled with sound." : "Your collection is here, ready when you are."
-        }`}
+        description={tr(
+          playback?.playing ? "The room is filled with sound." : "Your collection is here, ready when you are.",
+          playback?.playing ? "音乐正充盈着房间。" : "你的收藏已就位，随时可以开始。",
+        )}
         actions={
           <>
             <button type="button" className="button button--glass" onClick={() => void chooseLibrary()}>
               <FolderOpen size={15} />
-              Import
+              {tr("Import", "导入")}
             </button>
             <button type="button" className="button button--dark" onClick={shuffleAll}>
               <Shuffle size={15} />
-              Shuffle all
+              {tr("Shuffle all", "全部随机播放")}
             </button>
           </>
         }
       />
-
-      <div className="stat-strip glass">
-        <div>
-          <span>Songs</span>
-          <strong>{tracks.length}</strong>
-        </div>
-        <i />
-        <div>
-          <span>Listening time</span>
-          <strong>{formatLongDuration(totalDuration)}</strong>
-        </div>
-        <i />
-        <div>
-          <span>Artists</span>
-          <strong>{new Set(tracks.map((track) => track.artist)).size}</strong>
-        </div>
-        <i />
-        <div>
-          <span>Favorites</span>
-          <strong>{favorites.length}</strong>
-        </div>
-        <div className="stat-strip__spark">
-          <Sparkles size={15} />
-          Local only
-        </div>
-      </div>
 
       {featured && (
         <motion.section
@@ -247,18 +244,18 @@ export function HomePage() {
                 playback.playing ? (
                   <>
                     <EqualizerBars playing />
-                    Now playing
+                    {tr("Now playing", "正在播放")}
                   </>
                 ) : (
                   <>
                     <Sparkles size={12} />
-                    Continue listening
+                    {tr("Continue listening", "继续聆听")}
                   </>
                 )
               ) : (
                 <>
                   <Sparkles size={12} />
-                  {featured.rating > 0 ? "From your library" : "A good place to start"}
+                  {featured.rating > 0 ? tr("From your library", "来自你的资料库") : tr("A good place to start", "从这里开始正好")}
                 </>
               )}
             </div>
@@ -272,14 +269,24 @@ export function HomePage() {
               <ArrowUpRight size={13} />
             </button>
             <p>
-              {featured.album || `${featured.artist} · Collection`}
+              {featured.album || `${featured.artist} · ${tr("Collection", "合集")}`}
               {featured.year > 0 ? ` · ${featured.year}` : ""}
-              {featured.playCount > 0 ? ` · ${featured.playCount} ${featured.playCount === 1 ? "play" : "plays"}` : ""}
+              {featured.playCount > 0
+                ? ` · ${
+                    featured.playCount === 1
+                      ? tr("1 play", "1 次播放")
+                      : tr("{count} plays", "{count} 次播放", { count: featured.playCount })
+                  }`
+                : ""}
             </p>
             <div className="hero__actions">
               <button type="button" className="button button--dark" onClick={onFeaturedPlay}>
                 {isFeaturedPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                {isFeaturedPlaying ? "Pause" : playback?.trackId === featured.id ? "Resume" : "Play"}
+                {isFeaturedPlaying
+                  ? tr("Pause", "暂停")
+                  : playback?.trackId === featured.id
+                    ? tr("Resume", "继续播放")
+                    : tr("Play", "播放")}
               </button>
               <button
                 type="button"
@@ -290,12 +297,12 @@ export function HomePage() {
                 }}
               >
                 <Mic2 size={15} />
-                Lyrics
+                {tr("Lyrics", "歌词")}
               </button>
               <button
                 type="button"
                 className={`hero__heart ${featuredFavorite ? "is-favorite" : ""}`}
-                aria-label={featuredFavorite ? "Remove from favorites" : "Add to favorites"}
+                aria-label={featuredFavorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加到收藏")}
                 onClick={() => void toggleFavorite(featured.id)}
               >
                 <Heart size={18} fill={featuredFavorite ? "currentColor" : "none"} />
@@ -319,20 +326,46 @@ export function HomePage() {
         </motion.section>
       )}
 
+      <div className="stat-strip glass">
+        <div>
+          <span>{tr("Songs", "歌曲")}</span>
+          <strong>{tracks.length}</strong>
+        </div>
+        <i />
+        <div>
+          <span>{tr("Listening time", "聆听时长")}</span>
+          <strong>{formatLongDuration(totalDuration)}</strong>
+        </div>
+        <i />
+        <div>
+          <span>{tr("Artists", "艺术家")}</span>
+          <strong>{new Set(tracks.map((track) => track.artist)).size}</strong>
+        </div>
+        <i />
+        <div>
+          <span>{tr("Favorites", "收藏")}</span>
+          <strong>{favorites.length}</strong>
+        </div>
+        <div className="stat-strip__spark">
+          <Sparkles size={15} />
+          {tr("Local only", "仅限本地")}
+        </div>
+      </div>
+
       {(blockCounts.length > 0 || genreCounts.length > 0) && (
         <section>
           <SectionHeader
-            title="Your system"
-            meta="Blocks shelve it. Genres describe it."
+            title={tr("Your system", "你的分类体系")}
+            meta={tr("Blocks shelve it. Genres describe it.", "区块负责收纳，流派负责描述。")}
             action={
               <button type="button" className="text-button" onClick={() => navigate({ kind: "collections" })}>
-                Open collections <ArrowUpRight size={13} />
+                {tr("Open collections", "打开合集")} <ArrowUpRight size={13} />
               </button>
             }
           />
           <div className="taxonomy-overview glass">
             <div className="taxonomy-overview__blocks">
-              <span className="taxonomy-overview__label">Blocks</span>
+              <span className="taxonomy-overview__label">{tr("Blocks", "区块")}</span>
               {blockCounts.map((tag) => (
                 <button
                   type="button"
@@ -349,7 +382,7 @@ export function HomePage() {
               ))}
             </div>
             <div className="taxonomy-overview__genres">
-              <span className="taxonomy-overview__label">Genres</span>
+              <span className="taxonomy-overview__label">{tr("Genres", "流派")}</span>
               <div>
                 {genreCounts.map((tag) => (
                   <button
@@ -371,11 +404,15 @@ export function HomePage() {
 
       <section>
         <SectionHeader
-          title="Recently added"
-          meta={`${recent.length} fresh ${recent.length === 1 ? "record" : "records"}`}
+          title={tr("Recently added", "最近添加")}
+          meta={
+            recent.length === 1
+              ? tr("1 fresh record", "1 首新近收录")
+              : tr("{count} fresh records", "{count} 首新近收录", { count: recent.length })
+          }
           action={
             <button type="button" className="text-button" onClick={() => navigate({ kind: "albums" })}>
-              Browse albums <ArrowUpRight size={13} />
+              {tr("Browse albums", "浏览专辑")} <ArrowUpRight size={13} />
             </button>
           }
         />
@@ -394,12 +431,12 @@ export function HomePage() {
       {onRepeat.length > 0 && (
         <section>
           <SectionHeader
-            title="On repeat"
-            meta="The ones you keep coming back to"
+            title={tr("On repeat", "反复聆听")}
+            meta={tr("The ones you keep coming back to", "那些你总想再听一遍的歌")}
             action={
               <button type="button" className="text-button" onClick={playAll}>
                 <Play size={13} />
-                Play all
+                {tr("Play all", "播放全部")}
               </button>
             }
           />
@@ -416,11 +453,11 @@ export function HomePage() {
       {artists.length > 0 && (
         <section>
           <SectionHeader
-            title="Artists in your orbit"
-            meta="Based on what is in your library"
+            title={tr("Artists in your orbit", "你常听的艺术家")}
+            meta={tr("Based on what is in your library", "根据你资料库中的内容")}
             action={
               <button type="button" className="text-button" onClick={() => navigate({ kind: "artists" })}>
-                All artists <ArrowUpRight size={13} />
+                {tr("All artists", "全部艺术家")} <ArrowUpRight size={13} />
               </button>
             }
           />
@@ -441,7 +478,7 @@ export function HomePage() {
       {scanning && (
         <div className="scan-toast">
           <LoaderCircle size={14} className="is-spinning" />
-          Indexing more music · {scanPct}%
+          {tr("Indexing more music · {pct}%", "正在索引更多音乐 · {pct}%", { pct: scanPct })}
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { BilibiliSearchResult, BilibiliVideo, Track } from "@/types";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { Modal } from "@/components/Modal";
 
 function defaultQuery(track: Track | undefined): string {
@@ -39,6 +40,7 @@ function friendlyError(error: unknown): string {
 }
 
 export function BilibiliMvDialog() {
+  const tr = useTr();
   const trackId = useAppStore((state) => state.mvTrackId);
   const setMvTrackId = useAppStore((state) => state.setMvTrackId);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -101,7 +103,13 @@ export function BilibiliMvDialog() {
   const openUrl = async (url: string) => {
     if (!url) return;
     const opened = await window.potato.openExternal(url);
-    if (!opened) pushToast("Could not open Bilibili", "The link was blocked by the desktop shell.", "error");
+    if (!opened) {
+      pushToast(
+        tr("Could not open Bilibili", "无法打开 Bilibili"),
+        tr("The link was blocked by the desktop shell.", "桌面外壳阻止了该链接。"),
+        "error",
+      );
+    }
   };
 
   const submit = (event: React.FormEvent) => {
@@ -121,12 +129,18 @@ export function BilibiliMvDialog() {
               <div className="modal__eyebrow">
                 <Clapperboard size={13} /> Bilibili
               </div>
-              <h2 id="mv-title">Find a music video</h2>
+              <h2 id="mv-title">{tr("Find a music video", "查找音乐视频")}</h2>
               <p>
-                Searching Bilibili for <strong>{track.title}</strong> · {track.artist}
+                {tr("Searching Bilibili for", "正在 Bilibili 搜索")} <strong>{track.title}</strong> ·{" "}
+                {track.artist}
               </p>
             </div>
-            <button type="button" className="mv-close" aria-label="Close MV search" onClick={close}>
+            <button
+              type="button"
+              className="mv-close"
+              aria-label={tr("Close MV search", "关闭 MV 搜索")}
+              onClick={close}
+            >
               <X size={18} />
             </button>
           </header>
@@ -136,35 +150,38 @@ export function BilibiliMvDialog() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search Bilibili for a song, artist or MV"
-              aria-label="Search Bilibili for an MV"
+              placeholder={tr("Search Bilibili for a song, artist or MV", "在 Bilibili 搜索歌曲、歌手或 MV")}
+              aria-label={tr("Search Bilibili for an MV", "在 Bilibili 搜索 MV")}
               spellCheck={false}
               autoFocus
             />
             <button type="submit" className="button button--dark button--small" disabled={loading || !query.trim()}>
               {loading ? <LoaderCircle size={14} className="is-spinning" /> : <Search size={14} />}
-              Search
+              {tr("Search", "搜索")}
             </button>
           </form>
 
           <div className="mv-meta">
             <span>
               {loading
-                ? "Searching Bilibili…"
+                ? tr("Searching Bilibili…", "正在搜索 Bilibili…")
                 : error
-                  ? "Search unavailable"
+                  ? tr("Search unavailable", "搜索暂不可用")
                   : results.length
-                    ? `${results.length} shown · ${formatCount(total)} results`
-                    : "No results yet"}
+                    ? tr("{shown} shown · {total} results", "显示 {shown} 个 · 共 {total} 个结果", {
+                        shown: results.length,
+                        total: formatCount(total),
+                      })
+                    : tr("No results yet", "暂无结果")}
             </span>
             <button type="button" onClick={() => void openUrl(searchUrl)}>
-              Open full search <ExternalLink size={12} />
+              {tr("Open full search", "打开完整搜索")} <ExternalLink size={12} />
             </button>
           </div>
 
           <div className="mv-results">
             {loading ? (
-              <div className="mv-skeleton-list" aria-label="Searching Bilibili">
+              <div className="mv-skeleton-list" aria-label={tr("Searching Bilibili", "正在搜索 Bilibili")}>
                 <span />
                 <span />
                 <span />
@@ -172,14 +189,14 @@ export function BilibiliMvDialog() {
             ) : error ? (
               <div className="mv-empty">
                 <AlertCircle size={23} />
-                <strong>Bilibili could not be reached.</strong>
+                <strong>{tr("Bilibili could not be reached.", "无法连接 Bilibili。")}</strong>
                 <p>{error}</p>
                 <div className="mv-empty__actions">
                   <button type="button" className="button button--glass button--small" onClick={() => void runSearch(query)}>
-                    <RefreshCw size={13} /> Try again
+                    <RefreshCw size={13} /> {tr("Try again", "重试")}
                   </button>
                   <button type="button" className="button button--glass button--small" onClick={() => void openUrl(searchUrl)}>
-                    Search on Bilibili <ExternalLink size={13} />
+                    {tr("Search on Bilibili", "在 Bilibili 搜索")} <ExternalLink size={13} />
                   </button>
                 </div>
               </div>
@@ -190,7 +207,9 @@ export function BilibiliMvDialog() {
                   type="button"
                   className="mv-result"
                   onClick={() => void openUrl(video.url)}
-                  title={`Open “${video.title}” on Bilibili`}
+                  title={tr("Open “{title}” on Bilibili", "在 Bilibili 打开“{title}”", {
+                    title: video.title,
+                  })}
                 >
                   <span className="mv-result__thumb">
                     {video.coverUrl ? (
@@ -207,7 +226,7 @@ export function BilibiliMvDialog() {
                       {video.typeName ? ` · ${video.typeName}` : ""}
                     </span>
                     <em>
-                      {formatCount(video.playCount)} views
+                      {tr("{count} views", "{count} 次播放", { count: formatCount(video.playCount) })}
                       {video.publishedAt ? ` · ${formatDate(video.publishedAt)}` : ""}
                     </em>
                   </span>
@@ -217,18 +236,23 @@ export function BilibiliMvDialog() {
             ) : (
               <div className="mv-empty">
                 <Clapperboard size={23} />
-                <strong>No videos found for this search.</strong>
-                <p>Try a shorter title, add the artist name, or open Bilibili’s full search.</p>
+                <strong>{tr("No videos found for this search.", "没有找到相关视频。")}</strong>
+                <p>
+                  {tr(
+                    "Try a shorter title, add the artist name, or open Bilibili’s full search.",
+                    "试试更短的标题、加上歌手名，或打开 Bilibili 的完整搜索。",
+                  )}
+                </p>
                 <button type="button" className="button button--glass button--small" onClick={() => void openUrl(searchUrl)}>
-                  Search on Bilibili <ExternalLink size={13} />
+                  {tr("Search on Bilibili", "在 Bilibili 搜索")} <ExternalLink size={13} />
                 </button>
               </div>
             )}
           </div>
 
           <footer className="mv-foot">
-            <span>No Bilibili login required.</span>
-            <span>Videos open in your system browser.</span>
+            <span>{tr("No Bilibili login required.", "无需登录 Bilibili。")}</span>
+            <span>{tr("Videos open in your system browser.", "视频将在系统浏览器中打开。")}</span>
           </footer>
         </Modal>
       )}

@@ -2,6 +2,7 @@ import clsx from "clsx";
 import type { Track } from "@/types";
 import { TrackRow } from "@/components/TrackRow";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 interface TrackTableProps {
   tracks: Track[];
@@ -28,6 +29,7 @@ export function TrackTable({
   selectedIds,
   onSelect,
 }: TrackTableProps) {
+  const tr = useTr();
   const playback = useAppStore((state) => state.playback);
   const favorites = useAppStore((state) => state.favorites);
   const playTrack = useAppStore((state) => state.playTrack);
@@ -38,7 +40,7 @@ export function TrackTable({
   const favoriteSet = new Set(favorites);
 
   if (!tracks.length) {
-    return <div className="table-empty">{empty ?? "No songs here yet."}</div>;
+    return <div className="table-empty">{empty ?? tr("No songs here yet.", "这里还没有歌曲。")}</div>;
   }
 
   return (
@@ -46,11 +48,11 @@ export function TrackTable({
       <div className="track-table__head">
         <span>#</span>
         <span />
-        <span>Title</span>
-        <span>Block</span>
-        <span>Genre</span>
-        {showPlays && <span>Plays</span>}
-        <span className="align-right">Time</span>
+        <span>{tr("Title", "标题")}</span>
+        <span>{tr("Block", "区块")}</span>
+        <span>{tr("Genre", "流派")}</span>
+        {showPlays && <span>{tr("Plays", "播放次数")}</span>}
+        <span className="align-right">{tr("Time", "时长")}</span>
         <span />
         <span />
       </div>
@@ -92,10 +94,11 @@ export function TrackTable({
                 <button
                   type="button"
                   className="track-row__remove"
-                  title="Remove from playlist"
+                  title={tr("Remove from playlist", "从歌单中移除")}
+                  aria-label={tr("Remove from playlist", "从歌单中移除")}
                   onClick={() => void removeFromPlaylist(playlistId, track.id)}
                 >
-                  Remove
+                  {tr("Remove", "移除")}
                 </button>
               )}
             </div>

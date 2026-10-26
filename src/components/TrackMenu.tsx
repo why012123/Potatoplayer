@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Clapperboard, Heart, Layers3, ListEnd, ListMusic, ListPlus, Play } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 
 export function TrackMenu() {
+  const tr = useTr();
   const menu = useAppStore((state) => state.trackMenu);
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
@@ -58,7 +60,7 @@ export function TrackMenu() {
               }}
             >
               <Play size={15} fill="currentColor" />
-              Play
+              {tr("Play", "播放")}
             </button>
             <button
               type="button"
@@ -69,7 +71,7 @@ export function TrackMenu() {
               }}
             >
               <ListEnd size={15} />
-              Play next
+              {tr("Play next", "下一首播放")}
             </button>
             <button
               type="button"
@@ -80,7 +82,7 @@ export function TrackMenu() {
               }}
             >
               <ListPlus size={15} />
-              Add to queue
+              {tr("Add to queue", "添加到播放队列")}
             </button>
             <div className="menu-separator" />
             <button
@@ -92,7 +94,7 @@ export function TrackMenu() {
               }}
             >
               <Heart size={15} fill={favorite ? "currentColor" : "none"} />
-              {favorite ? "Remove from favorites" : "Add to favorites"}
+              {favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
             </button>
             <button
               type="button"
@@ -103,7 +105,7 @@ export function TrackMenu() {
               }}
             >
               <ListMusic size={15} />
-              Add to playlist…
+              {tr("Add to playlist…", "添加到歌单…")}
             </button>
             <button
               type="button"
@@ -114,7 +116,7 @@ export function TrackMenu() {
               }}
             >
               <Clapperboard size={15} />
-              Find MV on Bilibili
+              {tr("Find MV on Bilibili", "在 Bilibili 查找 MV")}
             </button>
             <div className="menu-separator" />
             <button
@@ -126,7 +128,7 @@ export function TrackMenu() {
               }}
             >
               <Layers3 size={15} />
-              Edit in song editor
+              {tr("Edit in song editor", "在歌曲编辑器中编辑")}
             </button>
             <button
               type="button"
@@ -137,7 +139,7 @@ export function TrackMenu() {
               }}
             >
               <ArrowUpRight size={15} />
-              Go to artist
+              {tr("Go to artist", "前往艺术家")}
             </button>
           </motion.div>
         </>

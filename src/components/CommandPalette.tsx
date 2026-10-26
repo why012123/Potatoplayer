@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
 import { Cover } from "@/components/Cover";
 
@@ -30,6 +31,7 @@ type Action = {
 };
 
 export function CommandPalette() {
+  const tr = useTr();
   const open = useAppStore((state) => state.commandOpen);
   const setOpen = useAppStore((state) => state.setCommandOpen);
   const navigate = useAppStore((state) => state.navigate);
@@ -49,25 +51,25 @@ export function CommandPalette() {
 
   const actions = useMemo<Action[]>(() => {
     const base: Action[] = [
-      { id: "home", label: "Home", hint: "Library", view: { kind: "home" }, icon: <Home size={16} /> },
-      { id: "songs", label: "Songs", hint: "Library", view: { kind: "songs" }, icon: <Music2 size={16} /> },
-      { id: "albums", label: "Albums", hint: "Library", view: { kind: "albums" }, icon: <Album size={16} /> },
-      { id: "artists", label: "Artists", hint: "Library", view: { kind: "artists" }, icon: <Users size={16} /> },
+      { id: "home", label: tr("Home", "首页"), hint: tr("Library", "资料库"), view: { kind: "home" }, icon: <Home size={16} /> },
+      { id: "songs", label: tr("Songs", "歌曲"), hint: tr("Library", "资料库"), view: { kind: "songs" }, icon: <Music2 size={16} /> },
+      { id: "albums", label: tr("Albums", "专辑"), hint: tr("Library", "资料库"), view: { kind: "albums" }, icon: <Album size={16} /> },
+      { id: "artists", label: tr("Artists", "艺术家"), hint: tr("Library", "资料库"), view: { kind: "artists" }, icon: <Users size={16} /> },
       {
         id: "collections",
-        label: "Blocks & Genres",
-        hint: "Your system",
+        label: tr("Blocks & Genres", "区块与流派"),
+        hint: tr("Your system", "你的分类体系"),
         view: { kind: "collections" },
         icon: <Layers3 size={16} />,
       },
-      { id: "favorites", label: "Favorites", hint: "Library", view: { kind: "favorites" }, icon: <Heart size={16} /> },
-      { id: "discover", label: "Discover", hint: "NetEase", view: { kind: "discover" }, icon: <Cloud size={16} /> },
+      { id: "favorites", label: tr("Favorites", "收藏"), hint: tr("Library", "资料库"), view: { kind: "favorites" }, icon: <Heart size={16} /> },
+      { id: "discover", label: tr("Discover", "发现"), hint: "NetEase", view: { kind: "discover" }, icon: <Cloud size={16} /> },
     ];
     for (const playlist of playlists) {
       base.push({
         id: `playlist-${playlist.id}`,
         label: playlist.name,
-        hint: "Playlist",
+        hint: tr("Playlist", "歌单"),
         view: { kind: "playlist", id: playlist.id },
         icon: <ListMusic size={16} />,
       });
@@ -93,7 +95,7 @@ export function CommandPalette() {
       }));
     if (!needle) return [...base, ...matchingTracks];
     return [...base.filter((action) => `${action.label} ${action.hint}`.toLowerCase().includes(needle)), ...matchingTracks];
-  }, [tracks, playlists, query]);
+  }, [tracks, playlists, query, tr]);
 
   useEffect(() => {
     setSelected((current) => Math.min(current, Math.max(0, actions.length - 1)));
@@ -146,8 +148,8 @@ export function CommandPalette() {
               <input
                 ref={inputRef}
                 value={query}
-                placeholder="Search or jump to…"
-                aria-label="Command palette search"
+                placeholder={tr("Search or jump to…", "搜索或跳转…")}
+                aria-label={tr("Command palette search", "命令面板搜索")}
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setSelected(0);
@@ -157,8 +159,12 @@ export function CommandPalette() {
             </div>
             <div className="command-divider" />
             <div className="command-results">
-              {!query && <div className="command-label">Jump to</div>}
-              {actions.length === 0 && <div className="command-empty">No matches. Try a different word.</div>}
+              {!query && <div className="command-label">{tr("Jump to", "跳转到")}</div>}
+              {actions.length === 0 && (
+                <div className="command-empty">
+                  {tr("No matches. Try a different word.", "没有匹配项，换个关键词试试。")}
+                </div>
+              )}
               {actions.map((action, index) => (
                 <button
                   type="button"
@@ -180,8 +186,8 @@ export function CommandPalette() {
               <span>
                 <Command size={12} /> K
               </span>
-              <span>↑↓ to move</span>
-              <span>↵ to open</span>
+              <span>{tr("↑↓ to move", "↑↓ 移动")}</span>
+              <span>{tr("↵ to open", "↵ 打开")}</span>
             </div>
           </motion.div>
         </motion.div>

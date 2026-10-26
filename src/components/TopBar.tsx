@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
+import { useTr } from "@/lib/i18n";
 import { IconButton } from "@/components/IconButton";
 
 export function TopBar() {
@@ -35,6 +36,7 @@ export function TopBar() {
   const currentTrackId = useAppStore((state) => state.playback?.trackId ?? state.previewTrackId);
   const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const tr = useTr();
 
   useEffect(() => {
     const focus = () => {
@@ -47,18 +49,76 @@ export function TopBar() {
 
   const canGoBack = viewIndex > 0;
   const canGoForward = viewIndex < viewHistory.length - 1;
+  const viewLabel = (() => {
+    if (searchQuery.trim()) return tr("Search", "搜索");
+    switch (currentView.kind) {
+      case "home":
+        return tr("Home", "首页");
+      case "songs":
+        return tr("Songs", "歌曲");
+      case "albums":
+      case "album":
+        return tr("Albums", "专辑");
+      case "artists":
+      case "artist":
+        return tr("Artists", "艺术家");
+      case "collections":
+      case "block":
+      case "genre":
+        return tr("Collections", "合集");
+      case "favorites":
+        return tr("Favorites", "收藏");
+      case "editor":
+        return tr("Editor", "编辑器");
+      case "discover":
+        return tr("Discover", "发现");
+      case "playlist":
+        return tr("Playlist", "歌单");
+      default:
+        return tr("Library", "资料库");
+    }
+  })();
   const scanPct =
     scanProgress && scanProgress.total > 0 ? Math.round((scanProgress.done / scanProgress.total) * 100) : 0;
+  const scanTitle = scanProgress
+    ? tr(
+        scanProgress.total === 1 ? "{done} of {total} song" : "{done} of {total} songs",
+        "已扫描 {done}/{total} 首歌曲",
+        { done: scanProgress.done, total: scanProgress.total },
+      )
+    : tr("Scanning library", "正在扫描资料库");
 
   return (
     <header className="topbar window-drag">
       <div className="topbar__left no-drag">
-        <IconButton label="Back" variant="ghost" size="sm" disabled={!canGoBack} onClick={goBack}>
-          <ChevronLeft size={18} />
-        </IconButton>
-        <IconButton label="Forward" variant="ghost" size="sm" disabled={!canGoForward} onClick={goForward}>
-          <ChevronRight size={18} />
-        </IconButton>
+        <div className="topbar__nav">
+          <IconButton
+            label={tr("Back", "后退")}
+            variant="ghost"
+            size="sm"
+            disabled={!canGoBack}
+            onClick={goBack}
+          >
+            <ChevronLeft size={18} />
+          </IconButton>
+          <IconButton
+            label={tr("Forward", "前进")}
+            variant="ghost"
+            size="sm"
+            disabled={!canGoForward}
+            onClick={goForward}
+          >
+            <ChevronRight size={18} />
+          </IconButton>
+        </div>
+        <div
+          className="topbar__context"
+          aria-label={tr("Current section: {section}", "当前位置：{section}", { section: viewLabel })}
+        >
+          <span>{tr("Library", "资料库")}</span>
+          <i aria-hidden="true">/</i>
+          <strong>{viewLabel}</strong>
+        </div>
       </div>
 
       <div className="topbar__search no-drag">
@@ -73,8 +133,8 @@ export function TopBar() {
               event.currentTarget.blur();
             }
           }}
-          placeholder="Songs, artists, albums…"
-          aria-label="Search your library"
+          placeholder={tr("Songs, artists, albums…", "歌曲、艺术家、专辑…")}
+          aria-label={tr("Search your library", "搜索资料库")}
           spellCheck={false}
         />
         <AnimatePresence>
@@ -82,7 +142,7 @@ export function TopBar() {
             <motion.button
               type="button"
               className="search-clear"
-              aria-label="Clear search"
+              aria-label={tr("Clear search", "清除搜索")}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
@@ -117,53 +177,77 @@ export function TopBar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               onClick={() => setScanningToast()}
-              title={scanProgress ? `${scanProgress.done} of ${scanProgress.total} songs` : "Scanning library"}
+              title={scanTitle}
             >
               <span className="scan-pill__ring" style={{ "--scan": `${scanPct}%` } as React.CSSProperties} />
-              {scanProgress?.total ? `${scanPct}%` : "Indexing"}
+              {scanProgress?.total ? `${scanPct}%` : tr("Indexing", "索引中")}
             </motion.button>
           )}
         </AnimatePresence>
-        <IconButton
-          label="Download tasks"
-          variant="glass"
-          size="sm"
-          onClick={() => setDownloadPanelOpen(true)}
-        >
-          <span className="download-trigger">
-            <CloudDownload size={15} />
-            {downloads.filter((job) => job.status === "running" || job.status === "error").length > 0 && (
-              <i>{downloads.filter((job) => job.status === "running" || job.status === "error").length}</i>
-            )}
-          </span>
-        </IconButton>
-        <IconButton
-          label="Song editor"
-          variant="glass"
-          size="sm"
-          onClick={() => {
-            if (currentView.kind !== "editor") {
-              navigate({ kind: "editor", trackId: currentTrackId ?? undefined });
+        <div className="topbar__tools">
+          <IconButton
+            label={tr("Download tasks", "下载任务")}
+            variant="ghost"
+            size="sm"
+            onClick={() => setDownloadPanelOpen(true)}
+          >
+            <span className="download-trigger">
+              <CloudDownload size={16} />
+              {downloads.filter((job) => job.status === "running" || job.status === "error").length > 0 && (
+                <i>{downloads.filter((job) => job.status === "running" || job.status === "error").length}</i>
+              )}
+            </span>
+          </IconButton>
+          <IconButton
+            label={tr("Song editor", "歌曲编辑器")}
+            variant="ghost"
+            size="sm"
+            active={currentView.kind === "editor"}
+            onClick={() => {
+              if (currentView.kind !== "editor") {
+                navigate({ kind: "editor", trackId: currentTrackId ?? undefined });
+              }
+            }}
+          >
+            <SquarePen size={16} />
+          </IconButton>
+          <IconButton
+            label={tr("Command palette", "命令面板")}
+            variant="ghost"
+            size="sm"
+            onClick={() => setCommandOpen(true)}
+          >
+            <Command size={16} />
+          </IconButton>
+          <span className="topbar__tools-rule" aria-hidden="true" />
+          <IconButton
+            label={tr("Rescan library", "重新扫描资料库")}
+            variant="ghost"
+            size="sm"
+            disabled={scanning}
+            onClick={() => void rescan()}
+          >
+            <RefreshCw size={16} className={scanning ? "is-spinning" : undefined} />
+          </IconButton>
+          <IconButton
+            label={
+              theme === "dark"
+                ? tr("Switch to light theme", "切换到浅色主题")
+                : tr("Switch to dark theme", "切换到深色主题")
             }
-          }}
+            variant="ghost"
+            size="sm"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </IconButton>
+        </div>
+        <button
+          type="button"
+          className="topbar-avatar"
+          onClick={() => setSettingsOpen(true)}
+          title={tr("Open settings", "打开设置")}
         >
-          <SquarePen size={15} />
-        </IconButton>
-        <IconButton label="Command palette" variant="glass" size="sm" onClick={() => setCommandOpen(true)}>
-          <Command size={15} />
-        </IconButton>
-        <IconButton label="Rescan library" variant="glass" size="sm" disabled={scanning} onClick={() => void rescan()}>
-          <RefreshCw size={15} className={scanning ? "is-spinning" : undefined} />
-        </IconButton>
-        <IconButton
-          label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          variant="glass"
-          size="sm"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </IconButton>
-        <button type="button" className="topbar-avatar" onClick={() => setSettingsOpen(true)} title="Open settings">
           P
         </button>
       </div>

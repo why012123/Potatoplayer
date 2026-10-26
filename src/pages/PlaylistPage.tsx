@@ -5,6 +5,7 @@ import { useAppStore } from "@/store";
 import { Cover } from "@/components/Cover";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
+import { useTr } from "@/lib/i18n";
 import { coverUrl } from "@/lib/covers";
 
 function shuffle<T>(items: T[]): T[] {
@@ -28,6 +29,7 @@ export function PlaylistPage() {
   const renamePlaylist = useAppStore((state) => state.renamePlaylist);
   const deletePlaylist = useAppStore((state) => state.deletePlaylist);
   const playlist = view.kind === "playlist" ? playlists.find((item) => item.id === view.id) : undefined;
+  const tr = useTr();
 
   const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const playlistTracks = useMemo(
@@ -42,10 +44,10 @@ export function PlaylistPage() {
           <div className="empty-stage__icon empty-stage__icon--plain">
             <ListMusic size={28} />
           </div>
-          <h2>This playlist is gone.</h2>
-          <p>It may have been deleted. Create a new one from the sidebar.</p>
+          <h2>{tr("This playlist is gone.", "这个歌单已不存在。")}</h2>
+          <p>{tr("It may have been deleted. Create a new one from the sidebar.", "它可能已被删除。可从侧边栏新建歌单。")}</p>
           <button type="button" className="button button--dark" onClick={() => navigate({ kind: "songs" })}>
-            Browse songs
+            {tr("Browse songs", "浏览歌曲")}
           </button>
         </div>
       </div>
@@ -58,9 +60,9 @@ export function PlaylistPage() {
 
   const rename = () => {
     openPrompt({
-      title: "Rename playlist",
+      title: tr("Rename playlist", "重命名歌单"),
       initialValue: playlist.name,
-      confirmLabel: "Save name",
+      confirmLabel: tr("Save name", "保存名称"),
       onSubmit: async (name) => {
         if (name.trim() && name.trim() !== playlist.name) await renamePlaylist(playlist.id, name.trim());
       },
@@ -69,9 +71,12 @@ export function PlaylistPage() {
 
   const remove = () => {
     openPrompt({
-      title: `Delete “${playlist.name}”?`,
-      description: "The playlist will be removed. Your music files are never touched.",
-      confirmLabel: "Delete playlist",
+      title: tr("Delete “{name}”?", "删除“{name}”？", { name: playlist.name }),
+      description: tr(
+        "The playlist will be removed. Your music files are never touched.",
+        "歌单将被删除，你的音乐文件不会受到任何影响。",
+      ),
+      confirmLabel: tr("Delete playlist", "删除歌单"),
       input: false,
       destructive: true,
       onSubmit: async () => {
@@ -90,11 +95,10 @@ export function PlaylistPage() {
       <header className="playlist-hero glass">
         <div className="playlist-hero__cover">
           {playlistTracks.length ? (
-            <div className="playlist-mosaic">
+            <div className={`playlist-mosaic playlist-mosaic--${Math.min(playlistTracks.length, 4)}`}>
               {playlistTracks.slice(0, 4).map((track) => (
                 <Cover key={track.id} path={track.coverPath} seed={track.id} label={track.title} radius={6} />
               ))}
-              {playlistTracks.length === 1 && <div className="playlist-mosaic__empty" />}
             </div>
           ) : (
             <div className="playlist-hero__blank">
@@ -106,10 +110,16 @@ export function PlaylistPage() {
           )}
         </div>
         <div className="playlist-hero__copy">
-          <span className="eyebrow">Playlist</span>
+          <span className="eyebrow">{tr("Playlist", "歌单")}</span>
           <h1>{playlist.name}</h1>
           <p>
-            {playlistTracks.length} {playlistTracks.length === 1 ? "song" : "songs"} · {formatLongDuration(duration)}
+            {tr(
+              playlistTracks.length === 1 ? "{count} song" : "{count} songs",
+              "{count} 首歌曲",
+              { count: playlistTracks.length },
+            )}
+            {" · "}
+            {formatLongDuration(duration)}
           </p>
           <div className="detail-hero__actions">
             <button
@@ -118,55 +128,72 @@ export function PlaylistPage() {
               disabled={!playlistTracks.length}
               onClick={() => void playTrack(playlistTracks[0], queue)}
             >
-              <Play size={15} fill="currentColor" /> Play
+              <Play size={15} fill="currentColor" /> {tr("Play", "播放")}
             </button>
             <button
               type="button"
               className="button button--glass"
+              title={tr("Shuffle", "随机播放")}
+              aria-label={tr("Shuffle", "随机播放")}
               disabled={!playlistTracks.length}
               onClick={() => {
                 const ordered = shuffle(playlistTracks);
                 void playTrack(ordered[0], ordered.map((track) => track.id));
               }}
             >
-              <Shuffle size={15} /> Shuffle
+              <Shuffle size={15} /> {tr("Shuffle", "随机播放")}
             </button>
             <button
               type="button"
-              className="button button--glass"
+              className="button button--glass button--compact"
+              title={tr("Play next", "下一首播放")}
+              aria-label={tr("Play next", "下一首播放")}
               disabled={!playlistTracks.length}
               onClick={() => void enqueueMany(queue, true)}
             >
-              <ListEnd size={15} /> Play next
+              <ListEnd size={15} /> {tr("Play next", "下一首播放")}
             </button>
             <button
               type="button"
-              className="button button--glass"
+              className="button button--glass button--compact"
+              title={tr("Add to queue", "添加到队列")}
+              aria-label={tr("Add to queue", "添加到队列")}
               disabled={!playlistTracks.length}
               onClick={() => void enqueueMany(queue, false)}
             >
-              <ListPlus size={15} /> Add to queue
+              <ListPlus size={15} /> {tr("Add to queue", "添加到队列")}
             </button>
             <button
               type="button"
-              className="button button--glass"
-              title="Add all to another playlist"
-              aria-label="Add all to another playlist"
+              className="button button--glass button--compact"
+              title={tr("Add all to another playlist", "全部添加到其他歌单")}
+              aria-label={tr("Add all to another playlist", "全部添加到其他歌单")}
               disabled={!playlistTracks.length}
               onClick={() => setAddToPlaylistTrackIds(queue)}
             >
-              <ListMusic size={15} /> Add to playlist
+              <ListMusic size={15} /> {tr("Add to playlist", "添加到歌单")}
             </button>
-            <button type="button" className="button button--glass" onClick={() => navigate({ kind: "songs" })}>
-              <Plus size={15} /> Add songs
+            <button
+              type="button"
+              className="button button--glass button--compact"
+              title={tr("Find more songs", "查找更多歌曲")}
+              aria-label={tr("Find more songs", "查找更多歌曲")}
+              onClick={() => navigate({ kind: "songs" })}
+            >
+              <Plus size={15} /> {tr("Add songs", "添加歌曲")}
             </button>
-            <button type="button" className="icon-button icon-button--ghost icon-button--sm" title="Rename playlist" onClick={rename}>
+            <button
+              type="button"
+              className="icon-button icon-button--ghost icon-button--sm"
+              title={tr("Rename playlist", "重命名歌单")}
+              onClick={rename}
+            >
               <Pencil size={16} />
             </button>
             <button
               type="button"
               className="icon-button icon-button--ghost icon-button--sm danger-hover"
-              title="Delete playlist"
+              title={tr("Delete playlist", "删除歌单")}
               onClick={remove}
             >
               <Trash2 size={16} />
@@ -182,10 +209,15 @@ export function PlaylistPage() {
           <div className="empty-stage__icon empty-stage__icon--plain">
             <ListMusic size={28} />
           </div>
-          <h2>This playlist is a blank page.</h2>
-          <p>Browse your songs, open the ··· menu and choose “Add to playlist”.</p>
+          <h2>{tr("This playlist is a blank page.", "这个歌单还是一张白纸。")}</h2>
+          <p>
+            {tr(
+              "Browse your songs, open the ··· menu and choose “Add to playlist”.",
+              "浏览你的歌曲，打开 ··· 菜单并选择“添加到歌单”。",
+            )}
+          </p>
           <button type="button" className="button button--dark" onClick={() => navigate({ kind: "songs" })}>
-            Find songs
+            {tr("Find songs", "查找歌曲")}
           </button>
         </div>
       )}

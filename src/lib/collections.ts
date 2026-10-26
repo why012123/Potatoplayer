@@ -1,4 +1,5 @@
 import type { ArtistSummary, Collection, Track } from "@/types";
+import { documentLanguage } from "@/lib/text";
 
 export function buildCollections(tracks: Track[]): Collection[] {
   const groups = new Map<string, Track[]>();
@@ -15,13 +16,13 @@ export function buildCollections(tracks: Track[]): Collection[] {
     const sorted = [...group].sort((a, b) => (a.trackNo || 0) - (b.trackNo || 0) || a.title.localeCompare(b.title));
     const first = sorted[0];
     const hasAlbum = Boolean(first.album?.trim());
+    const zh = documentLanguage() === "zh";
+    const songCount = zh ? `${sorted.length} 首歌曲` : `${sorted.length} ${sorted.length === 1 ? "song" : "songs"}`;
     collections.push({
       key,
       title: hasAlbum ? first.album.trim() : first.artist,
       artist: first.artist,
-      subtitle: hasAlbum
-        ? `${first.artist} · ${sorted.length} ${sorted.length === 1 ? "song" : "songs"}`
-        : `${sorted.length} ${sorted.length === 1 ? "song" : "songs"} · Collection`,
+      subtitle: hasAlbum ? `${first.artist} · ${songCount}` : `${songCount} · ${zh ? "合集" : "Collection"}`,
       coverPath: sorted.find((track) => track.coverPath)?.coverPath ?? null,
       tracks: sorted,
       kind: hasAlbum ? "album" : "artist",

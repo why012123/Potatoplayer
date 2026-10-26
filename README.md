@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`s1.0.7` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`s1.1.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 > 完整更新记录（含旧 Java 2.1.19 / Python 1.x 历史）见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
@@ -34,11 +34,20 @@
 - **新渲染层**：Electron + React + TypeScript + Framer Motion。
 - **保留可靠内核**：扫描、元数据、VLC 播放和歌词逻辑改为无头 Java 服务。
 - **全新信息架构**：资料库 → 内容画布 → 常驻 Now Playing，播放控制集中在右侧，避免底部播放条和侧栏重复。
-- **视觉系统**：现代 iOS 毛玻璃、暖色纸张底与暖炭深色两套外观、动态封面环境色、统一圆角和阴影。
+- **视觉系统**：保留原有暖色毛玻璃“经典视图”，并提供纸张质感的“编辑纸感”新版视图；浅/深色、强调色、标题字体、圆角、密度和背景氛围都可独立调节。
+- **双语界面**：全应用中 / 英即时切换，默认沿用现有版本的英文界面，不强迫迁移。
 - **动效系统**：共享导航指示器、页面弹簧转场、封面交叉淡入、悬浮抬升、正在播放均衡器、下载进度、命令面板。
 - **核心业务优先**：块 / 流派 / 网易云都获得独立页面、管理和批量操作，而不是藏在设置里。
 
 ## 界面
+
+| Classic view (default) | Editorial view |
+| --- | --- |
+| ![Classic home](docs/screenshots/classic-home.jpg) | ![Editorial home](docs/screenshots/home.jpg) |
+
+| 中文界面 | Appearance studio |
+| --- | --- |
+| ![Chinese home](docs/screenshots/zh-home.jpg) | ![Appearance](docs/screenshots/appearance.jpg) |
 
 | Songs | Blocks & Genres |
 | --- | --- |
@@ -48,11 +57,11 @@
 | --- | --- |
 | ![Song editor](docs/screenshots/editor.jpg) | ![Expanded layout](docs/screenshots/editor-solo.jpg) |
 
-![Immersive playback](docs/screenshots/immersive.jpg)
-
-| Light room | Dark room |
+| Immersive · framed lyrics | Immersive · bare lyrics |
 | --- | --- |
-| ![Light home](docs/screenshots/home.jpg) | ![Dark home](docs/screenshots/dark-home.jpg) |
+| ![Immersive playback](docs/screenshots/immersive.jpg) | ![Immersive without lyrics frame](docs/screenshots/immersive-no-frame.jpg) |
+
+![Dark room](docs/screenshots/dark-home.jpg)
 
 ![Dark settings and appearance picker](docs/screenshots/dark-settings.jpg)
 
@@ -70,11 +79,23 @@
 
 ## 核心功能
 
-### 外观
+### 外观与语言
 
-- **浅色 / 深色整体切换**：顶栏的太阳 / 月亮按钮，或 **Settings → Appearance** 的两张选项卡。
-- 浅色保留暖纸和日光玻璃；深色使用暖炭黑、深色玻璃、奶油色主按钮和封面染色，而不是简单反色。
-- 选择写入 `localStorage`，刷新和重启后保持；页面、侧栏、Now Playing、弹窗、EQ、Discover、编辑器和下载面板统一适配。
+设置（右上角头像或侧栏 Settings）里有一个完整的 **Appearance Studio**：
+
+- **两套视图预设**
+  - **经典视图 / Classic**：沿用当前版本的暖色 iOS 毛玻璃、胶囊按钮、粉色日光背景、全宽 Now Playing 封面和无衬线标题。升级后默认使用它。
+  - **新版视图 / Editorial**：暖纸表面、New York / 宋体类衬线标题、分组的工具栏、紧凑播放栏和更克制的按钮层级。
+- **精确微调**
+  - 强调色：跟随封面，或固定为珊瑚、鼠尾草、海蓝、梅子、琥珀。
+  - 标题字体：衬线 / 无衬线。
+  - 圆角：柔和 / 利落。
+  - 密度：舒展 / 紧凑。
+  - 背景氛围：浓郁 / 安静。
+  - 实时预览小窗，一键恢复默认风格。
+- **浅色 / 深色**：顶栏太阳 / 月亮按钮或设置中的两张卡片；浅色是暖纸与日光玻璃，深色是暖炭与低光玻璃，而不是简单反色。
+- **语言**：设置顶部可即时切换 **English / 中文**。导航、页面标题、按钮、空态、弹窗、EQ、Bilibili、下载面板、命令面板、无障碍标签、日期问候和长时长格式都会一起切换。默认英文，选择会持久化。
+- 所有选择保存在 `localStorage`（`potato:appearance:v1` 与 `potato:theme`），在首次绘制前应用，刷新和重启后保持。
 - 沉浸播放和 3D 舞台保持电影感深色；切回浅色后恢复日光玻璃。
 
 ### 本地资料库
@@ -96,6 +117,7 @@
 - 折叠后变成毛玻璃 Mini Player，仍可播放、暂停和打开面板；**页面内容同时自动铺满整个右侧空间，不再留下空白列**。
 - **沉浸模式**：点击右侧正在播放歌曲的封面进入全窗口播放页；点击大封面（或按 `Esc`）退出。窗口里只剩封面、歌词、进度、播放控制与环境背景。
 - 沉浸模式的 **Customize** 是一个默认隐藏的右侧侧栏，不会加遮罩；拖动滑块时，背后的封面、歌词与配色会实时预览。
+- 自定义里可以单独关闭 **歌词框 / Lyrics frame**：保留歌词的字号、对齐、翻译与当前行高亮，只去掉周围的玻璃框，得到更开阔的画面。
 
 ### 歌曲编辑
 
