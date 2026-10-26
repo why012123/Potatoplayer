@@ -95,6 +95,20 @@ public final class DataStore {
         Json.writeAtomic(libraryFile, state);
     }
 
+    /** Keeps a timestamped copy before a root switch or a repair pass. */
+    public Path backupLibrary() throws IOException {
+        ensure();
+        Path backups = dataDir.resolve("backups");
+        Files.createDirectories(backups);
+        String stamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path target = backups.resolve("library-" + stamp + ".json");
+        if (Files.isRegularFile(libraryFile)) {
+            Files.copy(libraryFile, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        return target;
+    }
+
     /** Roots from which the renderer may request artwork through the custom protocol. */
     public List<String> coverRoots(Path libraryRoot) {
         List<String> roots = new ArrayList<>();

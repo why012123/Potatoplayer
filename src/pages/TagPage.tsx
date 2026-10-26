@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Clock3, Pencil, Play, Shuffle, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, Clock3, ListEnd, ListMusic, ListPlus, Pencil, Play, Shuffle, Tag as TagIcon } from "lucide-react";
 import { useAppStore } from "@/store";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
@@ -22,6 +22,8 @@ export function TagPage() {
   const navigate = useAppStore((state) => state.navigate);
   const goBack = useAppStore((state) => state.goBack);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
   const setTagColor = useAppStore((state) => state.setTagColor);
   const [hoverColor, setHoverColor] = useState(false);
@@ -105,6 +107,32 @@ export function TagPage() {
               }}
             >
               <Shuffle size={15} /> Shuffle
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              disabled={!filtered.length}
+              onClick={() => void enqueueMany(queue, true)}
+            >
+              <ListEnd size={15} /> Play next
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              disabled={!filtered.length}
+              onClick={() => void enqueueMany(queue, false)}
+            >
+              <ListPlus size={15} /> Add to queue
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              title="Add all to playlist"
+              aria-label="Add all to playlist"
+              disabled={!filtered.length}
+              onClick={() => setAddToPlaylistTrackIds(queue)}
+            >
+              <ListMusic size={15} /> Add to playlist
             </button>
             <button type="button" className="button button--glass" onClick={() => setTaxonomyManager(kind)}>
               <Pencil size={14} /> Manage

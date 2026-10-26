@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { SearchX, Sparkles } from "lucide-react";
+import { ListEnd, ListPlus, SearchX, Sparkles } from "lucide-react";
 import { useAppStore } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
@@ -12,6 +12,7 @@ export function SearchPage() {
   const tracks = useAppStore((state) => state.tracks);
   const navigate = useAppStore((state) => state.navigate);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
 
   const needle = query.toLowerCase();
   const matchingTracks = useMemo(
@@ -48,6 +49,18 @@ export function SearchPage() {
         eyebrow="Search"
         title={`Results for “${query}”`}
         description={total ? `${matchingTracks.length} songs · ${matchingCollections.length} albums & collections · ${matchingArtists.length} artists` : "Nothing matched this time."}
+        actions={
+          matchingTracks.length ? (
+            <>
+              <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, true)}>
+                <ListEnd size={15} /> Play next
+              </button>
+              <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, false)}>
+                <ListPlus size={15} /> Add to queue
+              </button>
+            </>
+          ) : undefined
+        }
       />
 
       {!total ? (

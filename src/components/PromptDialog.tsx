@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { LoaderCircle } from "lucide-react";
 import { useAppStore } from "@/store";
+import { isCommitEnter } from "@/lib/keyboard";
 import { Modal } from "@/components/Modal";
 
 export function PromptDialog() {
@@ -59,7 +60,7 @@ export function PromptDialog() {
               placeholder={prompt.placeholder ?? "Name"}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") void submit();
+                if (isCommitEnter(event)) void submit();
               }}
             />
           )}

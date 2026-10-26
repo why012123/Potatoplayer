@@ -4,9 +4,11 @@ import {
   HardDrive,
   Keyboard,
   LibraryBig,
+  Moon,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Sun,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
@@ -28,6 +30,8 @@ export function SettingsDialog() {
   const scanProgress = useAppStore((state) => state.scanProgress);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
   const setReducedMotion = useAppStore((state) => state.setReducedMotion);
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
   const rescan = useAppStore((state) => state.rescan);
 
@@ -86,6 +90,42 @@ export function SettingsDialog() {
                   <span style={{ width: `${Math.max(4, pct)}%` }} />
                 </div>
               )}
+            </section>
+
+            <section className="settings-section">
+              <div className="settings-section__title">
+                <Sun size={16} />
+                <div>
+                  <strong>Appearance</strong>
+                  <span>Choose the room you want to listen in</span>
+                </div>
+              </div>
+              <div className="theme-choice" role="group" aria-label="Appearance">
+                <button
+                  type="button"
+                  className={theme === "light" ? "is-active" : ""}
+                  aria-pressed={theme === "light"}
+                  onClick={() => setTheme("light")}
+                >
+                  <Sun size={17} />
+                  <span>
+                    <strong>Light</strong>
+                    <em>Warm paper and daylight glass</em>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={theme === "dark" ? "is-active" : ""}
+                  aria-pressed={theme === "dark"}
+                  onClick={() => setTheme("dark")}
+                >
+                  <Moon size={17} />
+                  <span>
+                    <strong>Dark</strong>
+                    <em>Soft charcoal and low light</em>
+                  </span>
+                </button>
+              </div>
             </section>
 
             <section className="settings-section">

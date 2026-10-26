@@ -13,7 +13,12 @@ function delay(ms) {
 
 (async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "potato-ui-"));
-  const env = { ...process.env, POTATOMUSIC_HOME: home };
+  const env = {
+    ...process.env,
+    POTATOMUSIC_HOME: home,
+    POTATO_HIDDEN: "1",
+    POTATO_ALLOW_SECOND_INSTANCE: "1",
+  };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({
     executablePath: electronPath,
@@ -50,8 +55,13 @@ function delay(ms) {
   console.log(`[ui] songs page: ${trackCount} rendered rows`);
 
   await page.locator(".track-row").first().click();
-  await delay(1800);
   let state = await page.evaluate(() => window.potato.invoke("playback.state"));
+  // VLC can take a moment to open the output device when another player is
+  // using the machine, so wait for the clock instead of asserting one snapshot.
+  for (let attempt = 0; attempt < 24 && (!state.playing || state.time <= 0.1); attempt++) {
+    await delay(250);
+    state = await page.evaluate(() => window.potato.invoke("playback.state"));
+  }
   assert.equal(state.available, true, "VLC should be available");
   assert.equal(state.playing, true, "track should be playing");
   assert.ok(state.time > 0.1, "playback clock should advance");
@@ -81,6 +91,12 @@ function delay(ms) {
   await page.waitForSelector(".immerse");
   assert.ok((await page.locator(".immerse__lyric").count()) > 0, "immersive view should show lyrics");
   assert.ok(await page.locator(".immerse__top").isVisible(), "immersive shell should be visible");
+  await page.getByRole("button", { name: "Customize immersive mode" }).click();
+  await page.waitForSelector(".immersive-customizer");
+  assert.equal(await page.locator(".immersive-customizer-scrim").count(), 0, "customizer should not dim the scene");
+  assert.ok(await page.locator(".immerse__lyrics-side").isVisible(), "lyrics should remain visible beside the panel");
+  await page.getByRole("button", { name: "Close customizer" }).click();
+  await page.waitForSelector(".immersive-customizer", { state: "detached" });
   await page.getByRole("button", { name: "Open equalizer" }).click();
   await page.waitForSelector(".eq-dialog");
   await page.getByRole("button", { name: "Close equalizer" }).click();
@@ -96,12 +112,25 @@ function delay(ms) {
   await page.getByRole("button", { name: "Equalizer" }).click();
   await page.waitForSelector(".eq-dialog");
   assert.equal(await page.locator(".eq-band__input").count(), 10, "equalizer should render ten bands");
+  assert.ok((await page.locator(".eq-preset select").count()) === 1, "equalizer should expose one editing target");
   await page.locator(".eq-preset select").selectOption({ label: "Dance" });
-  await page.waitForTimeout(450);
+  await page.waitForTimeout(350);
+  const beforeEnable = await page.evaluate(async () => await window.potato.invoke("eq.state"));
+  if (!beforeEnable.enabled) {
+    await page.locator(".eq-power").click();
+    await page.waitForTimeout(350);
+  }
   const eqState = await page.evaluate(async () => await window.potato.invoke("eq.state"));
-  assert.equal(eqState.enabled, true, "selecting an EQ preset should enable it");
+  assert.equal(eqState.enabled, true, "the EQ should be enabled for preview and save");
   assert.equal(eqState.bands.length, 10, "EQ state should contain ten bands");
-  await page.locator(".eq-toolbar__actions button").filter({ hasText: "Save preset" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save to this song" }).click();
+  await page.waitForTimeout(450);
+  const songEq = await page.evaluate(async () => await window.potato.invoke("eq.state"));
+  assert.equal(songEq.songPreset?.bands?.length, 10, "per-song EQ should be saved");
+  assert.ok((songEq.songCount ?? 0) >= 1, "per-song EQ count should increase");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save as new preset…" }).click();
   await page.waitForSelector(".prompt-dialog");
   await page.locator(".prompt-dialog input").fill("UI curve");
   await page.locator(".prompt-dialog .button--dark").click();
@@ -110,7 +139,7 @@ function delay(ms) {
   assert.ok(savedEq.presets.some((preset) => preset.name === "UI curve"), "custom EQ preset should be saved");
   await page.getByRole("button", { name: "Close equalizer" }).click();
   await page.waitForTimeout(300);
-  console.log("[ui] equalizer rendered, preset applied and closed");
+  console.log("[ui] equalizer rendered, song curve and named preset saved");
 
   await page.keyboard.press("Meta+f");
   await page.keyboard.type("Mili");
@@ -185,7 +214,12 @@ function delay(ms) {
   await page.locator(".page--songs .track-row").nth(1).click();
   await page.waitForSelector(".bulk-bar");
   assert.ok((await page.locator(".bulk-bar").innerText()).includes("2"));
-  await page.getByRole("button", { name: "Assign genre" }).click();
+  const queueBefore = await page.evaluate(async () => await window.potato.invoke("playback.state"));
+  await page.locator(".bulk-bar").getByRole("button", { name: "Add to queue" }).click();
+  await page.waitForTimeout(450);
+  const queueAfter = await page.evaluate(async () => await window.potato.invoke("playback.state"));
+  assert.ok(queueAfter.queue.length >= queueBefore.queue.length + 1, "bulk add to queue should append songs");
+  await page.locator(".bulk-bar").getByRole("button", { name: "Assign genre" }).click();
   await page.waitForSelector(".bulk-dialog");
   await page.locator(".bulk-dialog input").fill("City Pop");
   await page.getByRole("button", { name: /Apply to 2/ }).click();
@@ -201,7 +235,31 @@ function delay(ms) {
   await page.waitForSelector(".tag-hero");
   assert.ok((await page.locator(".tag-hero h1").innerText()).length > 0);
   console.log(`[ui] collection system: ${tagCards} tag cards, detail page opened`);
-  await page.screenshot({ path: path.join(root, "docs", "screenshots", "ui-collections.png") });
+
+  await page.locator(".back-link").click();
+  await page.waitForSelector(".page--collections");
+  await page.getByRole("button", { name: "Manage blocks" }).click();
+  await page.waitForSelector(".taxonomy-dialog");
+  const imeInput = page.getByPlaceholder("New block name");
+  const imeRows = await page.locator(".taxonomy-row").count();
+  await imeInput.fill("IME probe");
+  await imeInput.evaluate((element) => {
+    element.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+    }));
+  });
+  await page.waitForTimeout(350);
+  assert.equal(await page.locator(".taxonomy-row").count(), imeRows, "IME Enter must not create a block");
+  assert.equal(await imeInput.inputValue(), "IME probe", "IME confirmation must keep the typed name");
+  await imeInput.press("Enter");
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator(".taxonomy-row").count(), imeRows + 1, "normal Enter should create a block");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  console.log("[ui] IME Enter ignored; normal Enter created the block");
 
   await page.locator(".nav-item--online").click();
   await page.waitForSelector(".page--discover");
@@ -212,7 +270,15 @@ function delay(ms) {
   const onlineRows = await page.locator(".online-song").count();
   assert.ok(onlineRows > 0, "NetEase search should return songs");
   console.log(`[ui] NetEase search returned ${onlineRows} songs`);
-  await page.screenshot({ path: path.join(root, "docs", "screenshots", "ui-discover.png") });
+  const sourceButton = page.locator(".nav-item__source");
+  const sourceBefore = await sourceButton.innerText();
+  await sourceButton.click();
+  await page.waitForTimeout(600);
+  const sourceAfter = await sourceButton.innerText();
+  assert.notEqual(sourceAfter, sourceBefore, "the online source badge should switch on the active Discover page");
+  await sourceButton.click();
+  await page.waitForTimeout(400);
+  console.log(`[ui] online source switched ${sourceBefore} -> ${sourceAfter} and back`);
 
   await page.keyboard.press("Meta+k");
   await page.waitForSelector(".command-palette");
@@ -234,6 +300,33 @@ function delay(ms) {
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.waitForSelector(".page--home .hero");
   await page.screenshot({ path: path.join(root, "docs", "screenshots", "ui-home.png") });
+
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
+  await page.waitForTimeout(500);
+  let appearance = await page.evaluate(() => ({
+    attr: document.documentElement.dataset.theme,
+    stored: localStorage.getItem("potato:theme"),
+    bg: getComputedStyle(document.body).backgroundColor,
+  }));
+  assert.equal(appearance.attr, "dark", "dark theme should set the root theme");
+  assert.equal(appearance.stored, "dark", "dark theme should persist");
+  await page.reload();
+  await page.waitForSelector(".page--home .hero", { timeout: 30_000 });
+  appearance = await page.evaluate(() => ({
+    attr: document.documentElement.dataset.theme,
+    stored: localStorage.getItem("potato:theme"),
+  }));
+  assert.equal(appearance.attr, "dark", "dark theme should survive a renderer reload");
+  assert.equal(appearance.stored, "dark", "stored theme should survive a renderer reload");
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await page.waitForTimeout(350);
+  appearance = await page.evaluate(() => ({
+    attr: document.documentElement.dataset.theme,
+    stored: localStorage.getItem("potato:theme"),
+  }));
+  assert.equal(appearance.attr, "light", "light theme should be restored");
+  assert.equal(appearance.stored, "light", "light theme should persist");
+  console.log("[ui] theme switched dark -> reload -> light");
 
   assert.deepEqual(pageErrors, [], `renderer errors: ${pageErrors.join(" | ")}`);
   await app.close();

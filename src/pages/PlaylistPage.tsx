@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { ListMusic, Pencil, Play, Plus, Shuffle, Trash2 } from "lucide-react";
+import { ListEnd, ListMusic, ListPlus, Pencil, Play, Plus, Shuffle, Trash2 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { Cover } from "@/components/Cover";
 import { TrackTable } from "@/components/TrackTable";
@@ -22,6 +22,8 @@ export function PlaylistPage() {
   const tracks = useAppStore((state) => state.tracks);
   const navigate = useAppStore((state) => state.navigate);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const openPrompt = useAppStore((state) => state.openPrompt);
   const renamePlaylist = useAppStore((state) => state.renamePlaylist);
   const deletePlaylist = useAppStore((state) => state.deletePlaylist);
@@ -128,6 +130,32 @@ export function PlaylistPage() {
               }}
             >
               <Shuffle size={15} /> Shuffle
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              disabled={!playlistTracks.length}
+              onClick={() => void enqueueMany(queue, true)}
+            >
+              <ListEnd size={15} /> Play next
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              disabled={!playlistTracks.length}
+              onClick={() => void enqueueMany(queue, false)}
+            >
+              <ListPlus size={15} /> Add to queue
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              title="Add all to another playlist"
+              aria-label="Add all to another playlist"
+              disabled={!playlistTracks.length}
+              onClick={() => setAddToPlaylistTrackIds(queue)}
+            >
+              <ListMusic size={15} /> Add to playlist
             </button>
             <button type="button" className="button button--glass" onClick={() => navigate({ kind: "songs" })}>
               <Plus size={15} /> Add songs

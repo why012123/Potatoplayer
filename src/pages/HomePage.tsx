@@ -277,13 +277,13 @@ export function HomePage() {
               {featured.playCount > 0 ? ` · ${featured.playCount} ${featured.playCount === 1 ? "play" : "plays"}` : ""}
             </p>
             <div className="hero__actions">
-              <button type="button" className="button button--light" onClick={onFeaturedPlay}>
+              <button type="button" className="button button--dark" onClick={onFeaturedPlay}>
                 {isFeaturedPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
                 {isFeaturedPlaying ? "Pause" : playback?.trackId === featured.id ? "Resume" : "Play"}
               </button>
               <button
                 type="button"
-                className="button button--ghost-light"
+                className="button button--glass"
                 onClick={() => {
                   setRightPanelOpen(true);
                   setRightTab("lyrics");

@@ -175,6 +175,7 @@ export function SongEditorPage() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         void saveDraft();

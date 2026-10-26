@@ -5,6 +5,10 @@ const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
+// Isolated test runs must not share localStorage/preferences with the real app.
+if (process.env.POTATOMUSIC_HOME) {
+  app.setPath("userData", path.join(path.resolve(process.env.POTATOMUSIC_HOME), "electron"));
+}
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const capturePath = process.env.POTATO_CAPTURE_PATH || null;
 const captureView = process.env.POTATO_CAPTURE_VIEW || process.env.POTATO_START_VIEW || null;
@@ -126,7 +130,8 @@ function createWindow() {
   });
 
   mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
+    // UI checks can run off-screen without stealing focus from the real player.
+    if (!process.env.POTATO_HIDDEN) mainWindow.show();
     if (capturePath) {
       setTimeout(() => attemptCapture(), 30_000);
     }
@@ -211,7 +216,9 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-if (!app.requestSingleInstanceLock()) {
+// UI checks use an isolated data dir and must be able to run beside the real
+// player, so they can opt out of the single-instance guard.
+if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
@@ -233,6 +240,7 @@ if (!app.requestSingleInstanceLock()) {
     backend = new BackendProcess({ appRoot, dataDir: dataDir() });
     backend.on("event", (message) => {
       if (message.event === "ready") return;
+      if (Array.isArray(message.data?.coverRoots)) backend.setCoverRoots(message.data.coverRoots);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("backend:event", message);
       }
@@ -256,7 +264,7 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.handle("backend:invoke", async (_event, { method, params }) => {
       const result = await backend.invoke(method, params);
-      if (method === "bootstrap" && result?.coverRoots) backend.setCoverRoots(result.coverRoots);
+      if (Array.isArray(result?.coverRoots)) backend.setCoverRoots(result.coverRoots);
       return result;
     });
 
@@ -272,6 +280,25 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("app:open-path", async (_event, target) => {
       if (typeof target !== "string") return;
       await shell.openPath(target);
+    });
+
+    ipcMain.handle("app:open-external", async (_event, target) => {
+      if (typeof target !== "string") return false;
+      let url;
+      try {
+        url = new URL(target);
+      } catch {
+        return false;
+      }
+      const allowed = ["bilibili.com", "b23.tv"];
+      if (
+        url.protocol !== "https:" ||
+        !allowed.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+      ) {
+        return false;
+      }
+      await shell.openExternal(url.toString());
+      return true;
     });
 
     ipcMain.handle("cover:palette", (_event, target) => paletteFromImage(target));

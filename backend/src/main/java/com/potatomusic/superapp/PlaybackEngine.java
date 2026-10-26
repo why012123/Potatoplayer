@@ -159,17 +159,17 @@ public final class PlaybackEngine {
         return player != null && equalizer != null;
     }
 
-    public void applyEq(EqStore store) {
-        if (player == null || equalizer == null || store == null) {
-            return;
-        }
+    public void applyEq(EqPreset preset, boolean on) {
+        if (player == null || equalizer == null) return;
         try {
-            int count = Math.min(EqStore.BANDS, equalizer.bandCount());
-            for (int i = 0; i < count; i++) {
-                equalizer.setAmp(i, EqStore.clamp(store.bands[i]));
+            if (preset != null) {
+                int count = Math.min(EqPreset.BANDS, equalizer.bandCount());
+                for (int i = 0; i < count; i++) {
+                    equalizer.setAmp(i, EqPreset.clamp(preset.bands[i]));
+                }
+                equalizer.setPreamp(EqPreset.clamp(preset.preamp));
             }
-            equalizer.setPreamp(EqStore.clamp(store.preamp));
-            player.audio().setEqualizer(store.enabled ? equalizer : null);
+            player.audio().setEqualizer(on && preset != null ? equalizer : null);
         } catch (Throwable e) {
             System.err.println("[eq] unable to apply equalizer: " + e.getMessage());
         }
@@ -196,8 +196,8 @@ public final class PlaybackEngine {
         try {
             Equalizer preset = factory.equalizer().newEqualizer(name);
             if (preset == null) return null;
-            float[] bands = new float[EqStore.BANDS];
-            int count = Math.min(EqStore.BANDS, preset.bandCount());
+            float[] bands = new float[EqPreset.BANDS];
+            int count = Math.min(EqPreset.BANDS, preset.bandCount());
             for (int i = 0; i < count; i++) bands[i] = preset.amp(i);
             return new EqCurve(preset.preamp(), bands);
         } catch (Throwable e) {

@@ -17,6 +17,7 @@ export interface PotatoAPI {
   onEvent(listener: (event: BackendEvent) => void): () => void;
   pickFolder(): Promise<string | null>;
   openPath(path: string): Promise<void>;
+  openExternal(url: string): Promise<boolean>;
   coverPalette(path: string): Promise<Palette | null>;
   rendererReady(): void;
   platform: string;

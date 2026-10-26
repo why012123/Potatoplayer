@@ -4,18 +4,22 @@ import type {
   BulkAssignState,
   DownloadJob,
   LyricsPayload,
+  OnlineSource,
   PlaybackState,
   Playlist,
+  PlaylistImport,
   PromptState,
   ScanProgress,
   Settings,
   Tag,
   TagKind,
   Toast,
+  Theme,
   Track,
   TrackMenuState,
   View,
 } from "@/types";
+import { applyTheme, readTheme } from "@/lib/theme";
 
 export type SortMode = "title" | "artist" | "album" | "recent" | "plays" | "rating";
 export type RightTab = "lyrics" | "queue";
@@ -52,16 +56,22 @@ interface AppStore {
   rightPanelOpen: boolean;
   immersive: boolean;
   eqOpen: boolean;
+  mvTrackId: string | null;
   rightTab: RightTab;
   commandOpen: boolean;
   settingsOpen: boolean;
   trackMenu: TrackMenuState | null;
   addToPlaylistTrackId: string | null;
+  addToPlaylistTrackIds: string[];
   taxonomyManager: TagKind | null;
   bulkAssign: BulkAssignState | null;
   prompt: PromptState | null;
   reducedMotion: boolean;
+  theme: Theme;
   downloads: DownloadJob[];
+  imports: PlaylistImport[];
+  onlineSource: OnlineSource;
+  downloadPanelOpen: boolean;
   toasts: Toast[];
 
   initialize: () => Promise<void>;
@@ -91,14 +101,18 @@ interface AppStore {
   addToPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   enqueue: (trackId: string, next: boolean) => Promise<void>;
+  enqueueMany: (trackIds: string[], next: boolean) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
   setImmersive: (open: boolean) => void;
   setEqOpen: (open: boolean) => void;
+  setMvTrackId: (id: string | null) => void;
   setRightTab: (tab: RightTab) => void;
   setCommandOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setTrackMenu: (menu: TrackMenuState | null) => void;
   setAddToPlaylistTrackId: (id: string | null) => void;
+  setAddToPlaylistTrackIds: (ids: string[]) => void;
+  addManyToPlaylist: (playlistId: string, trackIds: string[]) => Promise<void>;
   setTaxonomyManager: (kind: TagKind | null) => void;
   setBulkAssign: (value: BulkAssignState | null) => void;
   createTag: (kind: TagKind, name: string, color?: string) => Promise<void>;
@@ -114,9 +128,20 @@ interface AppStore {
   openPrompt: (prompt: PromptState) => void;
   closePrompt: () => void;
   setReducedMotion: (value: boolean) => void;
+  setTheme: (value: Theme) => void;
   pushToast: (title: string, detail?: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   dismissDownload: (jobId: string) => void;
+  setDownloadPanelOpen: (open: boolean) => void;
+  setOnlineSource: (source: OnlineSource) => void;
+  clearFinishedDownloads: () => void;
+  retryDownload: (jobId: string) => Promise<void>;
+  importNeteasePlaylist: (
+    playlist: { name: string; tracks: Array<{ id: string; name: string; artists: string }> },
+    quality?: string,
+  ) => Promise<void>;
+  resolvePlaylistImports: () => Promise<void>;
+  dismissImport: (id: string) => void;
 }
 
 const bridge = () => {
@@ -129,6 +154,46 @@ let initializing = false;
 let toastSequence = 0;
 let lyricsSequence = 0;
 let volumeTimer: ReturnType<typeof setTimeout> | null = null;
+
+type PendingImportEntry = {
+  importId: string;
+  playlistId: string;
+  neteaseId: string;
+  title: string;
+  artist: string;
+  path?: string;
+};
+
+let pendingImportEntries: PendingImportEntry[] = [];
+let resolvingImports = false;
+
+function normalizeImportText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[（(][^()（）]*[)）]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[·・\-—_/|,，.。'’"“”]/g, "")
+    .trim();
+}
+
+function findImportedTrack(
+  tracks: Track[],
+  entry: { path?: string; title: string; artist: string },
+  used: Set<string>,
+): Track | undefined {
+  if (entry.path) {
+    const exact = tracks.find((track) => track.path === entry.path && !used.has(track.id));
+    if (exact) return exact;
+  }
+  const title = normalizeImportText(entry.title);
+  const artist = normalizeImportText(entry.artist);
+  return tracks.find((track) => {
+    if (used.has(track.id)) return false;
+    if (normalizeImportText(track.title) !== title) return false;
+    const localArtist = normalizeImportText(track.artist);
+    return !artist || localArtist === artist || localArtist.includes(artist) || artist.includes(localArtist);
+  });
+}
 
 function initialView(): View {
   const query = new URLSearchParams(window.location.search);
@@ -150,6 +215,14 @@ function initialView(): View {
       return { kind: "discover" };
     default:
       return { kind: "home" };
+  }
+}
+
+function readOnlineSource(): OnlineSource {
+  try {
+    return localStorage.getItem("potato:online-source") === "qq" ? "qq" : "netease";
+  } catch {
+    return "netease";
   }
 }
 
@@ -197,7 +270,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "1.0.0",
+  version: "s1.0.7",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -220,16 +293,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
   rightPanelOpen: readRightPanel(),
   immersive: false,
   eqOpen: false,
+  mvTrackId: null,
   rightTab: "lyrics",
   commandOpen: false,
   settingsOpen: false,
   trackMenu: null,
   addToPlaylistTrackId: null,
+  addToPlaylistTrackIds: [],
   taxonomyManager: null,
   bulkAssign: null,
   prompt: null,
   reducedMotion: readReducedMotion(),
+  theme: readTheme(),
   downloads: [],
+  imports: [],
+  downloadPanelOpen: false,
+  onlineSource: readOnlineSource(),
   toasts: [],
 
   initialize: async () => {
@@ -366,6 +445,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
       case "library.tracks": {
         set({ tracks: (data as { tracks: Track[] }).tracks });
+        void get().resolvePlaylistImports();
         break;
       }
       case "track.updated": {
@@ -396,16 +476,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "download.progress": {
-        const job = data as Partial<DownloadJob> & { jobId: string; downloaded: number; total: number; phase: string };
+        const job = data as Partial<DownloadJob> & { jobId: string; downloaded: number; total: number; phase: string; source?: OnlineSource };
         const current = get().downloads.find((item) => item.jobId === job.jobId);
+        const neteaseId = job.neteaseId ?? current?.neteaseId ?? "";
+        const pendingImport = pendingImportEntries.find((entry) => entry.neteaseId === neteaseId);
         const next: DownloadJob = {
           jobId: job.jobId,
-          neteaseId: job.neteaseId ?? current?.neteaseId ?? "",
+          neteaseId,
           title: job.title ?? current?.title ?? "NetEase song",
+          artist: job.artist ?? current?.artist,
+          path: job.path ?? current?.path,
           downloaded: job.downloaded,
           total: job.total,
           phase: job.phase,
           status: "running",
+          importId: pendingImport?.importId ?? current?.importId,
+          source: job.source ?? current?.source ?? get().onlineSource,
+          createdAt: current?.createdAt ?? Date.now(),
         };
         set({
           downloads: current
@@ -415,39 +502,98 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "download.done": {
-        const payload = data as { jobId: string; title?: string; artist?: string; duplicate?: boolean };
+        const payload = data as {
+          jobId: string;
+          neteaseId?: string;
+          title?: string;
+          artist?: string;
+          path?: string;
+          duplicate?: boolean;
+          source?: OnlineSource;
+        };
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
+        const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
+        const title = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? "Song"}`;
+        const pendingImport = pendingImportEntries.find((entry) => entry.neteaseId === neteaseId);
         const next: DownloadJob = {
           jobId: payload.jobId,
-          neteaseId: current?.neteaseId ?? "",
-          title: `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? "Song"}`,
+          neteaseId,
+          title,
+          artist: payload.artist,
+          path: payload.path,
           downloaded: current?.downloaded ?? 0,
           total: current?.total ?? 0,
           phase: "done",
           status: "done",
+          importId: pendingImport?.importId ?? current?.importId,
+          source: payload.source ?? current?.source ?? get().onlineSource,
+          createdAt: current?.createdAt ?? Date.now(),
         };
         set({
           downloads: current
             ? get().downloads.map((item) => (item.jobId === payload.jobId ? next : item))
             : [...get().downloads, next],
         });
-        get().pushToast(
-          payload.duplicate ? "Already in your library" : "Downloaded to your library",
-          payload.duplicate ? payload.title : `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`,
-          "success",
-        );
-        setTimeout(() => get().dismissDownload(payload.jobId), 5000);
+        if (neteaseId) {
+          for (const entry of pendingImportEntries) {
+            if (entry.neteaseId === neteaseId && payload.path) entry.path = payload.path;
+          }
+        }
+        if (!next.importId) {
+          get().pushToast(
+            payload.duplicate ? "Already in your library" : "Downloaded to your library",
+            payload.duplicate ? payload.title : `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`,
+            "success",
+          );
+        }
+        void get().resolvePlaylistImports();
         break;
       }
       case "download.error": {
-        const payload = data as { jobId: string; message: string };
+        const payload = data as { jobId: string; neteaseId?: string; message: string; source?: OnlineSource };
+        const current = get().downloads.find((item) => item.jobId === payload.jobId);
+        const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
+        const failedJob: DownloadJob = {
+          jobId: payload.jobId,
+          neteaseId,
+          title: current?.title ?? "NetEase song",
+          artist: current?.artist,
+          path: current?.path,
+          downloaded: current?.downloaded ?? 0,
+          total: current?.total ?? 0,
+          phase: "error",
+          status: "error",
+          message: payload.message,
+          importId: current?.importId,
+          source: payload.source ?? current?.source ?? get().onlineSource,
+          createdAt: current?.createdAt ?? Date.now(),
+        };
         set({
-          downloads: get().downloads.map((item) =>
-            item.jobId === payload.jobId ? { ...item, status: "error", phase: "error", message: payload.message } : item,
-          ),
+          downloads: current
+            ? get().downloads.map((item) => (item.jobId === payload.jobId ? failedJob : item))
+            : [...get().downloads, failedJob],
         });
-        get().pushToast("Download failed", payload.message, "error");
-        setTimeout(() => get().dismissDownload(payload.jobId), 8000);
+        if (neteaseId) {
+          const failedIds = new Set(
+            pendingImportEntries.filter((entry) => entry.neteaseId === neteaseId).map((entry) => entry.importId),
+          );
+          pendingImportEntries = pendingImportEntries.filter((entry) => entry.neteaseId !== neteaseId);
+          if (failedIds.size) {
+            set({
+              imports: get().imports.map((item) =>
+                failedIds.has(item.id)
+                  ? {
+                      ...item,
+                      failed: item.failed + 1,
+                      queued: Math.max(0, item.queued - 1),
+                      active: pendingImportEntries.some((entry) => entry.importId === item.id),
+                    }
+                  : item,
+              ),
+            });
+          }
+        }
+        if (!current?.importId) get().pushToast("Download failed", payload.message, "error");
         break;
       }
       case "backend.fatal": {
@@ -667,11 +813,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  enqueueMany: async (trackIds, next) => {
+    const ids = [...new Set(trackIds.filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      await bridge().invoke("playback.enqueueMany", { trackIds: ids, next });
+      get().pushToast(next ? "Playing next" : "Added to queue", `${ids.length} song${ids.length === 1 ? "" : "s"}`, "success");
+    } catch (error) {
+      get().pushToast("Could not update queue", friendlyError(error), "error");
+    }
+  },
+
   addToPlaylist: async (playlistId, trackId) => {
     try {
       await bridge().invoke("playlist.addTrack", { playlistId, trackId });
       const playlist = get().playlists.find((item) => item.id === playlistId);
       get().pushToast("Added to playlist", playlist?.name, "success");
+    } catch (error) {
+      get().pushToast("Could not add to playlist", friendlyError(error), "error");
+    }
+  },
+
+  addManyToPlaylist: async (playlistId, trackIds) => {
+    const ids = [...new Set(trackIds.filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      await bridge().invoke("playlist.addTracks", { playlistId, trackIds: ids });
+      const playlist = get().playlists.find((item) => item.id === playlistId);
+      get().pushToast("Added to playlist", `${ids.length} song${ids.length === 1 ? "" : "s"} · ${playlist?.name ?? ""}`, "success");
     } catch (error) {
       get().pushToast("Could not add to playlist", friendlyError(error), "error");
     }
@@ -704,12 +873,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   setImmersive: (open) => set({ immersive: open }),
   setEqOpen: (open) => set({ eqOpen: open }),
+  setMvTrackId: (id) => set({ mvTrackId: id }),
 
   setRightTab: (tab) => set({ rightTab: tab }),
   setCommandOpen: (open) => set({ commandOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setTrackMenu: (menu) => set({ trackMenu: menu }),
-  setAddToPlaylistTrackId: (id) => set({ addToPlaylistTrackId: id }),
+  setAddToPlaylistTrackId: (id) => set({ addToPlaylistTrackId: id, addToPlaylistTrackIds: [] }),
+  setAddToPlaylistTrackIds: (ids) => set({ addToPlaylistTrackId: null, addToPlaylistTrackIds: ids }),
   setTaxonomyManager: (kind) => set({ taxonomyManager: kind }),
   setBulkAssign: (value) => set({ bulkAssign: value }),
   createTag: async (kind, name, color) => {
@@ -800,6 +971,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  setTheme: (value) => {
+    set({ theme: value });
+    applyTheme(value, true);
+  },
+
   pushToast: (title, detail, tone = "default") => {
     const id = ++toastSequence;
     set({ toasts: [...get().toasts.slice(-2), { id, title, detail, tone }] });
@@ -809,7 +985,190 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   dismissToast: (id) => set({ toasts: get().toasts.filter((toast) => toast.id !== id) }),
+
   dismissDownload: (jobId) => set({ downloads: get().downloads.filter((job) => job.jobId !== jobId) }),
+
+  setDownloadPanelOpen: (open) => set({ downloadPanelOpen: open }),
+
+  setOnlineSource: (source) => {
+    set({ onlineSource: source });
+    try {
+      localStorage.setItem("potato:online-source", source);
+    } catch {
+      // Storage is optional.
+    }
+  },
+
+  clearFinishedDownloads: () =>
+    set({
+      downloads: get().downloads.filter((job) => job.status === "running"),
+      imports: get().imports.filter((item) => item.active),
+    }),
+
+  retryDownload: async (jobId) => {
+    const job = get().downloads.find((item) => item.jobId === jobId);
+    if (!job?.neteaseId) return;
+    try {
+      const result = await bridge().invoke<{ jobId: string }>(`${job.source ?? "netease"}.download`, {
+        id: job.neteaseId,
+        quality: "high",
+      });
+      const refreshed: DownloadJob = {
+        ...job,
+        jobId: result.jobId,
+        downloaded: 0,
+        total: 0,
+        status: "running",
+        phase: "queued",
+        message: undefined,
+        path: undefined,
+        createdAt: Date.now(),
+      };
+      set({
+        downloads: [...get().downloads.filter((item) => item.jobId !== jobId), refreshed],
+      });
+      get().pushToast("Retry queued", job.title);
+    } catch (error) {
+      get().pushToast("Could not retry download", friendlyError(error), "error");
+    }
+  },
+
+  importNeteasePlaylist: async (source, quality = "high") => {
+    const songs = source.tracks.filter((song) => song?.id);
+    if (!songs.length) {
+      get().pushToast("Nothing to import", "This NetEase playlist is empty.", "error");
+      return;
+    }
+    const onlineSource = get().onlineSource;
+    const playlist = await get().createPlaylist((source.name || "Online playlist").trim() || "Online playlist");
+    if (!playlist) return;
+
+    const importId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const record: PlaylistImport = {
+      id: importId,
+      playlistId: playlist.id,
+      playlistName: playlist.name,
+      total: songs.length,
+      resolved: 0,
+      queued: 0,
+      failed: 0,
+      active: true,
+    };
+    set({ imports: [record, ...get().imports.filter((item) => item.active)] });
+
+    const bump = (patch: Partial<PlaylistImport>) =>
+      set({
+        imports: get().imports.map((item) => (item.id === importId ? { ...item, ...patch } : item)),
+      });
+    const currentRecord = () => get().imports.find((item) => item.id === importId);
+    const used = new Set<string>();
+
+    for (const song of songs) {
+      const existing = findImportedTrack(get().tracks, { title: song.name, artist: song.artists }, used);
+      if (existing) {
+        used.add(existing.id);
+        try {
+          await bridge().invoke("playlist.addTrack", { playlistId: playlist.id, trackId: existing.id });
+          bump({ resolved: (currentRecord()?.resolved ?? 0) + 1 });
+        } catch {
+          bump({ failed: (currentRecord()?.failed ?? 0) + 1 });
+        }
+        continue;
+      }
+
+      const entry: PendingImportEntry = {
+        importId,
+        playlistId: playlist.id,
+        neteaseId: song.id,
+        title: song.name,
+        artist: song.artists,
+      };
+      pendingImportEntries.push(entry);
+      try {
+        const result = await bridge().invoke<{ jobId: string }>(`${onlineSource}.download`, { id: song.id, quality });
+        if (!result?.jobId) {
+          pendingImportEntries = pendingImportEntries.filter((item) => item !== entry);
+          bump({ failed: (currentRecord()?.failed ?? 0) + 1 });
+        } else {
+          bump({ queued: (currentRecord()?.queued ?? 0) + 1 });
+        }
+      } catch {
+        pendingImportEntries = pendingImportEntries.filter((item) => item !== entry);
+        bump({ failed: (currentRecord()?.failed ?? 0) + 1 });
+      }
+    }
+
+    const active = pendingImportEntries.some((entry) => entry.importId === importId);
+    set({
+      imports: get().imports.map((item) =>
+        item.id === importId ? { ...item, active } : item,
+      ),
+    });
+    const recordAfter = currentRecord() ?? record;
+    get().pushToast(
+      "NetEase playlist imported",
+      active
+        ? `${recordAfter.resolved} ready · ${recordAfter.queued} downloading · ${recordAfter.failed} failed`
+        : `${recordAfter.resolved} matched · ${recordAfter.failed} failed`,
+      active || recordAfter.resolved ? "success" : "error",
+    );
+    if (active) void get().resolvePlaylistImports();
+  },
+
+  resolvePlaylistImports: async () => {
+    if (resolvingImports || !pendingImportEntries.length) return;
+    resolvingImports = true;
+    const activeBefore = new Set(get().imports.filter((item) => item.active).map((item) => item.id));
+    try {
+      const entries = [...pendingImportEntries];
+      for (const entry of entries) {
+        const track = findImportedTrack(get().tracks, entry, new Set());
+        if (!track) continue;
+        pendingImportEntries = pendingImportEntries.filter((item) => item !== entry);
+        let ok = true;
+        try {
+          await bridge().invoke("playlist.addTrack", { playlistId: entry.playlistId, trackId: track.id });
+        } catch {
+          ok = false;
+        }
+        set({
+          imports: get().imports.map((item) =>
+            item.id === entry.importId
+              ? {
+                  ...item,
+                  resolved: item.resolved + (ok ? 1 : 0),
+                  queued: Math.max(0, item.queued - 1),
+                  failed: item.failed + (ok ? 0 : 1),
+                  active: pendingImportEntries.some((other) => other.importId === item.id),
+                }
+              : item,
+          ),
+        });
+      }
+    } finally {
+      resolvingImports = false;
+      const activeIds = new Set(pendingImportEntries.map((entry) => entry.importId));
+      if (get().imports.some((item) => item.active && !activeIds.has(item.id))) {
+        set({
+          imports: get().imports.map((item) => ({ ...item, active: activeIds.has(item.id) })),
+        });
+      }
+      const finished = get().imports.filter((item) => activeBefore.has(item.id) && !item.active);
+      for (const item of finished) {
+        get().pushToast(
+          "Playlist import complete",
+          `${item.playlistName} · ${item.resolved} songs ready${item.failed ? ` · ${item.failed} failed` : ""}`,
+          item.failed ? "default" : "success",
+        );
+      }
+    }
+  },
+
+  dismissImport: (id) => {
+    const removed = get().imports.find((item) => item.id === id);
+    if (removed) pendingImportEntries = pendingImportEntries.filter((entry) => entry.importId !== id);
+    set({ imports: get().imports.filter((item) => item.id !== id) });
+  },
 }));
 
 export function currentView(): View {

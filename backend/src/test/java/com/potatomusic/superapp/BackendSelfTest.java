@@ -16,6 +16,8 @@ public final class BackendSelfTest {
         testLrcParsing();
         testLegacyImport();
         testTaxonomyMerge();
+        testEqMergeAndPreamp();
+        testBilibiliParsing();
         System.out.println("BackendSelfTest: " + passed + " checks passed.");
     }
 
@@ -117,6 +119,110 @@ public final class BackendSelfTest {
         check(Taxonomy.find(merged, "Fresh") != null, "used track values are added");
         check(Taxonomy.validColor(Taxonomy.find(merged, "Fresh").color), "generated colour is valid");
         check(!Taxonomy.validColor("red"), "invalid colours are rejected");
+    }
+
+    private static void testEqMergeAndPreamp() throws Exception {
+        Path base = Files.createTempDirectory("potato-eq-test");
+        Path music = Files.createDirectories(base.resolve("source").resolve("music"));
+        Path current = base.resolve("app-eq.json");
+        Path legacy = base.resolve("source").resolve("eq.json");
+        Files.writeString(current, """
+                {
+                  "enabled": true,
+                  "preamp": 12.0,
+                  "bands": [-15.0, 4.0, 4.0, 4.5, 5.0, 4.0, 4.5, -4.5, -2.5, 0.0],
+                  "presets": {
+                    "1": {"name": "1", "preamp": 12.0, "bands": [-15.0, 4.0, 4.0, 4.5, 5.0, 4.0, 4.5, -4.5, -2.5, 0.0]}
+                  }
+                }
+                """, StandardCharsets.UTF_8);
+        Files.writeString(legacy, """
+                {
+                  "version": 2,
+                  "on": true,
+                  "global": {"preamp": 12.0, "bands": [0,0,0,0,0,0,0,0,0,0]},
+                  "presets": {
+                    "Dance改": {"preamp": 12.0, "bands": [1,2,3,4,5,6,7,8,9,10]}
+                  },
+                  "songs": {
+                    "source/music/Mili - world.execute (me) ;.flac": {
+                      "nid": "435278010",
+                      "preamp": 12.0,
+                      "bands": [-20.0, -9.5, 1.0, 1.5, 0.5, 4.5, 3.5, 3.5, -1.0, -20.0]
+                    }
+                  }
+                }
+                """, StandardCharsets.UTF_8);
+
+        EqStore store = EqStore.load(current, legacy, music);
+        check(store.on, "legacy eq enabled state imported");
+        check(Math.abs(store.global.preamp - 12f) < 0.001f, "current flat-format preamp is not migrated twice");
+        check(Math.abs(store.global.bands[0] + 15f) < 0.001f, "current global curve wins over legacy flat global");
+        check(store.presets.containsKey("1"), "current named preset kept");
+        check(store.presets.containsKey("Dance改"), "legacy named preset imported");
+        check(store.songCount() == 1, "legacy per-song preset imported");
+        check(store.legacyMerged, "legacy merge is remembered");
+
+        String songPath = music.resolve("Mili - world.execute (me) ;.flac").toAbsolutePath().toString();
+        EqPreset byPath = store.forSong(songPath, null);
+        check(byPath != null && Math.abs(byPath.bands[0] + 20f) < 0.001f, "per-song preset matched by relative path");
+        EqPreset byId = store.forSong(music.resolve("renamed.flac").toAbsolutePath().toString(), "435278010");
+        check(byId != null && Math.abs(byId.bands[1] + 9.5f) < 0.001f, "per-song preset matched by cloud id fallback");
+        check(store.effectiveFor(music.resolve("other.flac").toString(), null).sameAs(store.global), "unmatched song follows global");
+
+        Path saved = base.resolve("saved.json");
+        store.save(saved);
+        EqStore reloaded = EqStore.load(saved, null, music);
+        check(reloaded.songCount() == 1, "per-song presets survive save and reload");
+        check(Math.abs(reloaded.global.preamp - 12f) < 0.001f, "preamp survives save and reload");
+        check(reloaded.presets.containsKey("Dance改"), "named preset survives save and reload");
+
+        reloaded.removePreset("Dance改");
+        reloaded.save(saved);
+        EqStore afterDelete = EqStore.load(saved, legacy, music);
+        check(!afterDelete.presets.containsKey("Dance改"), "deleting an imported preset is not undone by the legacy merge");
+    }
+
+    private static void testBilibiliParsing() throws Exception {
+        var root = Json.MAPPER.readTree("""
+                {
+                  "code": 0,
+                  "data": {
+                    "numResults": 321,
+                    "result": [
+                      {
+                        "type": "video",
+                        "bvid": "BV1xx411c7mD",
+                        "aid": 123,
+                        "title": "【MV】<em class=keyword>影二つ</em> &amp; more",
+                        "author": "riya &amp; friends",
+                        "mid": 456,
+                        "pic": "//i0.hdslb.com/bfs/archive/a.jpg",
+                        "duration": "1:02",
+                        "play": 1234,
+                        "danmaku": 9,
+                        "pubdate": 123,
+                        "description": "A &lt;test&gt; description",
+                        "typename": "MV",
+                        "arcurl": "http://www.bilibili.com/video/av123"
+                      },
+                      {"type": "live", "title": "ignored"}
+                    ]
+                  }
+                }
+                """);
+        Map<String, Object> parsed = BilibiliService.parse(root, "影二つ", 10);
+        check(((Number) parsed.get("total")).longValue() == 321L, "bilibili total is parsed");
+        check(parsed.get("searchUrl").toString().contains("search.bilibili.com"), "bilibili search url is built");
+        List<Map<String, Object>> items = (List<Map<String, Object>>) parsed.get("results");
+        check(items.size() == 1, "non-video bilibili entries are ignored");
+        Map<String, Object> item = items.get(0);
+        check("BV1xx411c7mD".equals(item.get("bvid")), "bilibili bvid is parsed");
+        check("【MV】影二つ & more".equals(item.get("title")), "bilibili title markup and entities are cleaned");
+        check("riya & friends".equals(item.get("author")), "bilibili author is cleaned");
+        check("https://i0.hdslb.com/bfs/archive/a.jpg".equals(item.get("coverUrl")), "bilibili cover is normalized");
+        check(((Number) item.get("durationSeconds")).intValue() == 62, "bilibili duration is parsed");
+        check("https://www.bilibili.com/video/BV1xx411c7mD".equals(item.get("url")), "bilibili video url is built");
     }
 
     private static void check(boolean condition, String message) {

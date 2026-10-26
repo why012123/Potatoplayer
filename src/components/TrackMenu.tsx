@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Heart, Layers3, ListEnd, ListMusic, ListPlus, Play } from "lucide-react";
+import { ArrowUpRight, Clapperboard, Heart, Layers3, ListEnd, ListMusic, ListPlus, Play } from "lucide-react";
 import { useAppStore } from "@/store";
 
 export function TrackMenu() {
@@ -12,6 +12,7 @@ export function TrackMenu() {
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
   const setTrackMenu = useAppStore((state) => state.setTrackMenu);
   const setAddToPlaylistTrackId = useAppStore((state) => state.setAddToPlaylistTrackId);
+  const setMvTrackId = useAppStore((state) => state.setMvTrackId);
   const navigate = useAppStore((state) => state.navigate);
   const track = tracks.find((item) => item.id === menu?.trackId);
   const favorite = track ? favorites.includes(track.id) : false;
@@ -27,7 +28,7 @@ export function TrackMenu() {
 
   const close = () => setTrackMenu(null);
   const left = menu ? Math.max(14, Math.min(menu.x - 244, window.innerWidth - 258)) : 0;
-  const top = menu ? Math.max(14, Math.min(menu.y + 6, window.innerHeight - 330)) : 0;
+  const top = menu ? Math.max(14, Math.min(menu.y + 6, window.innerHeight - 390)) : 0;
 
   return (
     <AnimatePresence>
@@ -103,6 +104,17 @@ export function TrackMenu() {
             >
               <ListMusic size={15} />
               Add to playlist…
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                setMvTrackId(track.id);
+                close();
+              }}
+            >
+              <Clapperboard size={15} />
+              Find MV on Bilibili
             </button>
             <div className="menu-separator" />
             <button

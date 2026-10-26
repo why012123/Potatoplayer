@@ -4,7 +4,8 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`1.0.4` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`s1.0.7` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 完整更新记录（含旧 Java 2.1.19 / Python 1.x 历史）见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
 
@@ -33,7 +34,7 @@
 - **新渲染层**：Electron + React + TypeScript + Framer Motion。
 - **保留可靠内核**：扫描、元数据、VLC 播放和歌词逻辑改为无头 Java 服务。
 - **全新信息架构**：资料库 → 内容画布 → 常驻 Now Playing，播放控制集中在右侧，避免底部播放条和侧栏重复。
-- **视觉系统**：现代 iOS 毛玻璃、暖色纸张底、动态封面环境色、统一圆角和阴影。
+- **视觉系统**：现代 iOS 毛玻璃、暖色纸张底与暖炭深色两套外观、动态封面环境色、统一圆角和阴影。
 - **动效系统**：共享导航指示器、页面弹簧转场、封面交叉淡入、悬浮抬升、正在播放均衡器、下载进度、命令面板。
 - **核心业务优先**：块 / 流派 / 网易云都获得独立页面、管理和批量操作，而不是藏在设置里。
 
@@ -49,7 +50,15 @@
 
 ![Immersive playback](docs/screenshots/immersive.jpg)
 
+| Light room | Dark room |
+| --- | --- |
+| ![Light home](docs/screenshots/home.jpg) | ![Dark home](docs/screenshots/dark-home.jpg) |
+
+![Dark settings and appearance picker](docs/screenshots/dark-settings.jpg)
+
 ![Equalizer](docs/screenshots/eq.jpg)
+
+![Bilibili MV search](docs/screenshots/bilibili-mv.jpg)
 
 | Discover (NetEase) | Tag detail |
 | --- | --- |
@@ -60,6 +69,13 @@
 </p>
 
 ## 核心功能
+
+### 外观
+
+- **浅色 / 深色整体切换**：顶栏的太阳 / 月亮按钮，或 **Settings → Appearance** 的两张选项卡。
+- 浅色保留暖纸和日光玻璃；深色使用暖炭黑、深色玻璃、奶油色主按钮和封面染色，而不是简单反色。
+- 选择写入 `localStorage`，刷新和重启后保持；页面、侧栏、Now Playing、弹窗、EQ、Discover、编辑器和下载面板统一适配。
+- 沉浸播放和 3D 舞台保持电影感深色；切回浅色后恢复日光玻璃。
 
 ### 本地资料库
 
@@ -79,6 +95,7 @@
 - 右侧 Now Playing 面板始终可见：大封面、进度、控制、音量、歌词 / 队列。
 - 折叠后变成毛玻璃 Mini Player，仍可播放、暂停和打开面板；**页面内容同时自动铺满整个右侧空间，不再留下空白列**。
 - **沉浸模式**：点击右侧正在播放歌曲的封面进入全窗口播放页；点击大封面（或按 `Esc`）退出。窗口里只剩封面、歌词、进度、播放控制与环境背景。
+- 沉浸模式的 **Customize** 是一个默认隐藏的右侧侧栏，不会加遮罩；拖动滑块时，背后的封面、歌词与配色会实时预览。
 
 ### 歌曲编辑
 
@@ -93,11 +110,19 @@
 
 ### 均衡器
 
-- **10 段 VLC 均衡器**：31 Hz – 16 kHz，每段 ±20 dB；前级以 `0 dB = unity` 显示。
-- 入口：右侧正在播放栏的滑杆按钮，或沉浸页右下角。
-- 支持 VLC 内置预设（Flat、Dance、Rock 等 18 个）、Bypass、Flat 复位、自定义预设保存 / 删除。
-- 调整会实时作用到当前播放；关闭后继续保留。
-- 全部设置持久化在 `~/.potatoplayer-super/eq.json`。
+- **完整还原旧版 Java 的 EQ 模型**：10 段（31 Hz – 16 kHz），每段 ±20 dB、0.5 dB 步进；
+  前级 12 dB 才是中性 / unity，界面以相对值 `0.0 dB` 显示。
+- 三类状态同时存在：**全局预设**、**命名预设**、**单曲预设**。单曲预设优先于全局；
+  匹配时先按相对 `PotatoLibrary` 的路径，失败再按网易云 ID 兜底。
+- 旧版 `PotatoLibrary/source/eq.json`（`version: 2` 格式、`global` / `presets` / `songs`）
+  会在首次启动时与新版数据合并一次：保留已有曲线，导入 `Dance改` 等命名预设与全部单曲预设；
+  之后删除的旧预设不会被重新导入。
+  旧版 v1 的相对前级会一次性迁移 12 dB，新版自身的数据不会被重复加 12 dB。
+- 入口：右侧正在播放栏的滑杆按钮，或沉浸页右下角。编辑时立即试听草稿；切歌或关闭
+  对话框会丢弃未保存草稿并恢复已保存曲线。
+- 可保存到 **本曲 / 全局 / 新命名预设**；支持 VLC 18 个内置预设、Bypass、Flat、Reset、
+  删除命名预设。播放某首歌前会自动应用它的单曲预设。
+- 数据以 v2 格式保存在 `~/.potatoplayer-super/eq.json`；旧版文件只读导入，不回写。
 
 ### 跨启动保留
 
@@ -125,6 +150,9 @@
 - **Tag 详情页**：封面式标签头图、统计、播放 / 随机、完整歌曲表。
 - **Songs 页面**：块 / 流派双筛选 + 数据表中的独立列 + 彩色 pill。
 - **批量归类**：Select → 勾选歌曲 → Assign block / Assign genre；可以输入新名称直接创建标签。
+- **批量队列与歌单**：同一多选栏支持 **Play next / Add to queue / Add to playlist**，顺序保持不变。
+- **整张专辑进队列**：专辑、歌手、块 / 流派、歌单和收藏页都提供 Play next、Add to queue 与
+  Add to playlist，不再只能用整张专辑替换当前队列。
 - **单曲编辑**：任意歌曲的 `···` → **Edit in song editor**，或使用侧栏 **Editor**、顶栏铅笔、`⌘E`，在完整编辑页修改块、流派、评分、个人笔记和收藏。
 - **完整管理器**：创建、改名、改色、删除；删除只清除标签，不删除文件。
 - 用户修改在重扫后保留；已删除的旧标签不会因为再次读取旧资料库而复活。
@@ -152,6 +180,40 @@ Discover 页面：
 - 渲染层拿不到 cookie；所有网易云请求都在 Java 服务里完成。
 
 > 登录、搜索、下载都需要本地 `api-enhanced` 服务。没有它时，本地播放和其它功能完全正常。
+
+## QQ 音乐
+
+Discover 页面左侧 Online 分组里的 **NETEASE / QQ MUSIC** 小徽章可以直接点击切换在线源。
+
+QQ 源使用本地 [qq-music-api](https://github.com/yakult-green-tea/qq-music-api)（Koa2 + TypeScript，MIT）：
+
+- 二维码登录（QQ 音乐 App）
+- 歌曲搜索 / 新歌推荐 / 推荐歌单
+- QQ 音乐歌曲下载（Standard / High 320k / Lossless，实际取决于账号与音源）
+- 下载后自动保存封面、`.lrc` / `.trans.lrc`，并触发资料库重扫
+
+安装本地服务：
+
+```bash
+npm run setup:qq-api
+```
+
+它会把第三方服务安装到 `~/.potatoplayer-super/api/qq-music-api`。也可以在 Discover 的服务状态卡片里看到服务地址与启动状态。
+
+> QQ Music API 是独立第三方项目，不随本仓库分发。需要 Node.js 20+。
+
+## B站 MV
+
+播放栏顶部的场记板按钮，或任意歌曲的 `···` → **Find MV on Bilibili**，会打开 MV 搜索：
+
+- 自动用「歌曲标题 + 歌手 + MV」作为关键词，也可以手动修改。
+- 直接调用 Bilibili 公开视频搜索，不需要登录、Cookie 或本地 API 服务。
+- 展示最多 20 条结果：封面、时长、UP 主、分区、播放量和发布日期。
+- 点击结果会在系统浏览器打开 `bilibili.com/video/BV…`，不下载视频，也不改动音乐资料库。
+- 相同关键词缓存 3 分钟；遇到 Bilibili 风控或网络错误时提供重试和“Search on Bilibili”兜底。
+- Electron 主进程只允许打开 `bilibili.com` / `b23.tv` 的 HTTPS 链接。
+
+> 这是“找 MV”而不是内嵌播放器：视频在浏览器中观看，避免和本地 VLC 音频输出打架。
 
 ## 运行
 
@@ -220,8 +282,10 @@ npm start
 | `POTATOMUSIC_HOME` | 覆盖应用数据目录（默认 `~/.potatoplayer-super`） |
 | `POTATOMUSIC_API_BASE` | 网易云服务地址，默认 `http://localhost:3000` |
 | `POTATOMUSIC_API_DIR` | api-enhanced 目录 |
+| `POTATOMUSIC_QQ_API_BASE` | QQ Music 服务地址，默认 `http://localhost:3200` |
+| `POTATOMUSIC_QQ_API_DIR` | qq-music-api 目录 |
 | `POTATOMUSIC_NODE` | Node 可执行文件路径 |
-| `POTATOMUSIC_DEBUG` | 输出 Java / api-enhanced 日志 |
+| `POTATOMUSIC_DEBUG` | 输出 Java / 在线 API 服务日志 |
 
 ## 网易云服务
 
@@ -398,11 +462,13 @@ npm test
 ## 已知限制
 
 - **macOS 已验证**；Windows / Linux 使用相同代码路径，但尚未真机验证。macOS 隐藏标题栏 / 交通灯使用 `hiddenInset`。
-- 网易云依赖外部 `api-enhanced`，且部分歌曲会受账号等级、地区或版权限制。
+- 网易云依赖外部 `api-enhanced`；QQ 音乐依赖外部 `qq-music-api`。两者都会受账号等级、地区或版权限制。
+- QQ 音乐下载必须先扫码登录，且实际能否取到音频以 QQ 账号权限和上游结果为准。
+- B站 MV 搜索使用公开网页搜索接口，可能被风控或受地区限制；结果在系统浏览器观看，不内嵌播放。
 - 搜索结果的网易云封面在未下载前可能由渐变首字母占位；下载后会写入真实封面。
 - 旧资料库没有专辑标签时，Albums 页面会按歌手生成 “artist collection”，并明确标注。
 - 新版的块 / 流派 / 评分修改不会写回旧版 JSON。
-- 桌面歌词、悬浮动图、屏幕起雾、BPM / EQ 等旧版实验功能没有带入 1.0.0；当前版本把桌面体验集中在主窗口和 Now Playing 上。
+- 桌面歌词、悬浮动图、屏幕起雾、BPM 等旧版实验功能没有带入 1.0.x；EQ 已在 s1.0.4 完整还原。当前版本把桌面体验集中在主窗口和 Now Playing 上。
 
 ## 致谢
 
@@ -410,6 +476,7 @@ npm test
 - [VLCJ](https://github.com/caprica/vlcj) / [libVLC](https://www.videolan.org/vlc/)。
 - [Electron](https://www.electronjs.org/)、[React](https://react.dev/)、[Motion](https://motion.dev/)、[Lucide](https://lucide.dev/)。
 - [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)（MIT）提供本地网易云 API。
+- [qq-music-api](https://github.com/yakult-green-tea/qq-music-api)（MIT）提供本地 QQ 音乐 API、扫码登录、搜索、歌单与播放链接。
 - 所有封面、音频和网易云账号数据均属于各自版权方；本仓库不附带音乐文件或账号 cookie。
 
 ## License

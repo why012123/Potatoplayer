@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("potato", {
   },
   pickFolder: () => ipcRenderer.invoke("dialog:pick-folder"),
   openPath: (target) => ipcRenderer.invoke("app:open-path", target),
+  openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
   coverPalette: (target) => ipcRenderer.invoke("cover:palette", target),
   rendererReady: () => ipcRenderer.send("app:renderer-ready"),
   platform: process.platform,

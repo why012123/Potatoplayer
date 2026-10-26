@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
   ChevronRight,
+  Clapperboard,
   Heart,
   ListMusic,
   Mic2,
@@ -40,6 +41,7 @@ export function NowPlaying() {
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
   const setImmersive = useAppStore((state) => state.setImmersive);
   const setEqOpen = useAppStore((state) => state.setEqOpen);
+  const setMvTrackId = useAppStore((state) => state.setMvTrackId);
   const playTrack = useAppStore((state) => state.playTrack);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const next = useAppStore((state) => state.next);
@@ -131,6 +133,11 @@ export function NowPlaying() {
           {isPlaying ? "Now playing" : isCurrent ? "Ready to resume" : track ? "Ready when you are" : "Nothing playing"}
         </span>
         <div className="now-playing__head-actions">
+          {track && (
+            <IconButton label="Find MV on Bilibili" variant="ghost" size="sm" onClick={() => setMvTrackId(track.id)}>
+              <Clapperboard size={17} />
+            </IconButton>
+          )}
           <IconButton label="Equalizer" variant="ghost" size="sm" onClick={() => setEqOpen(true)}>
             <SlidersHorizontal size={17} />
           </IconButton>

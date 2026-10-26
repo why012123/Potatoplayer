@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "1.0.4";
+    public static final String VERSION = "s1.0.7";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -32,6 +32,8 @@ public final class Backend implements PlaybackController.Host {
     private final LyricsService lyrics;
     private final PlaybackController playback;
     private final NeteaseService netease;
+    private final QQMusicService qq;
+    private final BilibiliService bilibili;
     private final java.util.function.BiConsumer<String, Object> emitter;
     private final ScheduledExecutorService saver = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "state-saver");
@@ -49,15 +51,32 @@ public final class Backend implements PlaybackController.Host {
         this.store = new DataStore();
         this.store.ensure();
         this.settings = store.loadSettings();
-        this.eqStore = EqStore.load(store.eqFile());
         this.state = store.loadLibrary();
         resolveLibraryRoot();
+        Path musicRoot = settings.libraryRoot == null ? null : Path.of(settings.libraryRoot);
+        Path legacyEq = musicRoot == null || musicRoot.getParent() == null
+                ? null : musicRoot.getParent().resolve("eq.json");
+        this.eqStore = EqStore.load(store.eqFile(), legacyEq, musicRoot);
+        try {
+            eqStore.save(store.eqFile());
+        } catch (Exception e) {
+            System.err.println("[eq] unable to migrate eq.json: " + e.getMessage());
+        }
         this.neteaseBindings = new NeteaseBindings(store.dataDir());
         this.scanner = new LibraryScanner(store.coversDir(), neteaseBindings);
         this.lyrics = new LyricsService(Path.of(settings.libraryRoot), store.dataDir());
         synchronized (lock) {
             rebuildIndex();
             ensureTaxonomyLocked();
+            if (repairLegacyMetadataLocked()) {
+                try {
+                    store.backupLibrary();
+                } catch (IOException e) {
+                    System.err.println("[repair] backup failed: " + e.getMessage());
+                }
+            }
+            ensureTaxonomyLocked();
+            ensureTrackTaxonomyLocked();
             scanNeeded = state.tracks.isEmpty()
                     || !settings.libraryRoot.equals(state.libraryRoot)
                     || state.schemaVersion < 2;
@@ -65,6 +84,8 @@ public final class Backend implements PlaybackController.Host {
         this.playback = new PlaybackController(this);
         this.playback.warmUpAsync();
         this.netease = new NeteaseService(this);
+        this.qq = new QQMusicService(this);
+        this.bilibili = new BilibiliService();
         saveNow();
     }
 
@@ -133,7 +154,9 @@ public final class Backend implements PlaybackController.Host {
                     rebuildIndex();
                     ensureTaxonomyLocked();
                     state.schemaVersion = 2;
-                    pruneFavorites();
+                    // Favorites and playlist membership are user data. Keep them even
+                    // while switching roots; missing IDs simply resolve once the
+                    // matching library is selected again.
                     scanNeeded = false;
                 }
                 saveNow();
@@ -146,6 +169,7 @@ public final class Backend implements PlaybackController.Host {
                 done.put("scanNeeded", false);
                 done.put("scannedAt", state.scannedAt);
                 done.put("legacyImport", result.legacy());
+                done.put("coverRoots", store.coverRoots(root));
                 emitter.accept("scan.done", done);
             } catch (Exception e) {
                 scanNeeded = true;
@@ -171,19 +195,28 @@ public final class Backend implements PlaybackController.Host {
             throw new IllegalArgumentException("That folder does not exist.");
         }
         synchronized (lock) {
+            try {
+                store.backupLibrary();
+            } catch (IOException e) {
+                System.err.println("[library] pre-switch backup failed: " + e.getMessage());
+            }
             settings.libraryRoot = root.toAbsolutePath().normalize().toString();
             state.libraryRoot = settings.libraryRoot;
-            state.tracks = new ArrayList<>();
-            state.blocks = new ArrayList<>();
-            state.genres = new ArrayList<>();
-            state.schemaVersion = 0;
-            trackIndex.clear();
+            // Do not clear tracks, blocks, genres, favorites or playlists here. The
+            // previous state remains valid until the target scan finishes, and
+            // favorites/playlists are pruned only by an explicit user action.
             scanNeeded = true;
+            lyrics.setLibraryRoot(root);
+            eqStore.setLibraryRoot(root);
         }
         saveNow();
-        emitter.accept("library.root", Map.of("root", settings.libraryRoot));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("root", settings.libraryRoot);
+        result.put("scanNeeded", true);
+        result.put("coverRoots", store.coverRoots(root));
+        emitter.accept("library.root", result);
         startScan();
-        return Map.of("root", settings.libraryRoot, "scanNeeded", true);
+        return result;
     }
 
     public Map<String, Object> lyrics(String trackId) {
@@ -263,6 +296,27 @@ public final class Backend implements PlaybackController.Host {
         saveNow();
         emitPlaylists();
         return Map.of("playlist", playlist);
+    }
+
+    public Map<String, Object> addTracksToPlaylist(String playlistId, List<String> trackIds) {
+        Playlist playlist = findPlaylist(playlistId);
+        if (playlist == null) {
+            throw new IllegalArgumentException("Unknown playlist.");
+        }
+        java.util.LinkedHashSet<String> known = new java.util.LinkedHashSet<>();
+        if (trackIds != null) {
+            for (String trackId : trackIds) {
+                if (trackId != null && !trackId.isBlank() && findTrack(trackId) != null) known.add(trackId);
+            }
+        }
+        synchronized (lock) {
+            for (String trackId : known) {
+                if (!playlist.trackIds.contains(trackId)) playlist.trackIds.add(trackId);
+            }
+        }
+        saveNow();
+        emitPlaylists();
+        return Map.of("playlist", playlist, "added", known.size());
     }
 
     public Map<String, Object> removeTrackFromPlaylist(String playlistId, String trackId) {
@@ -453,10 +507,66 @@ public final class Backend implements PlaybackController.Host {
 
     private void ensureTaxonomyLocked() {
         boolean migrating = state.schemaVersion < 2;
-        List<Tag> legacyBlocks = migrating ? Taxonomy.read(sourceFile("blocks.json")) : List.of();
-        List<Tag> legacyGenres = migrating ? Taxonomy.read(sourceFile("genres.json")) : List.of();
+        boolean restoreEmpty = state.blocks.isEmpty() || state.genres.isEmpty();
+        List<Tag> legacyBlocks = migrating || state.blocks.isEmpty()
+                ? Taxonomy.read(sourceFile("blocks.json")) : List.of();
+        List<Tag> legacyGenres = migrating || state.genres.isEmpty()
+                ? Taxonomy.read(sourceFile("genres.json")) : List.of();
         state.blocks = Taxonomy.merge(state.blocks, legacyBlocks, collectValues("block"));
         state.genres = Taxonomy.merge(state.genres, legacyGenres, collectValues("genre"));
+    }
+
+    /** Fill metadata lost by older root-switch builds from the legacy source files. */
+    private boolean repairLegacyMetadataLocked() {
+        if (settings.libraryRoot == null || settings.libraryRoot.isBlank()) return false;
+        LegacyData legacy = LegacyData.load(Path.of(settings.libraryRoot));
+        if (!legacy.isPresent()) return false;
+        boolean changed = false;
+        for (Track track : state.tracks) {
+            if (track.path == null) continue;
+            LegacyData.Entry entry = legacy.find(track.path);
+            if (entry == null) continue;
+            if ((track.rating <= 0) && entry.rating > 0) {
+                track.rating = entry.rating;
+                changed = true;
+            }
+            if (blank(track.note) && !blank(entry.note)) {
+                track.note = entry.note;
+                changed = true;
+            }
+            if (blank(track.block) && !blank(entry.block)) {
+                track.block = entry.block;
+                changed = true;
+            }
+            if (blank(track.genre) && !blank(entry.genre)) {
+                track.genre = entry.genre;
+                changed = true;
+            }
+            if (blank(track.title) && !blank(entry.title)) {
+                track.title = entry.title;
+                changed = true;
+            }
+            if (blank(track.artist) && !blank(entry.artist)) {
+                track.artist = entry.artist;
+                changed = true;
+            }
+            if (track.duration <= 0 && entry.duration > 0) {
+                track.duration = entry.duration;
+                changed = true;
+            }
+            if (track.playCount < entry.playCount) {
+                track.playCount = entry.playCount;
+                changed = true;
+            }
+            if (blank(track.coverPath) && !blank(entry.cover)) {
+                Path cover = Path.of(entry.cover);
+                if (Files.isRegularFile(cover)) {
+                    track.coverPath = cover.toAbsolutePath().normalize().toString();
+                    changed = true;
+                }
+            }
+        }
+        return changed;
     }
 
     private void ensureTrackTaxonomyLocked() {
@@ -490,12 +600,24 @@ public final class Backend implements PlaybackController.Host {
         if (settings.libraryRoot == null) {
             return null;
         }
-        Path parent = Path.of(settings.libraryRoot).getParent();
-        return parent == null ? null : parent.resolve(name);
+        Path root = Path.of(settings.libraryRoot);
+        // Legacy source files live next to the music directory
+        // (<library>/source/music -> <library>/source/ratings.json).
+        Path parent = root.getParent();
+        if (parent != null) {
+            Path candidate = parent.resolve(name);
+            if (Files.isRegularFile(candidate)) return candidate;
+        }
+        Path nested = root.resolve(name);
+        return Files.isRegularFile(nested) ? nested : null;
     }
 
     private static String blockOf(Track track) {
         return track.block == null ? "" : track.block.trim();
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private static String genreOf(Track track) {
@@ -518,18 +640,45 @@ public final class Backend implements PlaybackController.Host {
     }
 
     public Map<String, Object> eqState() {
-        Map<String, Object> out = eqStore.toMap();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("enabled", eqStore.on);
+        out.put("on", eqStore.on);
+        out.put("version", EqStore.FORMAT_VERSION);
+        out.put("global", presetMap(eqStore.global, "Global"));
+        // Flat compatibility fields used by older callers.
+        out.put("preamp", eqStore.global.preamp);
+        out.put("bands", eqStore.global.bands);
+        out.put("presets", eqStore.presets.entrySet().stream()
+                .map(entry -> presetMap(entry.getValue(), entry.getKey())).toList());
+        out.put("songCount", eqStore.songCount());
+        String currentId = String.valueOf(playback.state().get("trackId"));
+        Track current = currentId == null || "null".equals(currentId) ? null : findTrack(currentId);
+        Map<String, Object> currentTrack = null;
+        Map<String, Object> songPreset = null;
+        if (current != null) {
+            EqPreset song = eqStore.forSong(current.path, neteaseIdFor(current.path));
+            currentTrack = new LinkedHashMap<>();
+            currentTrack.put("id", current.id);
+            currentTrack.put("title", current.title);
+            currentTrack.put("artist", current.artist);
+            currentTrack.put("path", current.path);
+            currentTrack.put("hasSongPreset", song != null);
+            if (song != null) songPreset = presetMap(song, current.title);
+        }
+        out.put("currentTrack", currentTrack);
+        out.put("songPreset", songPreset);
+
         PlaybackEngine engine = playback.engine();
         boolean available = engine != null && engine.available() && engine.eqAvailable();
         out.put("available", available);
         out.put("error", engine == null ? null : engine.error());
-        out.put("neutralPreamp", EqStore.NEUTRAL_PREAMP);
+        out.put("neutralPreamp", EqPreset.NEUTRAL_PREAMP);
         List<Float> frequencies = engine == null ? List.of() : engine.eqFrequencies();
-        if (frequencies.size() < EqStore.BANDS) {
+        if (frequencies.size() < EqPreset.BANDS) {
             frequencies = List.of(31.25f, 62.5f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f);
         }
         out.put("frequencies", frequencies);
-        out.put("labels", frequencies.stream().map(Backend::frequencyLabel).toList());
+        out.put("labels", frequencies.stream().map(EqPreset::frequencyLabel).toList());
         List<Map<String, Object>> factory = new ArrayList<>();
         if (engine != null && available) {
             for (String name : engine.eqFactoryPresetNames()) {
@@ -547,65 +696,94 @@ public final class Backend implements PlaybackController.Host {
     }
 
     public Map<String, Object> eqSetEnabled(boolean enabled) {
-        eqStore.enabled = enabled;
+        eqStore.on = enabled;
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
+    /** Live draft preview; never persists. */
+    public Map<String, Object> eqPreview(List<Float> bands, float preamp) {
+        EqPreset draft = presetFrom(bands, preamp);
+        playback.applyEqPreview(draft, eqStore.on);
+        return Map.of("ok", true, "preamp", draft.preamp, "bands", draft.bands);
+    }
+
+    /** Compatibility setter; edits and persists the global preset. */
     public Map<String, Object> eqSetBand(int index, float value) {
-        eqStore.setBand(index, value);
+        if (index < 0 || index >= EqPreset.BANDS) throw new IllegalArgumentException("Invalid EQ band.");
+        eqStore.global.bands[index] = EqPreset.clamp(value);
         saveEq();
         playback.applyEq();
         return Map.of("ok", true);
     }
 
     public Map<String, Object> eqSetPreamp(float value) {
-        eqStore.setPreamp(value);
+        eqStore.global.preamp = EqPreset.clamp(value);
         saveEq();
         playback.applyEq();
         return Map.of("ok", true);
+    }
+
+    public Map<String, Object> eqSaveGlobal(List<Float> bands, float preamp) {
+        eqStore.global = presetFrom(bands, preamp);
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqSaveSong(List<Float> bands, float preamp) {
+        String currentId = String.valueOf(playback.state().get("trackId"));
+        Track current = currentId == null || "null".equals(currentId) ? null : findTrack(currentId);
+        if (current == null) throw new IllegalStateException("Play a song before saving a per-song preset.");
+        eqStore.saveSong(current.path, neteaseIdFor(current.path), presetFrom(bands, preamp));
+        saveEq();
+        playback.applyEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqSaveNamed(String name, List<Float> bands, float preamp) {
+        eqStore.putPreset(name, presetFrom(bands, preamp));
+        saveEq();
+        return eqState();
+    }
+
+    public Map<String, Object> eqDeletePreset(String name) {
+        eqStore.removePreset(name);
+        saveEq();
+        return eqState();
     }
 
     public Map<String, Object> eqApplyFactoryPreset(String name) {
         PlaybackEngine engine = playback.engine();
         PlaybackEngine.EqCurve curve = engine == null ? null : engine.eqFactoryPreset(name);
         if (curve == null) throw new IllegalArgumentException("Unknown factory preset.");
-        eqStore.bands = curve.bands().clone();
-        eqStore.preamp = curve.preamp();
-        eqStore.enabled = true;
+        eqStore.global = presetFrom(toList(curve.bands()), curve.preamp());
+        eqStore.on = true;
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
     public Map<String, Object> eqApplyPreset(String name) {
-        EqStore.Preset preset = eqStore.presets.get(name);
+        EqPreset preset = eqStore.preset(name);
         if (preset == null) throw new IllegalArgumentException("Unknown preset.");
-        eqStore.bands = preset.bands.clone();
-        eqStore.preamp = preset.preamp;
-        eqStore.enabled = true;
+        eqStore.global = preset;
+        eqStore.on = true;
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
     public Map<String, Object> eqReset() {
-        eqStore.reset();
+        eqStore.global = new EqPreset();
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
-    public Map<String, Object> eqSavePreset(String name) {
-        eqStore.savePreset(name);
-        saveEq();
-        return eqState();
-    }
-
-    public Map<String, Object> eqDeletePreset(String name) {
-        eqStore.deletePreset(name);
-        saveEq();
+    public Map<String, Object> eqRestore() {
+        playback.applyEq();
         return eqState();
     }
 
@@ -617,13 +795,35 @@ public final class Backend implements PlaybackController.Host {
         }
     }
 
-    private static String frequencyLabel(float hz) {
-        if (hz >= 1000f) {
-            float k = hz / 1000f;
-            long rounded = Math.round(k);
-            return (Math.abs(k - rounded) < 0.05f ? String.valueOf(rounded) : String.valueOf(k)) + "k";
+    private static Map<String, Object> presetMap(EqPreset preset, String name) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("name", name);
+        map.put("preamp", preset.preamp);
+        map.put("bands", preset.bands.clone());
+        return map;
+    }
+
+    private static EqPreset presetFrom(List<Float> bands, float preamp) {
+        EqPreset preset = new EqPreset();
+        preset.preamp = EqPreset.clamp(preamp);
+        if (bands != null) {
+            for (int i = 0; i < EqPreset.BANDS && i < bands.size(); i++) {
+                preset.bands[i] = EqPreset.clamp(bands.get(i) == null ? 0f : bands.get(i));
+            }
         }
-        return String.valueOf(Math.round(hz));
+        return preset;
+    }
+
+    private static List<Float> toList(float[] values) {
+        List<Float> list = new ArrayList<>();
+        if (values != null) for (float value : values) list.add(value);
+        return list;
+    }
+
+    @Override
+    public String neteaseIdFor(String path) {
+        NeteaseBindings.Binding binding = neteaseBindings.find(path);
+        return binding == null || binding.neteaseId == null ? "" : binding.neteaseId;
     }
 
     @Override
@@ -685,6 +885,7 @@ public final class Backend implements PlaybackController.Host {
         }
         shuttingDown = true;
         netease.shutdown();
+        qq.shutdown();
         playback.shutdown();
         saveNow();
         saver.shutdownNow();
@@ -814,6 +1015,7 @@ public final class Backend implements PlaybackController.Host {
             case "playlist.rename" -> renamePlaylist(text(p, "playlistId", ""), text(p, "name", ""));
             case "playlist.delete" -> deletePlaylist(text(p, "playlistId", ""));
             case "playlist.addTrack" -> addTrackToPlaylist(text(p, "playlistId", ""), text(p, "trackId", ""));
+            case "playlist.addTracks" -> addTracksToPlaylist(text(p, "playlistId", ""), stringList(p.path("trackIds")));
             case "playlist.removeTrack" -> removeTrackFromPlaylist(text(p, "playlistId", ""), text(p, "trackId", ""));
             case "playback.play" -> playback.play(
                     text(p, "trackId", ""),
@@ -828,16 +1030,21 @@ public final class Backend implements PlaybackController.Host {
             case "playback.repeat" -> playback.setRepeat(text(p, "mode", "off"));
             case "playback.shuffle" -> playback.setShuffle(bool(p, "enabled", false));
             case "playback.enqueue" -> playback.enqueue(text(p, "trackId", ""), bool(p, "next", false));
+            case "playback.enqueueMany" -> playback.enqueueMany(stringList(p.path("trackIds")), bool(p, "next", false));
             case "playback.setQueue" -> playback.setQueue(stringList(p.path("queue")));
             case "playback.state" -> playback.state();
             case "eq.state" -> eqState();
             case "eq.setEnabled" -> eqSetEnabled(bool(p, "enabled", false));
             case "eq.setBand" -> eqSetBand((int) number(p, "index", -1), (float) number(p, "value", 0));
-            case "eq.setPreamp" -> eqSetPreamp((float) number(p, "value", EqStore.NEUTRAL_PREAMP));
+            case "eq.setPreamp" -> eqSetPreamp((float) number(p, "value", EqPreset.NEUTRAL_PREAMP));
             case "eq.factoryPreset" -> eqApplyFactoryPreset(text(p, "name", ""));
             case "eq.applyPreset" -> eqApplyPreset(text(p, "name", ""));
             case "eq.reset" -> eqReset();
-            case "eq.savePreset" -> eqSavePreset(text(p, "name", ""));
+            case "eq.preview" -> eqPreview(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
+            case "eq.saveGlobal" -> eqSaveGlobal(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
+            case "eq.saveSong" -> eqSaveSong(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
+            case "eq.saveNamed" -> eqSaveNamed(text(p, "name", ""), floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
+            case "eq.restore" -> eqRestore();
             case "eq.deletePreset" -> eqDeletePreset(text(p, "name", ""));
             case "lyrics.get" -> lyrics(text(p, "trackId", ""));
             case "netease.status" -> netease.status();
@@ -852,6 +1059,18 @@ public final class Backend implements PlaybackController.Host {
             case "netease.daily" -> netease.daily();
             case "netease.lyrics" -> netease.lyrics(text(p, "id", ""));
             case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"));
+            case "qq.status" -> qq.status();
+            case "qq.startService" -> qq.startService();
+            case "qq.qrKey" -> qq.qrKey();
+            case "qq.qrCheck" -> qq.qrCheck(text(p, "key", ""));
+            case "qq.logout" -> qq.logout();
+            case "qq.search" -> qq.search(text(p, "keywords", ""), (int) number(p, "limit", 30));
+            case "qq.playlists" -> qq.playlists();
+            case "qq.playlistDetail" -> qq.playlistDetail(text(p, "playlistId", ""));
+            case "qq.daily" -> qq.daily();
+            case "qq.lyrics" -> qq.lyrics(text(p, "id", ""));
+            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"));
+            case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20));
             case "app.shutdown" -> {
                 Thread thread = new Thread(() -> {
                     try {
@@ -882,6 +1101,14 @@ public final class Backend implements PlaybackController.Host {
     private static boolean bool(JsonNode node, String key, boolean fallback) {
         JsonNode value = node.get(key);
         return value == null || !value.isBoolean() ? fallback : value.asBoolean();
+    }
+
+    private static List<Float> floatList(JsonNode array) {
+        List<Float> values = new ArrayList<>();
+        if (array != null && array.isArray()) {
+            for (JsonNode item : array) values.add((float) item.asDouble(0));
+        }
+        return values;
     }
 
     private static List<String> stringList(JsonNode array) {

@@ -335,6 +335,7 @@ public final class NeteaseService {
                         "title", existing.title == null ? "" : existing.title,
                         "artist", existing.artist == null ? "" : existing.artist,
                         "path", existing.path,
+                        "source", "netease",
                         "duplicate", true));
                 return;
             }
@@ -391,6 +392,7 @@ public final class NeteaseService {
                     "album", album,
                     "path", target.toString(),
                     "coverPath", coverPath == null ? "" : coverPath,
+                    "source", "netease",
                     "duplicate", false));
             host.rescanAfterDownload();
         } catch (Exception e) {
@@ -403,6 +405,7 @@ public final class NeteaseService {
             emit("download.error", Map.of(
                     "jobId", jobId,
                     "neteaseId", neteaseId,
+                    "source", "netease",
                     "message", e.getMessage() == null ? "Download failed." : e.getMessage()));
         }
     }
@@ -575,6 +578,7 @@ public final class NeteaseService {
         map.put("downloaded", done);
         map.put("total", total);
         map.put("phase", phase);
+        map.put("source", "netease");
         return map;
     }
 

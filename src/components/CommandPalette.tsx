@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
+import { isCommitEnter } from "@/lib/keyboard";
 import { Cover } from "@/components/Cover";
 
 type Action = {
@@ -132,7 +133,7 @@ export function CommandPalette() {
               } else if (event.key === "ArrowUp") {
                 event.preventDefault();
                 setSelected((current) => Math.max(0, current - 1));
-              } else if (event.key === "Enter" && actions[selected]) {
+              } else if (isCommitEnter(event) && actions[selected]) {
                 event.preventDefault();
                 run(actions[selected]);
               } else if (event.key === "Escape") {

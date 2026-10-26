@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import clsx from "clsx";
 import {
   Disc3,
   Heart,
@@ -25,8 +26,16 @@ import { Slider } from "@/components/Slider";
 import { useAppStore } from "@/store";
 import { coverUrl } from "@/lib/covers";
 import { formatTime } from "@/lib/format";
+import { Lyric3DStage } from "@/components/Lyric3DStage";
+import { ImmersiveCustomizer } from "@/components/ImmersiveCustomizer";
+import {
+  accentFromPreferences,
+  loadImmersivePreferences,
+  saveImmersivePreferences,
+  type ImmersivePreferences,
+} from "@/lib/immersive";
 
-export function ImmersiveView() {
+export function ImmersiveView({ palette }: { palette: { primary: string; secondary: string } | null }) {
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
@@ -45,6 +54,12 @@ export function ImmersiveView() {
   const toggleShuffle = useAppStore((state) => state.toggleShuffle);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
   const setEqOpen = useAppStore((state) => state.setEqOpen);
+  const ensureLyrics = useAppStore((state) => state.ensureLyrics);
+  const [prefs, setPrefs] = useState<ImmersivePreferences>(() => loadImmersivePreferences());
+  const [customizerOpen, setCustomizerOpen] = useState(false);
+  const view3d = prefs.lyricView === "3d";
+  const setView3d = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "3d" : "classic" }));
+  const updatePrefs = (patch: Partial<ImmersivePreferences>) => setPrefs((current) => ({ ...current, ...patch }));
 
   const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const currentId = playback?.trackId ?? previewTrackId;
@@ -84,6 +99,14 @@ export function ImmersiveView() {
     if (!track) setImmersive(false);
   }, [track, setImmersive]);
 
+  useEffect(() => {
+    if (view3d && track) void ensureLyrics(track.id);
+  }, [view3d, track, ensureLyrics]);
+
+  useEffect(() => {
+    saveImmersivePreferences(prefs);
+  }, [prefs]);
+
   const onPlay = () => {
     if (!track) return;
     if (isCurrent) void togglePlay();
@@ -106,10 +129,84 @@ export function ImmersiveView() {
   const cover = track ? coverUrl(track.coverPath) : null;
   const volumeIcon =
     muted || volume === 0 ? <VolumeX size={19} /> : volume < 0.45 ? <Volume1 size={19} /> : <Volume2 size={19} />;
+  const coverAccent = palette?.primary ?? null;
+  const customAccent = accentFromPreferences(prefs, coverAccent);
+  const immersiveStyle = {
+    "--immerse-lyric-scale": prefs.lyricScale,
+    "--immerse-lyric-align": prefs.lyricAlign,
+    "--immerse-bg-blur": prefs.backgroundBlur,
+    "--immerse-bg-dim": prefs.backgroundDim,
+    "--immerse-bg-grain": prefs.backgroundGrain,
+    "--immerse-bg-veil": prefs.backgroundVeil,
+    ...(prefs.accent !== "cover" && customAccent ? { "--accent": customAccent } : {}),
+  } as CSSProperties;
+  const immersiveClasses = clsx(
+    "immerse",
+    `immerse--${prefs.layout}`,
+    !prefs.showCover && "immerse--no-cover",
+    !prefs.showInfo && "immerse--no-info",
+    !prefs.showHeader && "immerse--no-header",
+    !prefs.showTranslation && "immerse--no-translation",
+    !prefs.showProgress && "immerse--no-progress",
+    !prefs.showVolume && "immerse--no-volume",
+    !prefs.showFavorite && "immerse--no-favorite",
+    prefs.lyricAlign === "center" && "immerse--lyrics-center",
+    prefs.lyricSerif && "immerse--serif",
+  );
+
+  const customizerModal = (
+    <AnimatePresence>
+      {customizerOpen && (
+        <motion.div
+          className="immerse__customizer-layer"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+        >
+          <ImmersiveCustomizer
+            prefs={prefs}
+            onChange={updatePrefs}
+            onClose={() => setCustomizerOpen(false)}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  if (view3d && track) {
+    return (
+      <>
+        <Lyric3DStage
+          track={track}
+          lyrics={lyrics}
+          palette={palette}
+          time={time}
+          duration={duration}
+          playing={isPlaying}
+          isCurrent={isCurrent}
+          onToggle={onPlay}
+          onSeek={onSeek}
+          onNext={() => void next()}
+          onPrevious={() => void previous()}
+          onClassic={() => setView3d(false)}
+          onExit={exit}
+          onCustomize={() => setCustomizerOpen(true)}
+          effects={{
+            particles: prefs.stageParticles,
+            camera: prefs.stageCamera,
+            intensity: prefs.stageIntensity,
+          }}
+        />
+        {customizerModal}
+      </>
+    );
+  }
 
   return (
     <motion.div
-      className="immerse"
+      className={immersiveClasses}
+      style={immersiveStyle}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -135,9 +232,18 @@ export function ImmersiveView() {
           <EqualizerBars playing={isPlaying} />
           Immersive listening
         </div>
-        <div className="immerse__exit-hint">
-          <Minimize2 size={13} />
-          Click the artwork to exit
+        <div className="immerse__top-right">
+          <div className="immerse__view-switch" role="group" aria-label="Lyric view">
+            <button type="button" className="is-active">经典</button>
+            <button type="button" onClick={() => setView3d(true)}>3D 演出</button>
+          </div>
+          <button type="button" className="immerse__customize" onClick={() => setCustomizerOpen(true)} title="Customize immersive mode" aria-label="Customize immersive mode">
+            <SlidersHorizontal size={15} />
+          </button>
+          <div className="immerse__exit-hint">
+            <Minimize2 size={13} />
+            Click the artwork to exit
+          </div>
         </div>
       </header>
 
@@ -336,6 +442,8 @@ export function ImmersiveView() {
           <p>Choose a song, then click its artwork to enter the listening room.</p>
         </div>
       )}
+
+      {customizerModal}
     </motion.div>
   );
 }

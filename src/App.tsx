@@ -28,8 +28,11 @@ import { TagPage } from "@/pages/TagPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
+import { DownloadTasks } from "@/components/DownloadTasks";
 import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
+import { BilibiliMvDialog } from "@/components/BilibiliMvDialog";
+import { applyTheme } from "@/lib/theme";
 
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -123,6 +126,7 @@ export default function App() {
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
   const immersive = useAppStore((state) => state.immersive);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
+  const theme = useAppStore((state) => state.theme);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [palette, setPalette] = useState<{ primary: string; secondary: string } | null>(null);
   const captureNotified = useRef(false);
@@ -134,6 +138,10 @@ export default function App() {
   useEffect(() => {
     void initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!activeCover) {
@@ -156,6 +164,8 @@ export default function App() {
     const root = document.documentElement;
     root.style.setProperty("--accent", palette?.primary ?? "#f2654a");
     root.style.setProperty("--accent-secondary", palette?.secondary ?? "#f0a25c");
+    root.style.setProperty("--cover-primary", palette?.primary ?? "#d8b6a5");
+    root.style.setProperty("--cover-secondary", palette?.secondary ?? "#b8c7d6");
   }, [palette]);
 
   useEffect(() => {
@@ -198,6 +208,7 @@ export default function App() {
         else if (state.settingsOpen) state.setSettingsOpen(false);
         else if (state.prompt) state.closePrompt();
         else if (state.eqOpen) state.setEqOpen(false);
+        else if (state.mvTrackId) state.setMvTrackId(null);
         else if (state.addToPlaylistTrackId) state.setAddToPlaylistTrackId(null);
         else if (state.trackMenu) state.setTrackMenu(null);
         else if (state.immersive) state.setImmersive(false);
@@ -282,7 +293,7 @@ export default function App() {
   })();
 
   return (
-    <div className={clsx("app", reducedMotion && "reduce-motion")}>
+    <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
           {activeCover && (
@@ -314,10 +325,10 @@ export default function App() {
                   <motion.div
                     key={pageKey}
                     className="page-motion"
-                    initial={{ opacity: 0, y: 10, filter: "blur(3px)" }}
-                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, y: -6, filter: "blur(3px)" }}
-                    transition={{ duration: reducedMotion ? 0.12 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    initial={{ opacity: 0, y: 7 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: reducedMotion ? 0.1 : 0.2, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <PageBoundary>{page}</PageBoundary>
                   </motion.div>
@@ -333,17 +344,19 @@ export default function App() {
 
       <AnimatePresence>{!rightPanelOpen && <MiniPlayer key="mini-player" />}</AnimatePresence>
 
-      <AnimatePresence>{immersive && <ImmersiveView key="immersive" />}</AnimatePresence>
+      <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>
 
       <CommandPalette />
       <SettingsDialog />
       <TaxonomyManager />
       <EqualizerDialog />
+      <BilibiliMvDialog />
       <PromptDialog />
       <AddToPlaylistDialog />
       <BulkAssignDialog />
       <TrackMenu />
       <DownloadTray />
+      <DownloadTasks />
       <Toasts />
     </div>
   );

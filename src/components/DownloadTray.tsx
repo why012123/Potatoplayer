@@ -1,16 +1,22 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AlertCircle, CheckCircle2, CloudDownload, X } from "lucide-react";
+import { CloudDownload, X } from "lucide-react";
 import { useAppStore } from "@/store";
 
 export function DownloadTray() {
   const downloads = useAppStore((state) => state.downloads);
   const dismiss = useAppStore((state) => state.dismissDownload);
-  if (!downloads.length) return null;
+  const setPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
+  const running = downloads.filter((job) => job.status === "running");
+  if (!running.length) return null;
 
   return (
     <div className="download-tray">
+      <button type="button" className="download-tray__head" onClick={() => setPanelOpen(true)}>
+        <span><CloudDownload size={13} /> {running.length} download{running.length === 1 ? "" : "s"}</span>
+        <em>View all tasks</em>
+      </button>
       <AnimatePresence>
-        {downloads.map((job) => {
+        {running.map((job) => {
           const pct = job.total > 0 ? Math.min(100, Math.round((job.downloaded / job.total) * 100)) : 0;
           return (
             <motion.div
@@ -22,30 +28,20 @@ export function DownloadTray() {
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
             >
               <span className="download-item__icon">
-                {job.status === "done" ? (
-                  <CheckCircle2 size={16} />
-                ) : job.status === "error" ? (
-                  <AlertCircle size={16} />
-                ) : (
-                  <CloudDownload size={16} />
-                )}
+                <CloudDownload size={16} />
               </span>
               <div className="download-item__copy">
                 <strong>{job.title}</strong>
                 <span>
-                  {job.status === "error"
-                    ? job.message
-                    : job.status === "done"
-                      ? "Added to your library"
-                      : job.phase === "resolving"
-                        ? "Finding the best audio…"
-                        : `${pct}% of ${job.total > 0 ? `${Math.round(job.total / 1024 / 1024)} MB` : "download"}`}
+                  {job.phase === "resolving"
+                    ? "Finding the best audio…"
+                    : job.phase === "queued"
+                      ? "Waiting in the queue…"
+                      : `${pct}% of ${job.total > 0 ? `${Math.round(job.total / 1024 / 1024)} MB` : "download"}`}
                 </span>
-                {job.status === "running" && (
-                  <div className="download-item__bar">
-                    <i style={{ width: `${Math.max(4, pct)}%` }} />
-                  </div>
-                )}
+                <div className="download-item__bar">
+                  <i style={{ width: `${Math.max(4, pct)}%` }} />
+                </div>
               </div>
               <button type="button" className="download-item__close" aria-label="Dismiss" onClick={() => dismiss(job.jobId)}>
                 <X size={12} />

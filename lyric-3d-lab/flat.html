@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#b6b3bf" />
+  <title>Flat Lyric Stage</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23b6b3bf'/%3E%3Cpath d='M16 22h32M16 32h32M16 42h22' stroke='%2324232a' stroke-width='4'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="flat.css" />
+</head>
+<body>
+  <div id="flat-app">
+    <div class="cover-bg" id="coverBg"></div>
+    <div class="paper-field" aria-hidden="true">
+      <i class="paper-card paper-card--a"></i>
+      <i class="paper-card paper-card--b"></i>
+      <i class="paper-card paper-card--c"></i>
+      <i class="paper-card paper-card--d"></i>
+    </div>
+    <div class="wash"></div>
+    <div class="grain"></div>
+
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="3D Stage">
+        <span class="brand-mark">L</span>
+        <span class="brand-copy"><strong>FLAT LYRIC</strong><em>2D PERFORMANCE / DATA DRIVEN</em></span>
+      </a>
+      <div class="mode-tabs">
+        <a class="mode-tab is-active" href="flat.html">FLAT</a>
+        <a class="mode-tab" href="/">3D STAGE</a>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="top-btn" id="fxBtn">TONE</button>
+        <button type="button" class="top-btn icon-only" id="fullscreenBtn" aria-label="全屏">
+          <svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M20 15v5h-5M4 15v5h5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="flat-stage" id="flatStage">
+      <div class="ghost-layer" id="ghostLayer" aria-hidden="true"></div>
+      <div class="chapter" id="chapter">MOVEMENT 01</div>
+      <div class="line-position" id="linePosition">01 / 01</div>
+      <div class="lyric-stage" id="lyricStage" aria-live="polite">
+        <div class="lyric-line is-empty"><span>选择一首带时间轴的歌</span></div>
+      </div>
+      <div class="translation" id="translation"></div>
+    </main>
+
+    <footer class="hud" id="hud">
+      <div class="hud-main">
+        <div class="track">
+          <img id="hudCover" alt="" />
+          <span><strong id="hudTitle">—</strong><em id="hudArtist">—</em></span>
+        </div>
+        <div class="timeline-wrap">
+          <div class="times"><span id="currentTime">00:00</span><span id="duration">00:00</span></div>
+          <input id="timeline" type="range" min="0" max="1" value="0" step="0.01" aria-label="播放进度" />
+        </div>
+        <div class="transport">
+          <button type="button" class="round" id="replayBtn" aria-label="重播本句">↺</button>
+          <button type="button" class="round" id="backBtn" aria-label="后退 10 秒">−10</button>
+          <button type="button" class="play" id="playBtn" aria-label="播放">
+            <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg class="pause-icon" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM14 5h4v14h-4z"/></svg>
+          </button>
+          <button type="button" class="round" id="forwardBtn" aria-label="前进 10 秒">+10</button>
+          <button type="button" class="round" id="chorusBtn" aria-label="跳到副歌">副歌</button>
+        </div>
+        <div class="hud-right">
+          <span id="hudSource">AUDIO</span>
+          <button type="button" id="cleanBtn">CLEAN</button>
+        </div>
+      </div>
+    </footer>
+
+    <div class="clean-hint" id="cleanHint"><span>CLEAN</span> · press <kbd>H</kbd> to restore HUD</div>
+
+    <aside class="tone-panel" id="tonePanel">
+      <div class="tone-head"><span>PAPER / TYPE</span><button type="button" id="toneClose">×</button></div>
+      <p>背景取色自歌曲封面，文字不带任何边框。</p>
+      <label>背景浓度 <input type="range" id="washIntensity" min="0" max="1" step="0.01" value="0.58" /></label>
+      <label>旧句残影 <input type="range" id="ghostIntensity" min="0" max="1" step="0.01" value="0.7" /></label>
+      <button type="button" id="toneReset">Reset</button>
+    </aside>
+
+    <div class="loading" id="loading"><span>正在准备平面演出</span><i></i></div>
+    <div class="toast" id="toast" role="status"></div>
+
+    <section class="start-screen" id="startScreen">
+      <div class="start-cover-blur" id="startCoverBlur"></div>
+      <div class="start-shade"></div>
+      <div class="start-inner">
+        <div class="start-copy">
+          <span class="eyebrow">2D lyric performance prototype</span>
+          <h1 id="startTitle">—</h1>
+          <p class="roman" id="startRoman">LOADING TRACK</p>
+          <p class="meta" id="startMeta">—</p>
+          <p class="desc">Soft paper, cover-tinted light and plain lyric type. No frames, no neon.</p>
+          <label class="track-picker"><span>TRACK</span><select id="trackSelect" aria-label="选择歌曲"></select></label>
+          <div class="start-actions">
+            <button type="button" class="primary" id="startBtn"><span>进入平面演出</span><em>PLAY FROM 00:00</em></button>
+            <button type="button" class="secondary" id="startSilentBtn">静音预览</button>
+          </div>
+          <p class="note" id="startNote">音乐与封面从本地资料库读取，不上传。</p>
+        </div>
+        <div class="start-art"><span class="start-art-lines" id="startArtLines">LYRIC / 2D</span><div class="start-cover"><img id="startCover" alt="Track cover" /></div></div>
+      </div>
+    </section>
+
+    <div class="webgl-error" id="fatal" hidden><strong>Track data unavailable.</strong><span id="fatalText"></span></div>
+  </div>
+  <script type="module" src="flat.js"></script>
+</body>
+</html>

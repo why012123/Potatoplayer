@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, Clock3, Disc3, ListMusic, Play, Shuffle } from "lucide-react";
+import { ArrowLeft, Clock3, Disc3, ListEnd, ListMusic, ListPlus, Play, Shuffle } from "lucide-react";
 import { useAppStore } from "@/store";
 import { Cover } from "@/components/Cover";
 import { TrackTable } from "@/components/TrackTable";
@@ -22,6 +22,8 @@ export function AlbumDetailPage() {
   const navigate = useAppStore((state) => state.navigate);
   const goBack = useAppStore((state) => state.goBack);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const collections = useMemo(() => buildCollections(tracks), [tracks]);
   const collection = view.kind === "album" ? collections.find((item) => item.key === view.key) : undefined;
 
@@ -92,6 +94,21 @@ export function AlbumDetailPage() {
             >
               <Shuffle size={15} /> Shuffle
             </button>
+            <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, true)}>
+              <ListEnd size={15} /> Play next
+            </button>
+            <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, false)}>
+              <ListPlus size={15} /> Add to queue
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              title="Add all to playlist"
+              aria-label="Add all to playlist"
+              onClick={() => setAddToPlaylistTrackIds(queue)}
+            >
+              <ListMusic size={15} /> Add to playlist
+            </button>
           </div>
         </div>
         <div className="detail-hero__watermark" aria-hidden="true">
@@ -111,6 +128,8 @@ export function ArtistDetailPage() {
   const navigate = useAppStore((state) => state.navigate);
   const goBack = useAppStore((state) => state.goBack);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const artists = useMemo(() => buildArtists(tracks), [tracks]);
   const artist = view.kind === "artist" ? artists.find((item) => item.name === view.name) : undefined;
 
@@ -169,6 +188,21 @@ export function ArtistDetailPage() {
               }}
             >
               <Shuffle size={15} /> Shuffle
+            </button>
+            <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, true)}>
+              <ListEnd size={15} /> Play next
+            </button>
+            <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, false)}>
+              <ListPlus size={15} /> Add to queue
+            </button>
+            <button
+              type="button"
+              className="button button--glass"
+              title="Add all to playlist"
+              aria-label="Add all to playlist"
+              onClick={() => setAddToPlaylistTrackIds(queue)}
+            >
+              <ListMusic size={15} /> Add to playlist
             </button>
             <button
               type="button"

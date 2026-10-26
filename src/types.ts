@@ -1,4 +1,5 @@
 export type RepeatMode = "off" | "all" | "one";
+export type Theme = "light" | "dark";
 
 export interface Track {
   id: string;
@@ -131,7 +132,10 @@ export interface Toast {
 
 export type TagKind = "block" | "genre";
 
+export type OnlineSource = "netease" | "qq";
+
 export interface NeteaseStatus {
+  source?: OnlineSource;
   service: boolean;
   loggedIn: boolean;
   canStart: boolean;
@@ -163,34 +167,88 @@ export interface NeteasePlaylist {
   creator: string;
 }
 
+export interface BilibiliVideo {
+  bvid: string;
+  aid: number;
+  title: string;
+  author: string;
+  authorId: number;
+  coverUrl: string;
+  duration: string;
+  durationSeconds: number;
+  playCount: number;
+  danmakuCount: number;
+  publishedAt: number;
+  description: string;
+  typeName: string;
+  url: string;
+}
+
+export interface BilibiliSearchResult {
+  query: string;
+  total: number;
+  results: BilibiliVideo[];
+  searchUrl: string;
+}
+
 export interface EqPresetData {
   name: string;
   preamp: number;
   bands: number[];
 }
 
+export interface EqCurrentTrack {
+  id: string;
+  title: string;
+  artist: string;
+  path: string;
+  hasSongPreset: boolean;
+}
+
 export interface EqState {
   enabled: boolean;
+  on?: boolean;
+  version?: number;
   available: boolean;
   error: string | null;
   preamp: number;
   neutralPreamp: number;
   bands: number[];
+  global?: EqPresetData;
   frequencies: number[];
   labels: string[];
   presets: EqPresetData[];
   factoryPresets: EqPresetData[];
+  currentTrack?: EqCurrentTrack | null;
+  songPreset?: EqPresetData | null;
+  songCount?: number;
 }
 
 export interface DownloadJob {
   jobId: string;
   neteaseId: string;
   title: string;
+  artist?: string;
+  path?: string;
   downloaded: number;
   total: number;
   phase: string;
   status: "running" | "done" | "error";
   message?: string;
+  importId?: string;
+  source?: OnlineSource;
+  createdAt: number;
+}
+
+export interface PlaylistImport {
+  id: string;
+  playlistId: string;
+  playlistName: string;
+  total: number;
+  resolved: number;
+  queued: number;
+  failed: number;
+  active: boolean;
 }
 
 export interface BulkAssignState {

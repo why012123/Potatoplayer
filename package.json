@@ -1,6 +1,6 @@
 {
   "name": "potatoplayer-super",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "private": true,
   "description": "Potatoplayer Super — an Electron glass music player with blocks, genres and NetEase, powered by a Java/VLC backend",
   "type": "module",
@@ -9,7 +9,8 @@
     "dev": "concurrently -k -n renderer,electron -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite --port 5173 --strictPort",
     "dev:electron": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 node scripts/run-electron.cjs .",
-    "build:renderer": "vite build",
+    "build:lyric3d": "vite build --config vite.lyric3d.config.ts",
+    "build:renderer": "npm run build:lyric3d && vite build",
     "build:backend": "node scripts/build-backend.cjs",
     "build": "npm run build:backend && npm run build:renderer",
     "prestart": "npm run build:renderer && node scripts/ensure-backend.cjs",
@@ -17,10 +18,11 @@
     "typecheck": "tsc --noEmit",
     "test:backend": "node scripts/test-backend.cjs",
     "smoke": "node scripts/smoke-backend.cjs",
-    "predev": "node scripts/ensure-backend.cjs",
+    "predev": "npm run build:lyric3d && node scripts/ensure-backend.cjs",
     "test:ui": "node scripts/ui-smoke.cjs",
     "test": "npm run test:backend && npm run test:ui",
-    "pretest:ui": "npm run build:renderer"
+    "pretest:ui": "npm run build:renderer",
+    "setup:qq-api": "node scripts/setup-qq-api.cjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

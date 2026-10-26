@@ -5,40 +5,48 @@ import { Modal } from "@/components/Modal";
 
 export function AddToPlaylistDialog() {
   const trackId = useAppStore((state) => state.addToPlaylistTrackId);
+  const manyIds = useAppStore((state) => state.addToPlaylistTrackIds);
   const tracks = useAppStore((state) => state.tracks);
   const playlists = useAppStore((state) => state.playlists);
-  const addToPlaylist = useAppStore((state) => state.addToPlaylist);
+  const addManyToPlaylist = useAppStore((state) => state.addManyToPlaylist);
   const createPlaylist = useAppStore((state) => state.createPlaylist);
   const setAddToPlaylistTrackId = useAppStore((state) => state.setAddToPlaylistTrackId);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const openPrompt = useAppStore((state) => state.openPrompt);
-  const track = tracks.find((item) => item.id === trackId);
+  const ids = manyIds.length ? manyIds : trackId ? [trackId] : [];
+  const track = tracks.find((item) => item.id === (trackId ?? ids[0]));
+  const many = ids.length > 1;
 
-  const close = () => setAddToPlaylistTrackId(null);
+  const close = () => {
+    setAddToPlaylistTrackId(null);
+    setAddToPlaylistTrackIds([]);
+  };
 
   const create = () => {
-    if (!trackId) return;
+    if (!ids.length) return;
     close();
     openPrompt({
       title: "New playlist",
-      description: `Create a playlist for “${track?.title ?? "this song"}”.`,
+      description: many ? `Create a playlist with ${ids.length} songs.` : `Create a playlist for “${track?.title ?? "this song"}”.`,
       placeholder: "Playlist name",
       confirmLabel: "Create & add",
       onSubmit: async (name) => {
-        await createPlaylist(name, trackId);
+        const playlist = await createPlaylist(name);
+        if (playlist) await addManyToPlaylist(playlist.id, ids);
       },
     });
   };
 
   return (
     <AnimatePresence>
-      {trackId && track && (
+      {ids.length > 0 && track && (
         <Modal onClose={close} className="playlist-dialog" labelledBy="add-playlist-title">
           <div className="modal__eyebrow">
             <ListMusic size={13} />
             Add to playlist
           </div>
-          <h2 id="add-playlist-title">{track.title}</h2>
-          <p className="modal__description">{track.artist}</p>
+          <h2 id="add-playlist-title">{many ? `${ids.length} selected songs` : track.title}</h2>
+          <p className="modal__description">{many ? "Choose a destination playlist." : track.artist}</p>
           <div className="playlist-dialog__list">
             {playlists.map((playlist) => (
               <button
@@ -46,7 +54,7 @@ export function AddToPlaylistDialog() {
                 key={playlist.id}
                 className="playlist-choice"
                 onClick={() => {
-                  void addToPlaylist(playlist.id, trackId);
+                  void addManyToPlaylist(playlist.id, ids);
                   close();
                 }}
               >
@@ -57,7 +65,7 @@ export function AddToPlaylistDialog() {
                   <strong>{playlist.name}</strong>
                   <em>{playlist.trackIds.length} songs</em>
                 </span>
-                {playlist.trackIds.includes(trackId) && <small>Already added</small>}
+                {ids.every((id) => playlist.trackIds.includes(id)) && <small>Already added</small>}
               </button>
             ))}
           </div>
@@ -67,7 +75,7 @@ export function AddToPlaylistDialog() {
             </span>
             <span>
               <strong>New playlist</strong>
-              <em>Create one with this song</em>
+              <em>{many ? `Create one with ${ids.length} songs` : "Create one with this song"}</em>
             </span>
           </button>
           <div className="modal__actions">

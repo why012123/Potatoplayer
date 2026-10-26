@@ -273,6 +273,15 @@ public final class LibraryScanner {
         if (Files.isDirectory(music) && Files.isDirectory(p.resolve("source"))) {
             return music;
         }
+        // The old Java library is laid out as <library>/source/{music,covers,lyrics,
+        // ratings.json,...}. If the user picks "source" or its parent, scan the
+        // music child so the legacy metadata bridge can find the sibling files.
+        if (Files.isDirectory(music)
+                && (Files.isRegularFile(p.resolve("ratings.json"))
+                || Files.isRegularFile(p.resolve("lyrics.json"))
+                || Files.isRegularFile(p.resolve("metadata_cache.csv")))) {
+            return music;
+        }
         return p;
     }
 

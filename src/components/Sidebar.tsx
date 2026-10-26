@@ -43,6 +43,8 @@ export function Sidebar() {
   const openPrompt = useAppStore((state) => state.openPrompt);
   const createPlaylist = useAppStore((state) => state.createPlaylist);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
+  const onlineSource = useAppStore((state) => state.onlineSource);
+  const setOnlineSource = useAppStore((state) => state.setOnlineSource);
 
   const current = viewHistory[viewIndex] ?? { kind: "home" };
   const activeKind =
@@ -116,10 +118,17 @@ export function Sidebar() {
 
       <div className="online-nav">
         <div className="nav-label">Online</div>
-        <button
-          type="button"
+        <div
           className={clsx("nav-item nav-item--online", current.kind === "discover" && "is-active")}
+          role="button"
+          tabIndex={0}
           onClick={() => navigate({ kind: "discover" })}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              navigate({ kind: "discover" });
+            }
+          }}
         >
           {current.kind === "discover" && (
             <motion.span
@@ -130,8 +139,21 @@ export function Sidebar() {
           )}
           <Cloud size={17} strokeWidth={1.9} />
           <span>Discover</span>
-          <em>NetEase</em>
-        </button>
+          <button
+            type="button"
+            className="nav-item__source"
+            title={`Switch online source (current: ${onlineSource === "qq" ? "QQ Music" : "NetEase"})`}
+            aria-label={`Switch online source, current ${onlineSource === "qq" ? "QQ Music" : "NetEase"}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              const next = onlineSource === "qq" ? "netease" : "qq";
+              setOnlineSource(next);
+              navigate({ kind: "discover" });
+            }}
+          >
+            {onlineSource === "qq" ? "QQ MUSIC" : "NETEASE"}
+          </button>
+        </div>
       </div>
 
       <div className="side-playlists">

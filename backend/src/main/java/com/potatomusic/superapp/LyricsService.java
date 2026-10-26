@@ -43,13 +43,18 @@ public final class LyricsService {
     }
 
     private static final Pattern TIME_TAG = Pattern.compile("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]");
-    private final Path libraryRoot;
+    private volatile Path libraryRoot;
     private final Path dataDir;
     private final Map<String, Payload> cache = new ConcurrentHashMap<>();
 
     public LyricsService(Path libraryRoot, Path dataDir) {
         this.libraryRoot = libraryRoot;
         this.dataDir = dataDir;
+    }
+
+    public void setLibraryRoot(Path root) {
+        this.libraryRoot = root;
+        this.cache.clear();
     }
 
     public Payload load(Track track) {
@@ -93,6 +98,10 @@ public final class LyricsService {
         List<Path> folders = new ArrayList<>();
         if (audio.getParent() != null) {
             folders.add(audio.getParent());
+        }
+        if (audio.getParent() != null && audio.getParent().getParent() != null) {
+            // Legacy/current layout: <library>/source/music/<song> + <library>/source/lyrics/
+            folders.add(audio.getParent().getParent().resolve("lyrics"));
         }
         if (libraryRoot != null) {
             folders.add(libraryRoot.resolveSibling("lyrics"));

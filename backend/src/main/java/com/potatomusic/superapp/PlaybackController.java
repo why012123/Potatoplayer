@@ -26,6 +26,8 @@ public final class PlaybackController {
 
         EqStore eqStore();
 
+        String neteaseIdFor(String path);
+
         void emit(String event, Object data);
 
         void markPlayed(Track track);
@@ -90,7 +92,7 @@ public final class PlaybackController {
                     });
                 }
             });
-            created.applyEq(host.eqStore());
+            created.applyEq(host.eqStore().global, host.eqStore().on);
             engine = created;
         }
         return engine;
@@ -98,9 +100,18 @@ public final class PlaybackController {
 
     public synchronized void applyEq() {
         PlaybackEngine current = engine;
-        if (current != null) {
-            current.applyEq(host.eqStore());
-        }
+        if (current == null) return;
+        Track track = currentId == null ? null : host.findTrack(currentId);
+        EqPreset preset = track == null
+                ? host.eqStore().global
+                : host.eqStore().effectiveFor(track.path, host.neteaseIdFor(track.path));
+        current.applyEq(preset, host.eqStore().on);
+    }
+
+    /** Apply an unsaved EQ draft for live preview. */
+    public synchronized void applyEqPreview(EqPreset preset, boolean on) {
+        PlaybackEngine current = engine;
+        if (current != null) current.applyEq(preset, on);
     }
 
     public void warmUpAsync() {
@@ -335,6 +346,25 @@ public final class PlaybackController {
         return state();
     }
 
+    public synchronized Map<String, Object> enqueueMany(List<String> trackIds, boolean playNext) {
+        List<String> ids = cleanQueue(trackIds);
+        if (ids.isEmpty()) return state();
+        if (currentId == null) {
+            for (String id : ids) if (!queue.contains(id)) queue.add(id);
+            if (queueIndex < 0) queueIndex = 0;
+        } else if (playNext) {
+            int at = Math.min(queueIndex + 1, queue.size());
+            for (String id : ids) {
+                queue.add(at++, id);
+            }
+        } else {
+            queue.addAll(ids);
+        }
+        persistQueue();
+        emitState();
+        return state();
+    }
+
     public synchronized Map<String, Object> setQueue(List<String> ids) {
         queue = cleanQueue(ids);
         if (currentId != null) {
@@ -387,8 +417,11 @@ public final class PlaybackController {
             return;
         }
         e.setVolume(muted ? 0 : host.settings().volume);
+        // Apply the saved per-song preset before play(), matching the legacy player:
+        // the new VLC output inherits the equalizer without a filter rebuild.
+        EqPreset preset = host.eqStore().effectiveFor(track.path, host.neteaseIdFor(track.path));
+        e.applyEq(preset, host.eqStore().on);
         e.play(track.path);
-        e.applyEq(host.eqStore());
         loaded = true;
         playing = true;
         if (startAt > 0.5) {

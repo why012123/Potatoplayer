@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { Check, Layers3, LoaderCircle, Pencil, Plus, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { Tag, TagKind } from "@/types";
 import { useAppStore } from "@/store";
+import { isCommitEnter } from "@/lib/keyboard";
 import { Modal } from "@/components/Modal";
 
 const palette = ["#c1845f", "#8b9e73", "#7a86b8", "#bd6e82", "#a68a62", "#5f9a9a", "#9b7bb5", "#c48a4b"];
@@ -73,7 +74,7 @@ export function BulkAssignDialog() {
                 placeholder={bulk.field === "block" ? "Choose or name a block" : "Choose or name a genre"}
                 onChange={(event) => setValue(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") void apply();
+                  if (isCommitEnter(event)) void apply();
                 }}
                 autoFocus
               />
@@ -215,7 +216,7 @@ export function TaxonomyManager() {
                 setNewColor(defaultColor(event.target.value));
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter") void add();
+                if (isCommitEnter(event)) void add();
               }}
             />
             <button type="button" className="button button--dark" disabled={!newName.trim() || busy} onClick={() => void add()}>

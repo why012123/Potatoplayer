@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import clsx from "clsx";
-import { ArrowDownUp, Check, CheckSquare, FolderOpen, Layers3, Play, SearchX, Shuffle, Tag as TagIcon, X } from "lucide-react";
+import { ArrowDownUp, Check, CheckSquare, FolderOpen, Layers3, ListEnd, ListMusic, ListPlus, Play, SearchX, Shuffle, Tag as TagIcon, X } from "lucide-react";
 import { useAppStore, type SortMode } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
@@ -44,6 +45,8 @@ export function SongsPage() {
   const blocks = useAppStore((state) => state.blocks);
   const genres = useAppStore((state) => state.genres);
   const setBulkAssign = useAppStore((state) => state.setBulkAssign);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
 
   const visible = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -268,7 +271,7 @@ export function SongsPage() {
         </motion.div>
       )}
 
-      {selecting && selectedCount > 0 && (
+      {selecting && selectedCount > 0 && createPortal(
         <motion.div
           className="bulk-bar"
           initial={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -278,6 +281,27 @@ export function SongsPage() {
           <span>
             <strong>{selectedCount}</strong> selected
           </span>
+          <button
+            type="button"
+            className="button button--glass button--small"
+            onClick={() => void enqueueMany([...selected], true)}
+          >
+            <ListEnd size={14} /> Play next
+          </button>
+          <button
+            type="button"
+            className="button button--glass button--small"
+            onClick={() => void enqueueMany([...selected], false)}
+          >
+            <ListPlus size={14} /> Add to queue
+          </button>
+          <button
+            type="button"
+            className="button button--glass button--small"
+            onClick={() => setAddToPlaylistTrackIds([...selected])}
+          >
+            <ListMusic size={14} /> Add to playlist
+          </button>
           <button
             type="button"
             className="button button--glass button--small"
@@ -295,7 +319,8 @@ export function SongsPage() {
           <button type="button" className="button button--dark button--small" onClick={exitSelection}>
             Done
           </button>
-        </motion.div>
+        </motion.div>,
+        document.body,
       )}
     </div>
   );

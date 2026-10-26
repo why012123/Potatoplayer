@@ -4,9 +4,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Command,
+  CloudDownload,
+  Moon,
   RefreshCw,
   Search,
   SquarePen,
+  Sun,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
@@ -24,6 +27,10 @@ export function TopBar() {
   const rescan = useAppStore((state) => state.rescan);
   const setCommandOpen = useAppStore((state) => state.setCommandOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
+  const downloads = useAppStore((state) => state.downloads);
+  const setDownloadPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
   const navigate = useAppStore((state) => state.navigate);
   const currentTrackId = useAppStore((state) => state.playback?.trackId ?? state.previewTrackId);
   const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
@@ -118,6 +125,19 @@ export function TopBar() {
           )}
         </AnimatePresence>
         <IconButton
+          label="Download tasks"
+          variant="glass"
+          size="sm"
+          onClick={() => setDownloadPanelOpen(true)}
+        >
+          <span className="download-trigger">
+            <CloudDownload size={15} />
+            {downloads.filter((job) => job.status === "running" || job.status === "error").length > 0 && (
+              <i>{downloads.filter((job) => job.status === "running" || job.status === "error").length}</i>
+            )}
+          </span>
+        </IconButton>
+        <IconButton
           label="Song editor"
           variant="glass"
           size="sm"
@@ -134,6 +154,14 @@ export function TopBar() {
         </IconButton>
         <IconButton label="Rescan library" variant="glass" size="sm" disabled={scanning} onClick={() => void rescan()}>
           <RefreshCw size={15} className={scanning ? "is-spinning" : undefined} />
+        </IconButton>
+        <IconButton
+          label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          variant="glass"
+          size="sm"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </IconButton>
         <button type="button" className="topbar-avatar" onClick={() => setSettingsOpen(true)} title="Open settings">
           P

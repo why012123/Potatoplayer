@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
@@ -9,6 +9,7 @@ import {
   Disc3,
   KeyRound,
   ListMusic,
+  ListPlus,
   LoaderCircle,
   LogOut,
   RefreshCw,
@@ -19,11 +20,40 @@ import {
 } from "lucide-react";
 import type { NeteasePlaylist, NeteaseSong, NeteaseStatus } from "@/types";
 import { useAppStore } from "@/store";
+import { isCommitEnter } from "@/lib/keyboard";
 import { PageHeader } from "@/components/Headers";
-import { coverGradient } from "@/lib/covers";
+import { coverGradient, onlineImageUrl } from "@/lib/covers";
 import { formatTime, initials } from "@/lib/format";
 
 type Mode = "search" | "daily" | "playlists";
+
+function Artwork({
+  src,
+  alt = "",
+  fallback,
+  className,
+}: {
+  src: string | null | undefined;
+  alt?: string;
+  fallback: ReactNode;
+  className?: string;
+}) {
+  const safe = onlineImageUrl(src);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  if (!safe || failed) return <>{fallback}</>;
+  return (
+    <img
+      className={className}
+      src={safe}
+      alt={alt}
+      loading="lazy"
+      draggable={false}
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function SongRow({
   song,
@@ -36,18 +66,19 @@ function SongRow({
 }) {
   return (
     <div className="online-song">
-      {song.coverUrl ? (
-        <div className="online-song__cover online-cover">
-          <img src={song.coverUrl} alt="" loading="lazy" draggable={false} />
-        </div>
-      ) : (
-        <div
-          className="online-song__cover online-song__cover--fallback"
-          style={{ background: coverGradient(song.album || song.artists || song.name) }}
-        >
-          <span>{initials(song.album || song.artists || song.name)}</span>
-        </div>
-      )}
+      <div className="online-song__cover online-cover">
+        <Artwork
+          src={song.coverUrl}
+          fallback={
+            <div
+              className="online-song__cover--fallback"
+              style={{ background: coverGradient(song.album || song.artists || song.name) }}
+            >
+              <span>{initials(song.album || song.artists || song.name)}</span>
+            </div>
+          }
+        />
+      </div>
       <div className="online-song__copy">
         <strong>{song.name}</strong>
         <span>
@@ -77,6 +108,9 @@ export function DiscoverPage() {
   const libraryRoot = useAppStore((state) => state.libraryRoot);
   const pushToast = useAppStore((state) => state.pushToast);
   const downloads = useAppStore((state) => state.downloads);
+  const imports = useAppStore((state) => state.imports);
+  const onlineSource = useAppStore((state) => state.onlineSource);
+  const importNeteasePlaylist = useAppStore((state) => state.importNeteasePlaylist);
   const [status, setStatus] = useState<NeteaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -104,17 +138,29 @@ export function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoStartAttempted = useRef(false);
+  const sourceName = onlineSource === "qq" ? "QQ Music" : "NetEase Cloud Music";
+  const sourceShort = onlineSource === "qq" ? "QQ MUSIC" : "NETEASE";
+  const invokeOnline = <T,>(method: string, params?: Record<string, unknown>) =>
+    window.potato.invoke<T>(`${onlineSource}.${method}`, params);
+  const onlineQuality = (value: string) =>
+    onlineSource === "qq"
+      ? value === "standard"
+        ? "128"
+        : value === "lossless"
+          ? "flac"
+          : "320"
+      : value;
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      let next = await window.potato.invoke<NeteaseStatus>("netease.status");
+      let next = await invokeOnline<NeteaseStatus>("status");
       if (!next.service && next.canStart && !autoStartAttempted.current) {
         autoStartAttempted.current = true;
         setStarting(true);
         try {
-          next = await window.potato.invoke<NeteaseStatus>("netease.startService");
+          next = await invokeOnline<NeteaseStatus>("startService");
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -127,19 +173,29 @@ export function DiscoverPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onlineSource]);
 
   useEffect(() => {
+    autoStartAttempted.current = false;
+    setStatus(null);
+    setResults([]);
+    setDaily([]);
+    setPlaylists([]);
+    setActivePlaylist(null);
+    setError(null);
+    setQr(null);
+    setQrMessage("");
+    setLoading(true);
     void refresh();
-  }, [refresh]);
+  }, [onlineSource, refresh]);
 
   const startService = async () => {
     setStarting(true);
     setError(null);
     try {
-      const next = await window.potato.invoke<NeteaseStatus>("netease.startService");
+      const next = await invokeOnline<NeteaseStatus>("startService");
       setStatus(next);
-      if (next.service) pushToast("NetEase service connected", undefined, "success");
+      if (next.service) pushToast(`${sourceName} service connected`, undefined, "success");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -151,7 +207,7 @@ export function DiscoverPage() {
     setQrLoading(true);
     setQrMessage("");
     try {
-      const data = await window.potato.invoke<{ key: string; qrImage: string | null }>("netease.qrKey");
+      const data = await invokeOnline<{ key: string; qrImage: string | null }>("qrKey");
       setQr(data);
     } catch (e) {
       pushToast("Could not create login code", e instanceof Error ? e.message : String(e), "error");
@@ -163,33 +219,39 @@ export function DiscoverPage() {
   useEffect(() => {
     if (!qr?.key) return;
     let cancelled = false;
-    const timer = setInterval(async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      if (cancelled) return;
       try {
-        const result = await window.potato.invoke<{ code: number; loggedIn?: boolean; message: string }>(
-          "netease.qrCheck",
-          { key: qr.key },
-        );
+        const result = await invokeOnline<{ code: number; loggedIn?: boolean; message: string }>("qrCheck", {
+          key: qr.key,
+        });
         if (cancelled) return;
         setQrMessage(result.message);
         if (result.loggedIn || result.code === 803) {
-          clearInterval(timer);
           setQr(null);
           await refresh();
-          pushToast("Signed in to NetEase", status?.nickname ?? undefined, "success");
-        } else if (result.code === 800) {
-          clearInterval(timer);
+          pushToast(`Signed in to ${sourceName}`, status?.nickname ?? undefined, "success");
+          return;
+        }
+        if (result.code === 800) {
           setQr(null);
           setQrMessage("Code expired. Create a new one.");
+          return;
         }
       } catch {
         // Keep polling quietly; transient API hiccups are common.
       }
-    }, 2200);
+      if (!cancelled) timer = setTimeout(poll, 2200);
+    };
+
+    timer = setTimeout(poll, 500);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [qr?.key, refresh, pushToast, status?.nickname]);
+  }, [qr?.key, refresh, pushToast, status?.nickname, onlineSource, sourceName]);
 
   const loginCookie = async () => {
     if (!cookie.trim()) return;
@@ -209,7 +271,7 @@ export function DiscoverPage() {
 
   const logout = async () => {
     try {
-      const next = await window.potato.invoke<NeteaseStatus>("netease.logout");
+      const next = await invokeOnline<NeteaseStatus>("logout");
       setStatus(next);
       setResults([]);
       setDaily([]);
@@ -232,7 +294,7 @@ export function DiscoverPage() {
     setSearching(true);
     setActivePlaylist(null);
     try {
-      const list = await window.potato.invoke<NeteaseSong[]>("netease.search", { keywords, limit: 40 });
+      const list = await invokeOnline<NeteaseSong[]>("search", { keywords, limit: 40 });
       setResults(list);
       document.querySelector(".page-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
       if (!list.length) pushToast("No songs found", keywords, "error");
@@ -247,7 +309,7 @@ export function DiscoverPage() {
     if (daily.length) return;
     setDailyLoading(true);
     try {
-      setDaily(await window.potato.invoke<NeteaseSong[]>("netease.daily"));
+      setDaily(await invokeOnline<NeteaseSong[]>("daily"));
     } catch (e) {
       pushToast("Could not load recommendations", e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -259,9 +321,9 @@ export function DiscoverPage() {
     if (playlists.length) return;
     setPlaylistLoading(true);
     try {
-      setPlaylists(await window.potato.invoke<NeteasePlaylist[]>("netease.playlists"));
+      setPlaylists(await invokeOnline<NeteasePlaylist[]>("playlists"));
     } catch (e) {
-      pushToast("Could not load playlists", e instanceof Error ? e.message : String(e), "error");
+      pushToast(`Could not load ${onlineSource === "qq" ? "QQ Music picks" : "playlists"}`, e instanceof Error ? e.message : String(e), "error");
     } finally {
       setPlaylistLoading(false);
     }
@@ -275,7 +337,7 @@ export function DiscoverPage() {
         name: string;
         coverUrl: string;
         tracks: NeteaseSong[];
-      }>("netease.playlistDetail", { playlistId: playlist.id });
+      }>(`${onlineSource}.playlistDetail`, { playlistId: playlist.id });
       setActivePlaylist(detail);
     } catch (e) {
       pushToast("Could not open playlist", e instanceof Error ? e.message : String(e), "error");
@@ -286,7 +348,7 @@ export function DiscoverPage() {
 
   const download = async (song: NeteaseSong) => {
     try {
-      await window.potato.invoke("netease.download", { id: song.id, quality });
+      await invokeOnline("download", { id: song.id, quality: onlineQuality(quality) });
       pushToast("Download queued", `${song.artists} — ${song.name}`);
     } catch (e) {
       pushToast("Could not queue download", e instanceof Error ? e.message : String(e), "error");
@@ -296,15 +358,27 @@ export function DiscoverPage() {
   const downloadAll = async () => {
     const tracks = activePlaylist?.tracks ?? [];
     if (!tracks.length) return;
-    for (const song of tracks.slice(0, 30)) {
+    for (const song of tracks) {
       try {
-        await window.potato.invoke("netease.download", { id: song.id, quality });
+        await invokeOnline("download", { id: song.id, quality: onlineQuality(quality) });
       } catch {
         // Continue the batch; individual failures are surfaced by the backend.
       }
     }
-    pushToast("Downloads queued", `${Math.min(tracks.length, 30)} songs will arrive one by one.`, "success");
+    pushToast("Downloads queued", `${tracks.length} songs will arrive one by one.`, "success");
   };
+
+  const importPlaylist = async () => {
+    if (!activePlaylist) return;
+    await importNeteasePlaylist(
+      { name: activePlaylist.name, tracks: activePlaylist.tracks.map((song) => ({ id: song.id, name: song.name, artists: song.artists })) },
+      onlineQuality(quality),
+    );
+  };
+
+  const importingPlaylist = activePlaylist
+    ? imports.some((item) => item.playlistName === activePlaylist.name && item.active)
+    : false;
 
   const chooseMode = (next: Mode) => {
     setMode(next);
@@ -333,16 +407,16 @@ export function DiscoverPage() {
         <PageHeader
           eyebrow="Online"
           title="Discover"
-          description="Search and bring new music into the same blocks, genres and playlists you already use."
+          description={`Search ${sourceName} and bring new music into the same blocks, genres and playlists you already use.`}
         />
         <div className="online-gate glass">
           <div className="online-gate__icon">
             <WifiOff size={27} />
           </div>
-          <h2>The local NetEase bridge is asleep.</h2>
+          <h2>The local {onlineSource === "qq" ? "QQ Music" : "NetEase"} bridge is asleep.</h2>
           <p>
-            Potatoplayer Super talks to <code>api-enhanced</code> on <strong>{status?.apiBase}</strong>. Start it once
-            and the connection stays local.
+            Potatoplayer Super talks to <code>{onlineSource === "qq" ? "qq-music-api" : "api-enhanced"}</code> on{" "}
+            <strong>{status?.apiBase}</strong>. Start it once and the connection stays local.
           </p>
           {error && <div className="online-error">{error}</div>}
           <div className="online-gate__actions">
@@ -353,7 +427,7 @@ export function DiscoverPage() {
               onClick={() => void startService()}
             >
               {starting ? <LoaderCircle size={15} className="is-spinning" /> : <Cloud size={15} />}
-              {starting ? "Starting…" : "Start NetEase service"}
+              {starting ? "Starting…" : `Start ${sourceShort === "QQ MUSIC" ? "QQ" : "NetEase"} service`}
             </button>
             <button type="button" className="button button--glass" onClick={() => void refresh()}>
               <RefreshCw size={15} /> Check again
@@ -361,7 +435,13 @@ export function DiscoverPage() {
           </div>
           <div className="online-path">
             <span>{status?.apiDir ?? "api-enhanced not found"}</span>
-            {!status?.canStart && <em>Set -Dpotatomusic.apiDir or place api-enhanced in ~/.potatoplayer-super/api/</em>}
+            {!status?.canStart && (
+              <em>
+                {onlineSource === "qq"
+                  ? "Install @yakult-green-tea/qq-music-api in ~/.potatoplayer-super/api/qq-music-api"
+                  : "Set -Dpotatomusic.apiDir or place api-enhanced in ~/.potatoplayer-super/api/"}
+              </em>
+            )}
           </div>
         </div>
       </div>
@@ -374,7 +454,7 @@ export function DiscoverPage() {
         <PageHeader
           eyebrow="Online"
           title="Discover"
-          description="Sign in once. Your library, blocks and genres remain the centre of the app."
+          description={`Sign in once to ${sourceName}. Your library, blocks and genres remain the centre of the app.`}
           actions={
             <button type="button" className="button button--glass" onClick={() => void refresh()}>
               <RefreshCw size={15} /> Refresh
@@ -385,10 +465,14 @@ export function DiscoverPage() {
           <div className="login-card glass">
             <div className="login-card__head">
               <span className="online-badge">
-                <Cloud size={13} /> NetEase Cloud Music
+                <Cloud size={13} /> {sourceName}
               </span>
               <h2>Bring your account along.</h2>
-              <p>Scan the code with the NetEase app, or paste a MUSIC_U cookie. Nothing is sent anywhere except NetEase.</p>
+              <p>
+                Scan the code with the {onlineSource === "qq" ? "QQ Music app" : "NetEase app"}.
+                {onlineSource === "netease" ? " You can also paste a MUSIC_U cookie." : ""} Nothing is sent anywhere
+                except {sourceName}.
+              </p>
             </div>
             {!qr ? (
               <button type="button" className="qr-placeholder" onClick={() => void beginQr()} disabled={qrLoading}>
@@ -402,13 +486,15 @@ export function DiscoverPage() {
                 <span>{qrMessage || "Scan with the NetEase app"}</span>
               </motion.div>
             )}
-            <div className="login-alt">
-              <button type="button" className="text-button" onClick={() => setCookieMode(!cookieMode)}>
-                <KeyRound size={13} /> {cookieMode ? "Use QR code instead" : "Use a cookie instead"}
-              </button>
-            </div>
+            {onlineSource === "netease" && (
+              <div className="login-alt">
+                <button type="button" className="text-button" onClick={() => setCookieMode(!cookieMode)}>
+                  <KeyRound size={13} /> {cookieMode ? "Use QR code instead" : "Use a cookie instead"}
+                </button>
+              </div>
+            )}
             <AnimatePresence>
-              {cookieMode && (
+              {onlineSource === "netease" && cookieMode && (
                 <motion.div
                   className="cookie-row"
                   initial={{ opacity: 0, height: 0 }}
@@ -421,7 +507,7 @@ export function DiscoverPage() {
                     placeholder="MUSIC_U=…"
                     onChange={(event) => setCookie(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") void loginCookie();
+                      if (isCommitEnter(event)) void loginCookie();
                     }}
                   />
                   <button type="button" className="button button--dark" disabled={cookieBusy || !cookie.trim()} onClick={() => void loginCookie()}>
@@ -451,7 +537,7 @@ export function DiscoverPage() {
               </li>
               <li>
                 <ListMusic size={15} />
-                Open your NetEase playlists without leaving the room.
+                Open your {sourceName} playlists without leaving the room.
               </li>
               <li>
                 <Sparkles size={15} />
@@ -469,11 +555,15 @@ export function DiscoverPage() {
       <PageHeader
         eyebrow="Online"
         title="Discover"
-        description="Search NetEase, download into your local library, and keep your own taxonomy intact."
+        description={`Search ${sourceName}, download into your local library, and keep your own taxonomy intact.`}
         actions={
           <>
+            <span className="online-source-pill">{sourceShort}</span>
             <span className="online-user">
-              {status.avatarUrl ? <img src={status.avatarUrl} alt="" /> : <span>{(status.nickname ?? "N").slice(0, 1)}</span>}
+              <Artwork
+                src={status.avatarUrl}
+                fallback={<span>{(status.nickname ?? "N").slice(0, 1)}</span>}
+              />
               <em>{status.nickname}</em>
             </span>
             <button type="button" className="icon-button icon-button--glass icon-button--sm" title="Sign out" onClick={() => void logout()}>
@@ -495,7 +585,7 @@ export function DiscoverPage() {
           <input
             ref={searchInputRef}
             value={query}
-            placeholder="Search NetEase: songs, artists, albums…"
+            placeholder={`Search ${sourceName}: songs, artists, albums…`}
             onChange={(event) => setQuery(event.target.value)}
           />
           <button type="submit" className="button button--dark button--small" disabled={searching || !query.trim()}>
@@ -544,7 +634,7 @@ export function DiscoverPage() {
           ) : (
             <div className="online-list">
               <div className="online-list__head">
-                <span>{results.length} songs from NetEase</span>
+                <span>{results.length} songs from {sourceName}</span>
                 <em>{quality === "lossless" ? "Lossless download" : quality === "standard" ? "Standard download" : "High quality download"}</em>
               </div>
               {results.map((song) => (
@@ -564,8 +654,8 @@ export function DiscoverPage() {
           ) : daily.length ? (
             <div className="online-list">
               <div className="online-list__head">
-                <span>Made for {status.nickname}</span>
-                <em>Updated by NetEase every day</em>
+                <span>{onlineSource === "qq" ? "New on QQ Music" : `Made for ${status.nickname}`}</span>
+                <em>{onlineSource === "qq" ? "Latest releases from QQ Music" : "Updated by NetEase every day"}</em>
               </div>
               {daily.map((song) => (
                 <SongRow key={song.id} song={song} onDownload={() => void download(song)} downloading={isDownloading(song.id)} />
@@ -575,7 +665,7 @@ export function DiscoverPage() {
             <button type="button" className="online-empty glass" onClick={() => void loadDaily()}>
               <Sparkles size={23} />
               <h2>Load today’s picks</h2>
-              <p>Recommendations are fetched from your account and never leave this machine.</p>
+              <p>Recommendations are fetched from {sourceName} and never leave this machine.</p>
             </button>
           )}
         </section>
@@ -586,24 +676,31 @@ export function DiscoverPage() {
           {activePlaylist ? (
             <>
               <button type="button" className="back-link" onClick={() => setActivePlaylist(null)}>
-                <ArrowLeft size={15} /> Your playlists
+                <ArrowLeft size={15} /> {onlineSource === "qq" ? "QQ Music picks" : "Your playlists"}
               </button>
               <div className="online-playlist-head glass">
-                {activePlaylist.coverUrl ? (
-                  <img src={activePlaylist.coverUrl} alt="" />
-                ) : (
-                  <span className="online-playlist-head__blank">
-                    <ListMusic size={25} />
-                  </span>
-                )}
+                <Artwork
+                  src={activePlaylist.coverUrl}
+                  fallback={
+                    <span className="online-playlist-head__blank">
+                      <ListMusic size={25} />
+                    </span>
+                  }
+                />
                 <div>
-                  <span className="eyebrow">NetEase playlist</span>
+                  <span className="eyebrow">{sourceName} playlist</span>
                   <h2>{activePlaylist.name}</h2>
                   <p>{activePlaylist.tracks.length} songs</p>
                 </div>
-                <button type="button" className="button button--dark" onClick={() => void downloadAll()}>
-                  <CloudDownload size={15} /> Download all
-                </button>
+                <div className="online-playlist-head__actions">
+                  <button type="button" className="button button--glass" onClick={() => void importPlaylist()} disabled={importingPlaylist}>
+                    {importingPlaylist ? <LoaderCircle size={15} className="is-spinning" /> : <ListPlus size={15} />}
+                    {importingPlaylist ? "Importing…" : "Import to playlist"}
+                  </button>
+                  <button type="button" className="button button--dark" onClick={() => void downloadAll()}>
+                    <CloudDownload size={15} /> Download all
+                  </button>
+                </div>
               </div>
               <div className="online-list">
                 {activePlaylist.tracks.map((song) => (
@@ -624,7 +721,14 @@ export function DiscoverPage() {
                   className="online-playlist-card"
                   onClick={() => void openPlaylist(playlist)}
                 >
-                  {playlist.coverUrl ? <img src={playlist.coverUrl} alt="" /> : <ListMusic size={22} />}
+                  <Artwork
+                    src={playlist.coverUrl}
+                    fallback={
+                      <span className="online-playlist-card__blank">
+                        <ListMusic size={22} />
+                      </span>
+                    }
+                  />
                   <strong>{playlist.name}</strong>
                   <span>
                     {playlist.trackCount} songs · {playlist.creator}

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Heart, Play, Shuffle } from "lucide-react";
+import { Heart, ListEnd, ListMusic, ListPlus, Play, Shuffle } from "lucide-react";
 import { useAppStore } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
@@ -18,6 +18,8 @@ export function FavoritesPage() {
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
   const playTrack = useAppStore((state) => state.playTrack);
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const navigate = useAppStore((state) => state.navigate);
   const favoriteTracks = useMemo(
     () =>
@@ -53,6 +55,21 @@ export function FavoritesPage() {
               </button>
               <button type="button" className="button button--dark" onClick={() => void playTrack(favoriteTracks[0], queue)}>
                 <Play size={15} fill="currentColor" /> Play
+              </button>
+              <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, true)}>
+                <ListEnd size={15} /> Play next
+              </button>
+              <button type="button" className="button button--glass" onClick={() => void enqueueMany(queue, false)}>
+                <ListPlus size={15} /> Add to queue
+              </button>
+              <button
+                type="button"
+                className="button button--glass"
+                title="Add all to playlist"
+                aria-label="Add all to playlist"
+                onClick={() => setAddToPlaylistTrackIds(queue)}
+              >
+                <ListMusic size={15} /> Add to playlist
               </button>
             </>
           ) : undefined

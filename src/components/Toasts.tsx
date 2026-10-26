@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { useAppStore } from "@/store";
@@ -6,7 +7,7 @@ export function Toasts() {
   const toasts = useAppStore((state) => state.toasts);
   const dismiss = useAppStore((state) => state.dismissToast);
 
-  return (
+  return createPortal(
     <div className="toast-stack" role="status" aria-live="polite">
       <AnimatePresence>
         {toasts.map((toast) => (
@@ -37,6 +38,7 @@ export function Toasts() {
           </motion.div>
         ))}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body,
   );
 }
