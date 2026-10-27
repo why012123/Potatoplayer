@@ -273,6 +273,10 @@ let rayMaterial;
 let auraGroup = new THREE.Group();
 let grid;
 let lineGroups = [];
+let constellationGroup = null;
+let constellationItems = [];
+let ghostGroup = null;
+let ghostItems = [];
 let currentGroup = null;
 let currentLine = -1;
 let currentChapter = -1;
@@ -548,6 +552,58 @@ function buildPapers() {
   scene.add(papers);
 }
 
+function buildConstellation() {
+  // A persistent scatter of dot-matrix solids behind the lyric corridor. Folia's
+  // Diorama reads as a sculpture garden around the words, not a single card:
+  // these objects give the camera something to parallax against and the bloom
+  // something to catch.
+  constellationGroup = new THREE.Group();
+  const palette = [themeTarget.accent2, themeTarget.accent3, themeTarget.accent];
+  for (let i = 0; i < 40; i += 1) {
+    const kind = i % 4;
+    const near = i < 16;
+    let geometry;
+    if (kind === 0) geometry = new THREE.SphereGeometry(0.28, 10, 8);
+    else if (kind === 1) geometry = new THREE.CylinderGeometry(0.18, 0.22, 1.1, 10, 2);
+    else if (kind === 2) geometry = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+    else geometry = new THREE.TorusGeometry(0.38, 0.09, 8, 18);
+    const baseOpacity = (near ? 0.12 : 0.055) + (i % 5) * 0.018;
+    const material = new THREE.MeshBasicMaterial({
+      map: formationDot,
+      color: palette[i % palette.length],
+      transparent: true,
+      opacity: baseOpacity,
+      alphaTest: 0.035,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    let x = near
+      ? (i % 2 === 0 ? -1 : 1) * (4.7 + Math.random() * 2.6)
+      : (Math.random() - 0.5) * 24;
+    if (!near && Math.abs(x) < 5.0) x += (x < 0 ? -1 : 1) * 5.0;
+    const y = near ? (Math.random() - 0.5) * 8.8 : (Math.random() - 0.5) * 13;
+    const z = near ? 3.2 + Math.random() * 3.0 : -4.0 - Math.random() * 19;
+    mesh.position.set(x, y, z);
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    const scale = near ? 1.2 + Math.random() * 2.0 : 0.4 + Math.random() * 0.95;
+    mesh.scale.setScalar(scale);
+    constellationGroup.add(mesh);
+    constellationItems.push({
+      mesh,
+      baseOpacity,
+      baseScale: scale,
+      phase: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.32,
+      drift: 0.08 + Math.random() * 0.32,
+      baseColor: palette[i % palette.length].clone(),
+    });
+  }
+  scene.add(constellationGroup);
+}
+
 function buildParticles() {
   const count = 620;
   const positions = new Float32Array(count * 3);
@@ -816,6 +872,7 @@ function initThree() {
   // The immersive stage keeps the ground grid but no wireframe boxes around the lyrics.
   boxGroup.visible = false;
   buildPapers();
+  buildConstellation();
   buildParticles();
   buildRing();
   buildRays();
@@ -880,7 +937,7 @@ function makeDotTexture() {
   for (let y = 5; y < 64; y += 10) {
     for (let x = 5; x < 64; x += 10) {
       g.beginPath();
-      g.arc(x, y, 1.4, 0, Math.PI * 2);
+      g.arc(x, y, 2.05, 0, Math.PI * 2);
       g.fill();
     }
   }
@@ -1163,6 +1220,75 @@ function createFormation(index, line, shot, stage) {
   return { group, items };
 }
 
+function makeGhostTexture(text) {
+  const c = document.createElement("canvas");
+  c.width = 2048;
+  c.height = 512;
+  const g = c.getContext("2d");
+  g.clearRect(0, 0, c.width, c.height);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const font = '600 128px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif';
+  g.font = font;
+  let size = 128;
+  while (size > 48 && g.measureText(text).width > 1880) {
+    size -= 6;
+    g.font = `600 ${size}px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+  }
+  g.strokeStyle = "rgba(246, 241, 230, 0.5)";
+  g.lineWidth = 3;
+  g.strokeText(text, c.width / 2, c.height / 2 + 4);
+  g.strokeStyle = "rgba(255, 252, 246, 0.18)";
+  g.lineWidth = 8;
+  g.strokeText(text, c.width / 2, c.height / 2 + 4);
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+function disposeGhosts() {
+  if (!ghostGroup) return;
+  for (const item of ghostItems) {
+    item.mesh.geometry?.dispose?.();
+    item.mesh.material?.map?.dispose?.();
+    item.mesh.material?.dispose?.();
+  }
+  scene.remove(ghostGroup);
+  ghostGroup = null;
+  ghostItems = [];
+}
+
+function buildGhostLines(index) {
+  disposeGhosts();
+  const group = new THREE.Group();
+  for (let k = 1; k <= 2; k += 1) {
+    const line = D.lines[index + k];
+    if (!line) continue;
+    const texture = makeGhostTexture(line.text);
+    const height = 1.15;
+    const width = height * (2048 / 512);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: k === 1 ? 0.16 : 0.075,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      color: new THREE.Color(themeTarget.accent2),
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+    mesh.position.set(k === 1 ? -2.5 : 2.9, k === 1 ? 1.25 : -1.5, 1.1 - k * 6.4);
+    mesh.rotation.z = k === 1 ? -0.035 : 0.028;
+    group.add(mesh);
+    ghostItems.push({ mesh, baseOpacity: material.opacity, phase: k * 1.7 });
+  }
+  ghostGroup = group;
+  scene.add(group);
+}
+
 function createShockwave() {
   const material = new THREE.MeshBasicMaterial({
     color: themeTarget.accent2,
@@ -1405,6 +1531,7 @@ function activateLine(index) {
   lineGroups.push(group);
   currentGroup = group;
   currentLine = index;
+  buildGhostLines(index);
   activeFx = line.fx;
   state.kick = 1;
   state.glitch = line.fx === "glitch" ? 0.85 : ["shatter", "final"].includes(line.fx) ? 0.7 : 0.25;
@@ -1501,8 +1628,8 @@ function updateLineGroup(group, now, dt) {
       entry.front.map = sung ? entry.fillTexture : entry.outlineTexture;
       entry.front.needsUpdate = true;
     }
-    entry.front.color.copy(current ? themeCurrent.accent2 : sung ? themeCurrent.accent2 : WHITE);
-    if (current) entry.front.color.lerp(WHITE, 0.22);
+    entry.front.color.copy(current ? themeCurrent.accent2 : WHITE);
+    if (current) entry.front.color.lerp(WHITE, 0.18);
     for (let li = 0; li < entry.layers.length; li += 1) {
       entry.layers[li].opacity = sung ? p * (0.14 - li * 0.03) * (1 - drift * 0.8) : 0;
     }
@@ -1652,6 +1779,32 @@ function updateEnvironment(now, dt) {
       plane.position.z = -27;
       plane.position.x = (Math.random() - 0.5) * 26;
       plane.position.y = (Math.random() - 0.5) * 13;
+    }
+  }
+
+  if (ghostGroup) {
+    ghostGroup.visible = state.fx.wordGlow !== false;
+    for (const item of ghostItems) {
+      item.mesh.material.opacity = item.baseOpacity * (0.7 + state.energy * 0.7);
+      item.mesh.material.color.copy(themeCurrent.accent2);
+      item.mesh.position.y += Math.sin(now * 0.24 + item.phase) * dt * 0.025;
+    }
+    ghostGroup.position.z = -state.energy * 0.25;
+  }
+
+  if (constellationGroup) {
+    constellationGroup.visible = state.fx.formations;
+    for (const item of constellationItems) {
+      const mesh = item.mesh;
+      mesh.rotation.x += item.spin * dt;
+      mesh.rotation.y += item.spin * 1.35 * dt;
+      mesh.rotation.z += item.spin * 0.65 * dt;
+      mesh.position.z += item.drift * dt * (0.45 + state.energy);
+      mesh.position.y += Math.sin(now * 0.3 + item.phase) * dt * 0.05;
+      if (mesh.position.z > -2.0) mesh.position.z = -23;
+      mesh.scale.setScalar(item.baseScale * (1 + Math.sin(now * 0.5 + item.phase) * 0.018 + state.energy * 0.05));
+      mesh.material.opacity = item.baseOpacity * (0.55 + state.energy * 0.9);
+      mesh.material.color.copy(item.baseColor).lerp(themeCurrent.accent2, 0.28);
     }
   }
 

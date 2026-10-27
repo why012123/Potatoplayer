@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.0`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.1`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,22 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.1 — 2026-10-28
+
+### Changed
+
+- **3D 舞台继续向 Folia 的画面密度靠拢**：
+  - 唱到的字从金色实心改为更接近 Folia 的**白色描边 / 实心跟唱**，只有当前正在唱的字保留封面强调色；
+  - 当前行之后挂载两句远处文字的幽灵层（带三维偏移与低透明度），让镜头移动时有“歌词走廊”纵深；
+  - 新增 40 个点阵 3D 雕塑（近景大件 + 远景小件，分布在文字两侧和景深里），随镜头、音频与时间缓慢呼吸；
+  - 近景点阵物件在边缘形成 Folia 式的前景遮挡与体积感，同时避开中央可读区。
+
+### Verification
+
+- 3D 舞台在 potatoHQ 下实拍：逐字中段、白色描边转实心、当前字强调色、远处下一句幽灵、近景/远景点阵物件、Bloom 与镜头移动同时正常。
+- 无 JS 运行时错误；打开/关闭逐字辉光、舞台阵列、音频响应后对应元素正确消失。
+- `npm run typecheck`、后端 63 项自检、Playwright UI smoke、静音 VLC 后端 smoke 全部通过。
 
 ## s1.3.0 — 2026-10-28
 
