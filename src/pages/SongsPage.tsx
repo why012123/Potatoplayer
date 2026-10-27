@@ -287,6 +287,8 @@ export function SongsPage() {
         <TrackTable
           tracks={visible}
           queue={queue}
+          showPlays={sortMode === "plays"}
+          showRating={sortMode === "rating"}
           selectionMode={selecting}
           selectedIds={selected}
           onSelect={toggleSelected}

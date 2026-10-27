@@ -13,6 +13,12 @@ export interface ImmersivePreferences {
   showVolume: boolean;
   showFavorite: boolean;
   lyricsFrame: boolean;
+  lyricPanelOpacity: number;
+  lyricPanelBorder: number;
+  lyricPanelBlur: number;
+  lyricPanelRadius: number;
+  lyricLineSpacing: number;
+  lyricActiveHighlight: boolean;
   lyricScale: number;
   lyricAlign: "left" | "center";
   lyricSerif: boolean;
@@ -38,6 +44,12 @@ export const DEFAULT_IMMERSIVE: ImmersivePreferences = {
   showVolume: true,
   showFavorite: true,
   lyricsFrame: true,
+  lyricPanelOpacity: 0.062,
+  lyricPanelBorder: 0.105,
+  lyricPanelBlur: 34,
+  lyricPanelRadius: 22,
+  lyricLineSpacing: 1.48,
+  lyricActiveHighlight: true,
   lyricScale: 1,
   lyricAlign: "left",
   lyricSerif: false,
@@ -63,6 +75,12 @@ export function loadImmersivePreferences(): ImmersivePreferences {
       ...DEFAULT_IMMERSIVE,
       ...parsed,
       lyricScale: clamp(Number(parsed.lyricScale ?? 1), 0.72, 1.6),
+      lyricPanelOpacity: clamp(Number(parsed.lyricPanelOpacity ?? 0.062), 0, 0.4),
+      lyricPanelBorder: clamp(Number(parsed.lyricPanelBorder ?? 0.105), 0, 0.6),
+      lyricPanelBlur: clamp(Number(parsed.lyricPanelBlur ?? 34), 0, 60),
+      lyricPanelRadius: clamp(Number(parsed.lyricPanelRadius ?? 22), 0, 40),
+      lyricLineSpacing: clamp(Number(parsed.lyricLineSpacing ?? 1.48), 1.2, 1.95),
+      lyricActiveHighlight: parsed.lyricActiveHighlight !== false,
       backgroundBlur: clamp(Number(parsed.backgroundBlur ?? 1), 0.35, 1.7),
       backgroundDim: clamp(Number(parsed.backgroundDim ?? 1), 0.35, 1.45),
       backgroundGrain: clamp(Number(parsed.backgroundGrain ?? 1), 0, 1.8),

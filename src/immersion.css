@@ -1,0 +1,79 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Immersive lyric panel — one surface system for classic and editorial, with
+   a genuinely frameless mode and user-tuned fill, border, blur and radius.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root[data-style] .immerse__lyrics-side {
+  border: 1px solid rgba(255, 255, 255, var(--immerse-panel-border, 0.105));
+  border-radius: var(--immerse-panel-radius, 22px);
+  background: rgba(255, 252, 248, var(--immerse-panel-opacity, 0.062));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(var(--immerse-panel-blur, 34px)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--immerse-panel-blur, 34px)) saturate(145%);
+  transition: background 0.2s ease, border-color 0.2s ease, border-radius 0.2s ease;
+}
+
+:root[data-style] .immerse__lyric > span {
+  line-height: var(--immerse-line-height, 1.48);
+}
+
+:root[data-style] .immerse__lyric > em {
+  line-height: var(--immerse-line-height, 1.4);
+}
+
+/* A frameless panel means exactly that: no fill, no line, no blur. */
+:root[data-style] .immerse--no-lyrics-frame .immerse__lyrics-side {
+  padding: 10px 0 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-style] .immerse--no-lyrics-frame .immerse__lyrics-head {
+  padding-bottom: 7px;
+  border-bottom: 0;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+:root[data-style] .immerse--no-lyrics-frame .immerse__lyrics {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+:root[data-style] .immerse--no-lyrics-frame .immerse__lyric {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+:root[data-style] .immerse--no-lyrics-frame .immerse__lyric.is-active {
+  color: #fff;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* A user can keep the surface but turn the active-line highlight down. */
+:root[data-style] .immerse--no-lyric-highlight .immerse__lyric.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Minimal layout is intentionally bare; it should not gain a card back. */
+:root[data-style] .immerse--minimal .immerse__lyrics-side {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.immersive-customizer .custom-note--tight {
+  margin-top: -2px;
+  margin-bottom: 9px;
+  line-height: 1.5;
+}

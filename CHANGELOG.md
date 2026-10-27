@@ -4,9 +4,8 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.1.0`. The line started at `s1.0.0`; patch releases use
-  the familiar `s1.0.x` sequence, while this release introduces the first
-  feature-level minor bump.
+- **Current release:** `s1.2.0`. The line started at `s1.0.0`; patch releases use
+  the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
@@ -15,9 +14,22 @@ All notable changes to Potatoplayer Super are documented here.
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
-## Unreleased
+## s1.2.0 — 2026-10-28
 
 ### Added
+
+- **聆听统计页**：侧栏新增「统计」，后端把实际播放进度按本地日期、小时和曲目累计到
+  `stats.json`。页面提供 GitHub 贡献图式年度热力图（时长 / 次数双指标、按当年分位数着色、
+  点击某日查看明细）、总聆听时长、播放次数、活跃天数、当前 / 最长连续、24 小时聆听时钟、
+  深夜 / 早晨 / 下午 / 夜晚占比，以及全部时间内最常听的歌曲与艺术家。数据完全留在本机；
+  旧版只有播放次数、没有时间戳，因此不会伪造历史，统计从首次播放开始累计。
+- **首页自定义**：首页新增「自定义」面板，可显示 / 隐藏、上移 / 下移六个模块
+  （精选唱片、资料库概览、区块与流派、最近添加、反复聆听、常听艺术家），切换舒展 / 紧凑密度，
+  一键恢复默认；配置写入 `localStorage` 的 `potato:home:v1`。
+- **Songs 排序上下文列**：按评分排序时表格显示评分，按播放次数排序时显示次数，
+  表头会随排序字段切换，不再需要在看不见依据的情况下排序。
+- **详情页操作菜单**：专辑 / 艺术家详情的次要操作（下一首播放、加入队列、加入歌单、
+  艺术家合集）收进一个「更多操作」菜单，主操作只保留播放、随机和更多。
 
 - **可切换播放引擎**：设置 → 播放引擎，可选 **VLC（默认，保持原样）**、**potatoHQ**（自研原生引擎）、
   **mpv**。选择写入 `settings.json` 的 `playbackEngine`，**重启后生效**；目标引擎不可用时自动回退 VLC
@@ -40,12 +52,30 @@ All notable changes to Potatoplayer Super are documented here.
 
 ### Changed
 
+- **统一圆角体系**：以 26 px 外壳、22 px 大面板、16 px 卡片、12 px 控件、10 px 字段为固定层级，
+  统一侧栏、主画布、播放器、弹窗、按钮、输入框、下拉框、悬浮菜单、卡片与封面；
+  「利落」模式按同一比例整体收缩，不再出现 17 / 19 / 25 / 27 / 30 px 混用。
+- **更安静的按钮层级**：顶栏只保留下载、主题和设置；命令面板、歌曲编辑与重新扫描回到
+  快捷键、侧栏和设置等各自归属的位置。现在播放头部的 MV 操作并入曲目菜单。
+- **设置重新分组**：播放引擎与输出模式先出现，potatoHQ 的空间声场、交叉馈电、独占输出和
+  采样率跟随统一收在「声音塑形」下；引擎卡片改为三列选择，VLC 模式下不显示专属控件。
 - potatoHQ 的暂停与拖动：`seek` 改为原地重定位（不关闭/重开 CoreAudio 设备），并保持当前暂停状态；
   设备独占默认关闭，避免蓝牙设备被反复抢占导致无声。
 - 暂停后忽略仍在途的 `playback.time` 事件，避免"界面显示暂停但时间还在走"的假象。
 
 ### Fixed
 
+- **经典深色歌词不可见**：深色模式下未播放歌词使用暖白 68%、已播放歌词 54%、hover 76%、
+  当前行 100% 的墨色，不再沿用浅色主题的近黑文字；翻译、空态和骨架也同步适配。
+- **EQ 下拉框 / 保存菜单对比度**：深色模式为 EQ 预设下拉框和保存菜单指定深色表面与浅色文字，
+  并为所有原生 `option` 设置深色背景，避免下拉时白底白字。
+- **沉浸歌词真正无框**：关闭「歌词框」后彻底移除背景、描边、阴影、模糊和圆角，
+  当前行也不再保留胶囊 / 色条；新增歌词模块填充、描边、模糊、圆角、行距、
+  当前行高亮独立调节，全部持久化。
+- **右栏长文本裁切**：Now Playing 的歌手 / 专辑 / 评分行改为可收缩省略，
+  长专辑名不再顶出面板。
+- **主页统计文案**：原先标为「聆听时长」的数值实际是资料库总时长，现改为「资料库时长」；
+  真实聆听时长移到统计页。
 - **EQ 响度事故的根因**：Super 的 EQ preamp 是 VLC 语义（`12 dB == 单位增益`，源自 VLC 的 0.25
   干声系数），两个新引擎此前把它当作普通 dB 直接叠加，等于平坦 EQ 也凭空 +12 dB，再叠加最多
   +20 dB 的频段。现在适配层先换算为 `p − 12.04 dB`，然后：
@@ -57,11 +87,14 @@ All notable changes to Potatoplayer Super are documented here.
 ### Verification
 
 - 引擎单测 **102 项**（升频、ΣΔ、抖动、DoP、EQ 头空间、空间声场、交叉馈电、频谱、gapless 相关）。
-- 后端自检 **53 项**。
+- 后端自检 **63 项**（新增 `StatsStore` 的日期、小时、上限和重载检查）。
 - 端到端（真实后端 + 隔离数据目录）：暂停后时间冻结、暂停中拖动保持暂停、连续拖动不中断、
   两首曲目 gapless 交接、空间/交叉馈电实时开关。
 - UI：设置页引擎选择、听力警告、空间圆盘、频谱条均用 Playwright + Electron（`--no-sandbox`）
   实拍验证；VLC 模式下不显示任何 potatoHQ 专属控件。
+- UI 回归新增：统计页真实累时与热力图渲染、深色歌词墨色、EQ 下拉 / 保存菜单对比度、
+  无框歌词的 0 描边 / 0 阴影、Songs 评分 / 次数列，以及首页模块隐藏与恢复。
+- 截图对照覆盖经典浅色 / 深色、编辑纸感、统计页、首页自定义、设置引擎区与沉浸歌词。
 
 ## s1.1.0 — 2026-10-26
 

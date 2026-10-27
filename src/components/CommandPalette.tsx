@@ -4,6 +4,7 @@ import clsx from "clsx";
 import {
   Album,
   ArrowRight,
+  BarChart3,
   Cloud,
   Command,
   Heart,
@@ -63,6 +64,7 @@ export function CommandPalette() {
         icon: <Layers3 size={16} />,
       },
       { id: "favorites", label: tr("Favorites", "收藏"), hint: tr("Library", "资料库"), view: { kind: "favorites" }, icon: <Heart size={16} /> },
+      { id: "stats", label: tr("Listening stats", "聆听统计"), hint: tr("Your listening life", "你的聆听生活"), view: { kind: "stats" }, icon: <BarChart3 size={16} /> },
       { id: "discover", label: tr("Discover", "发现"), hint: "NetEase", view: { kind: "discover" }, icon: <Cloud size={16} /> },
     ];
     for (const playlist of playlists) {

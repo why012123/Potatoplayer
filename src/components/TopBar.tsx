@@ -3,12 +3,9 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
   ChevronRight,
-  Command,
   CloudDownload,
   Moon,
-  RefreshCw,
   Search,
-  SquarePen,
   Sun,
   X,
 } from "lucide-react";
@@ -25,15 +22,11 @@ export function TopBar() {
   const viewHistory = useAppStore((state) => state.viewHistory);
   const scanning = useAppStore((state) => state.scanning);
   const scanProgress = useAppStore((state) => state.scanProgress);
-  const rescan = useAppStore((state) => state.rescan);
-  const setCommandOpen = useAppStore((state) => state.setCommandOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const downloads = useAppStore((state) => state.downloads);
   const setDownloadPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
   const theme = useAppStore((state) => state.theme);
   const setTheme = useAppStore((state) => state.setTheme);
-  const navigate = useAppStore((state) => state.navigate);
-  const currentTrackId = useAppStore((state) => state.playback?.trackId ?? state.previewTrackId);
   const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const inputRef = useRef<HTMLInputElement>(null);
   const tr = useTr();
@@ -68,6 +61,8 @@ export function TopBar() {
         return tr("Collections", "合集");
       case "favorites":
         return tr("Favorites", "收藏");
+      case "stats":
+        return tr("Stats", "统计");
       case "editor":
         return tr("Editor", "编辑器");
       case "discover":
@@ -78,6 +73,7 @@ export function TopBar() {
         return tr("Library", "资料库");
     }
   })();
+  const activeDownloads = downloads.filter((job) => job.status === "running" || job.status === "error").length;
   const scanPct =
     scanProgress && scanProgress.total > 0 ? Math.round((scanProgress.done / scanProgress.total) * 100) : 0;
   const scanTitle = scanProgress
@@ -193,41 +189,8 @@ export function TopBar() {
           >
             <span className="download-trigger">
               <CloudDownload size={16} />
-              {downloads.filter((job) => job.status === "running" || job.status === "error").length > 0 && (
-                <i>{downloads.filter((job) => job.status === "running" || job.status === "error").length}</i>
-              )}
+              {activeDownloads > 0 && <i>{activeDownloads}</i>}
             </span>
-          </IconButton>
-          <IconButton
-            label={tr("Song editor", "歌曲编辑器")}
-            variant="ghost"
-            size="sm"
-            active={currentView.kind === "editor"}
-            onClick={() => {
-              if (currentView.kind !== "editor") {
-                navigate({ kind: "editor", trackId: currentTrackId ?? undefined });
-              }
-            }}
-          >
-            <SquarePen size={16} />
-          </IconButton>
-          <IconButton
-            label={tr("Command palette", "命令面板")}
-            variant="ghost"
-            size="sm"
-            onClick={() => setCommandOpen(true)}
-          >
-            <Command size={16} />
-          </IconButton>
-          <span className="topbar__tools-rule" aria-hidden="true" />
-          <IconButton
-            label={tr("Rescan library", "重新扫描资料库")}
-            variant="ghost"
-            size="sm"
-            disabled={scanning}
-            onClick={() => void rescan()}
-          >
-            <RefreshCw size={16} className={scanning ? "is-spinning" : undefined} />
           </IconButton>
           <IconButton
             label={

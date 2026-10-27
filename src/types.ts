@@ -146,6 +146,7 @@ export type View =
   | { kind: "albums" }
   | { kind: "artists" }
   | { kind: "favorites" }
+  | { kind: "stats" }
   | { kind: "collections" }
   | { kind: "editor"; trackId?: string }
   | { kind: "block"; name: string }
@@ -154,6 +155,30 @@ export type View =
   | { kind: "playlist"; id: string }
   | { kind: "album"; key: string }
   | { kind: "artist"; name: string };
+
+export interface ListeningDay {
+  date: string;
+  seconds: number;
+  plays: number;
+  hours: number[];
+}
+
+export interface ListeningTrackStat {
+  trackId: string;
+  title: string;
+  artist: string;
+  seconds: number;
+  plays: number;
+  lastPlayedAt: number;
+}
+
+export interface ListeningStats {
+  version: number;
+  generatedAt: number;
+  totalSeconds: number;
+  days: ListeningDay[];
+  tracks: ListeningTrackStat[];
+}
 
 export interface Toast {
   id: number;

@@ -140,6 +140,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     "--immerse-bg-dim": prefs.backgroundDim,
     "--immerse-bg-grain": prefs.backgroundGrain,
     "--immerse-bg-veil": prefs.backgroundVeil,
+    "--immerse-panel-opacity": prefs.lyricPanelOpacity,
+    "--immerse-panel-border": prefs.lyricPanelBorder,
+    "--immerse-panel-blur": `${prefs.lyricPanelBlur}px`,
+    "--immerse-panel-radius": `${prefs.lyricPanelRadius}px`,
+    "--immerse-line-height": prefs.lyricLineSpacing,
     ...(prefs.accent !== "cover" && customAccent ? { "--accent": customAccent } : {}),
   } as CSSProperties;
   const immersiveClasses = clsx(
@@ -153,6 +158,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     !prefs.showVolume && "immerse--no-volume",
     !prefs.showFavorite && "immerse--no-favorite",
     !prefs.lyricsFrame && "immerse--no-lyrics-frame",
+    !prefs.lyricActiveHighlight && "immerse--no-lyric-highlight",
     prefs.lyricAlign === "center" && "immerse--lyrics-center",
     prefs.lyricSerif && "immerse--serif",
   );

@@ -455,13 +455,109 @@ export function SettingsDialog() {
 
 
 
+            <Section
+              icon={<AudioLines size={16} />}
+              title={tr("Playback engine", "播放引擎")}
+              detail={tr(
+                "Choose the audio path first. Restart once to apply it; potatoHQ then unlocks the sound-shaping controls below.",
+                "先选择音频路径。重启一次后生效；potatoHQ 会解锁下方的声音塑形控件。",
+              )}
+            >
+              <div className="language-choice engine-choice-grid" role="group" aria-label={tr("Playback engine", "播放引擎")}>
+                {(
+                  [
+                    {
+                      id: "vlc" as const,
+                      label: "VLC",
+                      en: "Compatibility first · libVLC",
+                      zh: "兼容性优先 · libVLC",
+                    },
+                    {
+                      id: "potatohq" as const,
+                      label: "potatoHQ",
+                      en: "Native engine · exclusive, upsampling, DSD",
+                      zh: "原生引擎 · 独占、升频、DSD",
+                    },
+                    {
+                      id: "mpv" as const,
+                      label: "mpv",
+                      en: "Fallback · widest format coverage",
+                      zh: "备用 · 格式覆盖最广",
+                    },
+                  ] as const
+                ).map((item) => {
+                  const info = engines?.[item.id];
+                  const unavailable = info ? !info.available : false;
+                  return (
+                    <Choice
+                      key={item.id}
+                      label={item.label}
+                      detail={unavailable ? tr("Not available on this machine", "本机不可用") : tr(item.en, item.zh)}
+                      active={playbackEngine === item.id}
+                      disabled={unavailable}
+                      onClick={() => {
+                        if (item.id === "vlc") {
+                          void setPlaybackEngine("vlc");
+                        } else {
+                          setPendingEngine(item.id);
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              {playbackEngine === "potatohq" ? (
+                <>
+                  <div
+                    className="language-choice engine-choice-grid"
+                    role="group"
+                    aria-label={tr("potatoHQ output mode", "potatoHQ 输出模式")}
+                    style={{ marginTop: 12 }}
+                  >
+                    {(
+                      [
+                        { id: "pcm" as const, label: "PCM", en: "DAC-native PCM (default)", zh: "原生 PCM(默认)" },
+                        {
+                          id: "dop64" as const,
+                          label: "DSD64 · DoP",
+                          en: "Needs a 176.4 kHz DoP DAC",
+                          zh: "需要支持 176.4 kHz 的 DoP DAC",
+                        },
+                        {
+                          id: "dop128" as const,
+                          label: "DSD128 · DoP",
+                          en: "Needs a 352.8 kHz DoP DAC",
+                          zh: "需要支持 352.8 kHz 的 DoP DAC",
+                        },
+                      ] as const
+                    ).map((item) => (
+                      <Choice
+                        key={item.id}
+                        label={item.label}
+                        detail={tr(item.en, item.zh)}
+                        active={outputMode === item.id}
+                        onClick={() => void setOutputMode(item.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              <p style={{ margin: "10px 2px 0", fontSize: 12, opacity: 0.65 }}>
+                {tr(
+                  "Engine changes take effect after a restart; output mode applies on the next playback. VLC stays the default.",
+                  "切换引擎需重启后生效;输出模式下一次播放生效。默认仍为 VLC。",
+                )}
+              </p>
+            </Section>
+
+
             {capabilities?.spatial ? (
               <Section
                 icon={<Radar size={16} />}
-                title={tr("Virtual sound field", "空间声场")}
+                title={tr("Sound shaping", "声音塑形")}
                 detail={tr(
-                  "Drag the source anywhere on the disc. Only the native potatoHQ engine can render it.",
-                  "把声源拖到圆盘上的任意位置。仅 potatoHQ 原生引擎支持。",
+                  "The native potatoHQ path: spatial field, crossfeed, exclusive output and source-rate handling.",
+                  "potatoHQ 原生路径：空间声场、交叉馈电、独占输出与采样率跟随。",
                 )}
               >
                 <div className="spatial-layout">
@@ -584,100 +680,6 @@ export function SettingsDialog() {
               </Section>
             ) : null}
 
-            <Section
-              icon={<AudioLines size={16} />}
-              title={tr("Playback engine", "播放引擎")}
-              detail={tr(
-                "Which backend drives playback. Switching takes effect after a restart.",
-                "选择驱动播放的音频后端。切换需要重启应用后生效。",
-              )}
-            >
-              <div className="language-choice" role="group" aria-label={tr("Playback engine", "播放引擎")}>
-                {(
-                  [
-                    {
-                      id: "vlc" as const,
-                      label: "VLC",
-                      en: "Compatibility first · libVLC",
-                      zh: "兼容性优先 · libVLC",
-                    },
-                    {
-                      id: "potatohq" as const,
-                      label: "potatoHQ",
-                      en: "Native engine · exclusive, upsampling, DSD",
-                      zh: "原生引擎 · 独占、升频、DSD",
-                    },
-                    {
-                      id: "mpv" as const,
-                      label: "mpv",
-                      en: "Fallback · widest format coverage",
-                      zh: "备用 · 格式覆盖最广",
-                    },
-                  ] as const
-                ).map((item) => {
-                  const info = engines?.[item.id];
-                  const unavailable = info ? !info.available : false;
-                  return (
-                    <Choice
-                      key={item.id}
-                      label={item.label}
-                      detail={unavailable ? tr("Not available on this machine", "本机不可用") : tr(item.en, item.zh)}
-                      active={playbackEngine === item.id}
-                      disabled={unavailable}
-                      onClick={() => {
-                        if (item.id === "vlc") {
-                          void setPlaybackEngine("vlc");
-                        } else {
-                          setPendingEngine(item.id);
-                        }
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              {playbackEngine === "potatohq" ? (
-                <>
-                  <div
-                    className="language-choice"
-                    role="group"
-                    aria-label={tr("potatoHQ output mode", "potatoHQ 输出模式")}
-                    style={{ marginTop: 12 }}
-                  >
-                    {(
-                      [
-                        { id: "pcm" as const, label: "PCM", en: "DAC-native PCM (default)", zh: "原生 PCM(默认)" },
-                        {
-                          id: "dop64" as const,
-                          label: "DSD64 · DoP",
-                          en: "Needs a 176.4 kHz DoP DAC",
-                          zh: "需要支持 176.4 kHz 的 DoP DAC",
-                        },
-                        {
-                          id: "dop128" as const,
-                          label: "DSD128 · DoP",
-                          en: "Needs a 352.8 kHz DoP DAC",
-                          zh: "需要支持 352.8 kHz 的 DoP DAC",
-                        },
-                      ] as const
-                    ).map((item) => (
-                      <Choice
-                        key={item.id}
-                        label={item.label}
-                        detail={tr(item.en, item.zh)}
-                        active={outputMode === item.id}
-                        onClick={() => void setOutputMode(item.id)}
-                      />
-                    ))}
-                  </div>
-                </>
-              ) : null}
-              <p style={{ margin: "10px 2px 0", fontSize: 12, opacity: 0.65 }}>
-                {tr(
-                  "Engine changes take effect after a restart; output mode applies on the next playback. VLC stays the default.",
-                  "切换引擎需重启后生效;输出模式下一次播放生效。默认仍为 VLC。",
-                )}
-              </p>
-            </Section>
 
             <Section
               icon={<LibraryBig size={16} />}

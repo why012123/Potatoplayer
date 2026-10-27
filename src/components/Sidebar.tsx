@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Heart,
   Home,
+  BarChart3,
   Layers3,
   ListMusic,
   Music2,
@@ -28,7 +29,8 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Artists", labelZh: "艺术家", view: { kind: "artists" }, icon: Users, shortcut: "4" },
   { label: "Collections", labelZh: "合集", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
   { label: "Favorites", labelZh: "收藏", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
-  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "7" },
+  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "7" },
+  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "8" },
 ];
 
 export function Sidebar() {

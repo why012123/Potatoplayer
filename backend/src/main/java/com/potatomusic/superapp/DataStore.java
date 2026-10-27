@@ -12,6 +12,7 @@ public final class DataStore {
     private final Path settingsFile;
     private final Path libraryFile;
     private final Path eqFile;
+    private final Path statsFile;
     private final Path coversDir;
 
     public DataStore() {
@@ -19,6 +20,7 @@ public final class DataStore {
         this.settingsFile = dataDir.resolve("settings.json");
         this.libraryFile = dataDir.resolve("library.json");
         this.eqFile = dataDir.resolve("eq.json");
+        this.statsFile = dataDir.resolve("stats.json");
         this.coversDir = dataDir.resolve("covers");
     }
 
@@ -40,6 +42,10 @@ public final class DataStore {
 
     public Path eqFile() {
         return eqFile;
+    }
+
+    public Path statsFile() {
+        return statsFile;
     }
 
     public void ensure() throws IOException {

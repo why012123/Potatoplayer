@@ -1,0 +1,402 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shared visual polish — one radius scale, dark-mode contrast fixes and the
+   quieter control hierarchy introduced with the listening-stats release.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --radius-shell: 26px;
+  --radius-panel: 22px;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-field: 10px;
+  --radius-small: 8px;
+}
+
+:root[data-corners="crisp"] {
+  --radius-shell: 18px;
+  --radius-panel: 14px;
+  --radius-card: 12px;
+  --radius-control: 9px;
+  --radius-field: 8px;
+  --radius-small: 6px;
+}
+
+/* Shell and large surfaces */
+:root[data-style] .sidebar,
+:root[data-style] .page-shell,
+:root[data-style] .now-playing {
+  border-radius: var(--radius-shell);
+}
+
+:root[data-style] .hero,
+:root[data-style] .detail-hero,
+:root[data-style] .artist-hero,
+:root[data-style] .playlist-hero,
+:root[data-style] .tag-hero,
+:root[data-style] .empty-stage,
+:root[data-style] .stats-panel,
+:root[data-style] .stats-panel--calendar,
+:root[data-style] .stats-empty,
+:root[data-style] .home-empty {
+  border-radius: var(--radius-panel);
+}
+
+:root[data-style] .stats-card,
+:root[data-style] .stats-persona,
+:root[data-style] .home-customizer,
+:root[data-style] .taxonomy-overview,
+:root[data-style] .stat-strip,
+:root[data-style] .search-empty,
+:root[data-style] .online-empty,
+:root[data-style] .download-panel {
+  border-radius: var(--radius-card);
+}
+
+/* Dialog surfaces share one radius instead of 25/26/28/30 one-offs. */
+:root[data-style] .modal,
+:root[data-style] .settings-dialog,
+:root[data-style] .eq-dialog,
+:root[data-style] .prompt-dialog,
+:root[data-style] .add-to-playlist-dialog,
+:root[data-style] .bilibili-dialog,
+:root[data-style] .taxonomy-dialog,
+:root[data-style] .bulk-dialog,
+:root[data-style] .delete-track-dialog,
+:root[data-style] .mv-dialog {
+  border-radius: var(--radius-panel);
+}
+
+:root[data-style] .command-palette {
+  border-radius: var(--radius-card);
+}
+
+:root[data-style] .track-menu,
+:root[data-style] .eq-save-menu {
+  border-radius: var(--radius-control);
+}
+
+/* Controls */
+:root[data-style] .button {
+  border-radius: var(--radius-control);
+}
+
+:root[data-style] .button.button--compact,
+:root[data-style] .page-header__actions > .button.button--compact,
+:root[data-style] .detail-hero__actions > .button.button--compact {
+  border-radius: var(--radius-control);
+}
+
+:root[data-style] .library-controls,
+:root[data-style] .list-toolbar,
+:root[data-style] .taxonomy-filterbar {
+  border-radius: var(--radius-card);
+}
+
+:root[data-style] .topbar__search,
+:root[data-style] .topbar__tools,
+:root[data-style] .scan-pill,
+:root[data-style] .settings-choice,
+:root[data-style] .theme-choice button,
+:root[data-style] .studio-panel,
+:root[data-style] .settings-path,
+:root[data-style] .settings-note,
+:root[data-style] .settings-toggle-row,
+:root[data-style] .studio-segment,
+:root[data-style] .spatial-pad,
+:root[data-style] .eq-preset select,
+:root[data-style] .sort-control,
+:root[data-style] .taxonomy-select,
+:root[data-style] .text-field,
+:root[data-style] .editor-select-wrap,
+:root[data-style] .editor-rating,
+:root[data-style] .quality-control select,
+:root[data-style] .stats-year-control {
+  border-radius: var(--radius-field);
+}
+
+:root[data-style] .nav-item,
+:root[data-style] .nav-item__pill,
+:root[data-style] .playlist-link,
+:root[data-style] .track-row,
+:root[data-style] .settings-path button,
+:root[data-style] .settings-row button,
+:root[data-style] .filter-chip,
+:root[data-style] .stats-heatmap__cell,
+:root[data-style] .stats-rhythm__bar,
+:root[data-style] .stats-periods > div,
+:root[data-style] .stats-persona__facts > div,
+:root[data-style] .home-customizer__row,
+:root[data-style] .home-customizer__density,
+:root[data-style] .home-customizer__density button {
+  border-radius: var(--radius-small);
+}
+
+:root[data-style] .track-table__head {
+  border-radius: var(--radius-small);
+}
+
+:root[data-style] .library-card {
+  border-radius: var(--radius-card);
+}
+
+:root[data-style] .tag-pill,
+:root[data-style] .filter-chip,
+:root[data-style] .count-badge,
+:root[data-style] .nav-item__count,
+:root[data-style] .stats-panel__hint,
+:root[data-style] .stats-clock-badge,
+:root[data-style] .rating-chip {
+  border-radius: 999px;
+}
+
+/* Artwork corners: one cover radius per context, circles stay circles. */
+:root[data-style] .hero__cover .cover,
+:root[data-style] .detail-hero__art .cover,
+:root[data-style] .playlist-hero__cover,
+:root[data-style] .collection-card__cover,
+:root[data-style] .media-card__cover .cover,
+:root[data-style] .now-playing__art,
+:root[data-style] .now-playing__art-button,
+:root[data-style] .immerse__cover,
+:root[data-style] .editor-art .cover {
+  border-radius: var(--radius-card) !important;
+}
+
+:root[data-style] .track-row__cover {
+  border-radius: 8px !important;
+}
+
+:root[data-style] .queue-row__cover {
+  border-radius: 7px !important;
+}
+
+/* Engine cards read as one deliberate three-way choice. */
+.engine-choice-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.now-playing__spectrum {
+  height: 30px;
+  margin: 1px 0 9px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: color-mix(in srgb, var(--accent) 72%, var(--text));
+  opacity: 0.72;
+}
+
+.now-playing__spectrum i {
+  border-radius: 2px 2px 0 0;
+}
+
+@media (max-width: 760px) {
+  .engine-choice-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Top-bar action cluster is quieter now that command/editor/rescan live in
+   their proper homes (shortcuts, sidebar, settings). */
+:root[data-style] .topbar__tools {
+  padding: 3px;
+  gap: 1px;
+}
+
+:root[data-style] .topbar__tools .icon-button {
+  border-radius: var(--radius-small);
+}
+
+:root[data-style] .topbar__tools .icon-button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* Long artist/album strings in the right panel should truncate, not clip. */
+.now-playing__title-line > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.now-playing__subline {
+  min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+.now-playing__subline span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-playing__subline span:first-child {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.now-playing__subline span + span {
+  flex: none;
+}
+
+/* ── Dark room contrast ───────────────────────────────────────────────────── */
+
+[data-theme="dark"] .lyric-line {
+  color: rgba(244, 237, 230, 0.68);
+}
+
+[data-theme="dark"] .lyric-line:hover {
+  color: rgba(244, 237, 230, 0.76);
+}
+
+[data-theme="dark"] .lyric-line.is-past {
+  color: rgba(244, 237, 230, 0.54);
+}
+
+[data-theme="dark"] .lyric-line.is-active {
+  color: var(--text);
+}
+
+[data-theme="dark"] .lyric-line.is-active em {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .lyrics-empty,
+[data-theme="dark"] .lyrics-empty strong {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .lyrics-empty span {
+  color: var(--faint);
+}
+
+[data-theme="dark"] .eq-save-menu {
+  border-color: var(--line);
+  background: rgba(45, 39, 42, 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .eq-save-menu button {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .eq-save-menu button:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+[data-theme="dark"] .eq-preset select {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="dark"] .eq-preset select option,
+[data-theme="dark"] .sort-control select option,
+[data-theme="dark"] .taxonomy-select select option,
+[data-theme="dark"] .editor-filters select option,
+[data-theme="dark"] .quality-control select option,
+[data-theme="dark"] .stats-year-control select option {
+  color: var(--text);
+  background: #2b2628;
+}
+
+[data-theme="dark"] .sort-control,
+[data-theme="dark"] .taxonomy-select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="dark"] .sort-control select,
+[data-theme="dark"] .taxonomy-select select {
+  color: var(--text);
+}
+
+[data-theme="dark"] .text-field,
+[data-theme="dark"] .prompt-dialog input {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: rgba(244, 237, 230, 0.38);
+}
+
+[data-theme="dark"] .topbar__search {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .topbar__search input::placeholder {
+  color: rgba(244, 237, 230, 0.36);
+}
+
+/* Native menu / option popups follow the app theme. */
+select {
+  color-scheme: inherit;
+}
+
+[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+/* A few orphaned corners that read as accidental next to the new system. */
+:root[data-style] .brand__mark {
+  border-radius: var(--radius-control);
+}
+
+:root[data-style] .library-card__icon,
+:root[data-style] .library-card__open,
+:root[data-style] .stats-card__icon,
+:root[data-style] .stats-persona__icon,
+:root[data-style] .home-customizer__icon,
+:root[data-style] .settings-section__title > svg {
+  border-radius: var(--radius-small);
+}
+
+:root[data-style] .now-playing__art-button,
+:root[data-style] .now-playing__art {
+  border-radius: var(--radius-card) !important;
+}
+
+/* Collection detail actions: three clear controls instead of a row of five. */
+.detail-more {
+  position: relative;
+  display: flex;
+}
+
+.detail-more__menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-soft);
+}
+
+.detail-more__menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border-radius: var(--radius-small);
+  color: var(--muted);
+  background: transparent;
+  font-size: 9.5px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.detail-more__menu button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.32);
+}
+
+[data-theme="dark"] .detail-more__menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

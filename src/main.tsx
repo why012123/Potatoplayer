@@ -6,6 +6,10 @@ import "./theme-dark.css";
 import "./editorial.css";
 import "./classic.css";
 import "./appearance.css";
+import "./stats.css";
+import "./home.css";
+import "./immersion.css";
+import "./redesign.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());

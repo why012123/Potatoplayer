@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import { motion } from "motion/react";
-import { ArrowLeft, Clock3, Disc3, ListEnd, ListMusic, ListPlus, Play, Shuffle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { ArrowLeft, Clock3, Disc3, ListEnd, ListMusic, ListPlus, MoreHorizontal, Play, Shuffle } from "lucide-react";
 import { useAppStore } from "@/store";
 import { Cover } from "@/components/Cover";
 import { TrackTable } from "@/components/TrackTable";
@@ -17,14 +17,80 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
+function DetailMoreMenu({ queue, onOpenCollections }: { queue: string[]; onOpenCollections?: () => void }) {
+  const tr = useTr();
+  const enqueueMany = useAppStore((state) => state.enqueueMany);
+  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className="detail-more" ref={rootRef}>
+      <button
+        type="button"
+        className="button button--glass button--compact"
+        aria-label={tr("More actions", "更多操作")}
+        title={tr("More actions", "更多操作")}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="detail-more__menu glass-strong"
+            role="menu"
+            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -3, scale: 0.98 }}
+            transition={{ duration: 0.16 }}
+          >
+            <button type="button" role="menuitem" onClick={() => { void enqueueMany(queue, true); setOpen(false); }}>
+              <ListEnd size={14} /> {tr("Play next", "下一首播放")}
+            </button>
+            <button type="button" role="menuitem" onClick={() => { void enqueueMany(queue, false); setOpen(false); }}>
+              <ListPlus size={14} /> {tr("Add to queue", "添加到队列")}
+            </button>
+            <button type="button" role="menuitem" onClick={() => { setAddToPlaylistTrackIds(queue); setOpen(false); }}>
+              <ListMusic size={14} /> {tr("Add to playlist", "添加到歌单")}
+            </button>
+            {onOpenCollections && (
+              <button type="button" role="menuitem" onClick={() => { onOpenCollections(); setOpen(false); }}>
+                <Disc3 size={14} /> {tr("Artist collections", "艺术家合集")}
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function AlbumDetailPage() {
   const tracks = useAppStore((state) => state.tracks);
   const view = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const navigate = useAppStore((state) => state.navigate);
   const goBack = useAppStore((state) => state.goBack);
   const playTrack = useAppStore((state) => state.playTrack);
-  const enqueueMany = useAppStore((state) => state.enqueueMany);
-  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const collections = useMemo(() => buildCollections(tracks), [tracks]);
   const collection = view.kind === "album" ? collections.find((item) => item.key === view.key) : undefined;
   const tr = useTr();
@@ -105,33 +171,7 @@ export function AlbumDetailPage() {
             >
               <Shuffle size={15} /> {tr("Shuffle", "随机播放")}
             </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Play next", "下一首播放")}
-              aria-label={tr("Play next", "下一首播放")}
-              onClick={() => void enqueueMany(queue, true)}
-            >
-              <ListEnd size={15} /> {tr("Play next", "下一首播放")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add to queue", "添加到队列")}
-              aria-label={tr("Add to queue", "添加到队列")}
-              onClick={() => void enqueueMany(queue, false)}
-            >
-              <ListPlus size={15} /> {tr("Add to queue", "添加到队列")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add all to playlist", "全部添加到歌单")}
-              aria-label={tr("Add all to playlist", "全部添加到歌单")}
-              onClick={() => setAddToPlaylistTrackIds(queue)}
-            >
-              <ListMusic size={15} /> {tr("Add to playlist", "添加到歌单")}
-            </button>
+            <DetailMoreMenu queue={queue} />
           </div>
         </div>
         <div className="detail-hero__watermark" aria-hidden="true">
@@ -151,8 +191,6 @@ export function ArtistDetailPage() {
   const navigate = useAppStore((state) => state.navigate);
   const goBack = useAppStore((state) => state.goBack);
   const playTrack = useAppStore((state) => state.playTrack);
-  const enqueueMany = useAppStore((state) => state.enqueueMany);
-  const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const artists = useMemo(() => buildArtists(tracks), [tracks]);
   const artist = view.kind === "artist" ? artists.find((item) => item.name === view.name) : undefined;
   const tr = useTr();
@@ -226,42 +264,7 @@ export function ArtistDetailPage() {
             >
               <Shuffle size={15} /> {tr("Shuffle", "随机播放")}
             </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Play next", "下一首播放")}
-              aria-label={tr("Play next", "下一首播放")}
-              onClick={() => void enqueueMany(queue, true)}
-            >
-              <ListEnd size={15} /> {tr("Play next", "下一首播放")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add to queue", "添加到队列")}
-              aria-label={tr("Add to queue", "添加到队列")}
-              onClick={() => void enqueueMany(queue, false)}
-            >
-              <ListPlus size={15} /> {tr("Add to queue", "添加到队列")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add all to playlist", "全部添加到歌单")}
-              aria-label={tr("Add all to playlist", "全部添加到歌单")}
-              onClick={() => setAddToPlaylistTrackIds(queue)}
-            >
-              <ListMusic size={15} /> {tr("Add to playlist", "添加到歌单")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Open artist collections", "打开艺术家合集")}
-              aria-label={tr("Open artist collections", "打开艺术家合集")}
-              onClick={() => navigate({ kind: "albums" })}
-            >
-              <Disc3 size={15} /> {tr("Albums", "专辑")}
-            </button>
+            <DetailMoreMenu queue={queue} onOpenCollections={() => navigate({ kind: "albums" })} />
           </div>
         </div>
       </header>

@@ -87,7 +87,23 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
             <Toggle label={tr("Volume", "音量")} value={prefs.showVolume} onChange={(value) => onChange({ showVolume: value })} />
             <Toggle label={tr("Favorite", "收藏")} value={prefs.showFavorite} onChange={(value) => onChange({ showFavorite: value })} />
             <Toggle label={tr("Lyrics frame", "歌词框")} value={prefs.lyricsFrame} onChange={(value) => onChange({ lyricsFrame: value })} />
+            <Toggle label={tr("Active line highlight", "当前行高亮")} value={prefs.lyricActiveHighlight} onChange={(value) => onChange({ lyricActiveHighlight: value })} />
           </div>
+        </section>
+
+        <section>
+          <div className="custom-section-title">{tr("Lyrics panel", "歌词模块")}</div>
+          <p className="custom-note custom-note--tight">
+            {tr(
+              "Fine-tune the surface behind the words. With the frame off, the panel disappears completely.",
+              "细调文字背后的表面。关闭歌词框后，整个模块会完全消失。",
+            )}
+          </p>
+          <Range label={tr("Fill", "填充")} value={prefs.lyricPanelOpacity} min={0} max={0.4} step={0.005} format={(value) => `${Math.round(value * 1000) / 10}%`} onChange={(value) => onChange({ lyricPanelOpacity: value })} />
+          <Range label={tr("Border", "描边")} value={prefs.lyricPanelBorder} min={0} max={0.6} step={0.005} format={(value) => `${Math.round(value * 1000) / 10}%`} onChange={(value) => onChange({ lyricPanelBorder: value })} />
+          <Range label={tr("Blur", "模糊")} value={prefs.lyricPanelBlur} min={0} max={60} step={1} format={(value) => `${Math.round(value)}px`} onChange={(value) => onChange({ lyricPanelBlur: value })} />
+          <Range label={tr("Corners", "圆角")} value={prefs.lyricPanelRadius} min={0} max={40} step={1} format={(value) => `${Math.round(value)}px`} onChange={(value) => onChange({ lyricPanelRadius: value })} />
+          <Range label={tr("Line spacing", "行距")} value={prefs.lyricLineSpacing} min={1.2} max={1.95} step={0.01} format={(value) => `${value.toFixed(2)}×`} onChange={(value) => onChange({ lyricLineSpacing: value })} />
         </section>
 
         <section>

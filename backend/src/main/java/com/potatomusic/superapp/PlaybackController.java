@@ -32,6 +32,8 @@ public final class PlaybackController {
 
         void markPlayed(Track track);
 
+        void recordListening(Track track, double seconds);
+
         void scheduleSave();
     }
 
@@ -61,6 +63,9 @@ public final class PlaybackController {
     private boolean loaded;
     private double volumeBeforeMute;
     private long lastPersistedPositionAt;
+    private long lastStatsAt;
+    private double lastStatsTime;
+    private String lastStatsTrackId;
     private boolean shuttingDown;
 
     public PlaybackController(Host host) {
@@ -471,6 +476,7 @@ public final class PlaybackController {
         }
         host.settings().lastTrackId = track.id;
         host.settings().lastPosition = startAt;
+        resetStatsClock(track.id, startAt);
         host.scheduleSave();
         if (countPlay) {
             host.markPlayed(track);
@@ -533,6 +539,7 @@ public final class PlaybackController {
             loaded = true;
             host.settings().lastTrackId = track.id;
             host.settings().lastPosition = 0;
+            resetStatsClock(track.id, 0);
             host.markPlayed(track);
             host.scheduleSave();
             Map<String, Object> changed = new LinkedHashMap<>();
@@ -594,6 +601,36 @@ public final class PlaybackController {
         playing = false;
     }
 
+    private void resetStatsClock(String trackId, double time) {
+        lastStatsTrackId = trackId;
+        lastStatsTime = time;
+        lastStatsAt = System.currentTimeMillis();
+    }
+
+    /**
+     * Converts the observed clock movement into listening time. Seeking and
+     * pause/resume gaps are ignored instead of being counted as listening.
+     */
+    private void recordListeningDelta() {
+        long now = System.currentTimeMillis();
+        Track track = currentId == null ? null : host.findTrack(currentId);
+        if (track == null) {
+            lastStatsTrackId = null;
+            lastStatsTime = 0;
+            lastStatsAt = now;
+            return;
+        }
+        boolean same = track.id.equals(lastStatsTrackId);
+        double delta = same ? time - lastStatsTime : 0;
+        long wall = now - lastStatsAt;
+        if (playing && same && delta > 0 && delta <= 3.0 && wall <= 3500) {
+            host.recordListening(track, delta);
+        }
+        lastStatsTrackId = track.id;
+        lastStatsTime = time;
+        lastStatsAt = now;
+    }
+
     private void tick() {
         if (shuttingDown) {
             return;
@@ -603,6 +640,7 @@ public final class PlaybackController {
                 return;
             }
             syncTime();
+            recordListeningDelta();
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("trackId", currentId);
             data.put("time", round(time));

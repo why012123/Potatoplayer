@@ -3,6 +3,7 @@ package com.potatomusic.superapp;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +18,7 @@ public final class BackendSelfTest {
         testLegacyImport();
         testTaxonomyMerge();
         testEqMergeAndPreamp();
+        testListeningStats();
         testBilibiliParsing();
         System.out.println("BackendSelfTest: " + passed + " checks passed.");
     }
@@ -181,6 +183,38 @@ public final class BackendSelfTest {
         reloaded.save(saved);
         EqStore afterDelete = EqStore.load(saved, legacy, music);
         check(!afterDelete.presets.containsKey("Dance改"), "deleting an imported preset is not undone by the legacy merge");
+    }
+
+    private static void testListeningStats() throws Exception {
+        Path file = Files.createTempDirectory("potato-stats-test").resolve("stats.json");
+        Track track = new Track();
+        track.id = "track-1";
+        track.title = "Night Bus";
+        track.artist = "Aimer";
+        StatsStore store = StatsStore.load(file);
+        store.recordPlay(track, LocalDateTime.of(2026, 10, 27, 23, 30));
+        store.recordListening(track, 1.5, LocalDateTime.of(2026, 10, 27, 23, 30));
+        store.recordListening(track, 2.0, LocalDateTime.of(2026, 10, 28, 0, 5));
+        store.recordListening(track, 99.0, LocalDateTime.of(2026, 10, 28, 0, 6));
+        store.save();
+
+        StatsStore reloaded = StatsStore.load(file);
+        Map<String, Object> summary = reloaded.summary();
+        List<Map<String, Object>> days = (List<Map<String, Object>>) summary.get("days");
+        check(days.size() == 2, "listening history keeps one bucket per day");
+        Map<String, Object> first = days.get(0);
+        Map<String, Object> second = days.get(1);
+        check("2026-10-27".equals(first.get("date")), "day keys are ISO dates");
+        check(Math.abs(((Number) first.get("seconds")).doubleValue() - 1.5) < 0.001, "short listening span recorded");
+        check(Math.abs(((Number) second.get("seconds")).doubleValue() - 6.0) < 0.001, "a long gap is capped to one tick");
+        List<Double> hours = (List<Double>) second.get("hours");
+        check(hours.size() == 24, "hourly buckets always contain 24 entries");
+        check(Math.abs(hours.get(0) - 6.0) < 0.001, "midnight bucket is updated");
+        check(((Number) first.get("plays")).intValue() == 1, "play count is stored by day");
+        List<Map<String, Object>> tracks = (List<Map<String, Object>>) summary.get("tracks");
+        check(tracks.size() == 1, "per-track listening stats are stored");
+        check("Night Bus".equals(tracks.get(0).get("title")), "track title survives a reload");
+        check(((Number) tracks.get(0).get("plays")).intValue() == 1, "per-track play count is stored");
     }
 
     private static void testBilibiliParsing() throws Exception {

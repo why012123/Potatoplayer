@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
+import clsx from "clsx";
 import {
   ArrowUpRight,
   FolderOpen,
@@ -10,6 +11,7 @@ import {
   Play,
   RefreshCw,
   Shuffle,
+  SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
 import type { Track } from "@/types";
@@ -23,6 +25,14 @@ import { buildArtists } from "@/lib/collections";
 import { formatLongDuration, greeting, todayLine } from "@/lib/format";
 import { coverUrl } from "@/lib/covers";
 import { useTr } from "@/lib/i18n";
+import { HomeCustomizer } from "@/components/HomeCustomizer";
+import {
+  DEFAULT_HOME,
+  loadHomePreferences,
+  saveHomePreferences,
+  type HomePreferences,
+  type HomeSectionId,
+} from "@/lib/home";
 
 function shuffled<T>(items: T[]): T[] {
   const copy = [...items];
@@ -51,6 +61,8 @@ export function HomePage() {
   const setRightTab = useAppStore((state) => state.setRightTab);
   const rescan = useAppStore((state) => state.rescan);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
+  const [homePreferences, setHomePreferences] = useState<HomePreferences>(loadHomePreferences);
+  const [customizing, setCustomizing] = useState(false);
 
   const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const currentTrack = (playback?.trackId && trackBy.get(playback.trackId)) || (previewTrackId && trackBy.get(previewTrackId)) || null;
@@ -92,6 +104,18 @@ export function HomePage() {
   const featuredFavorite = featured ? favorites.includes(featured.id) : false;
   const allQueue = tracks.map((track) => track.id);
   const scanPct = scanProgress?.total ? Math.round((scanProgress.done / scanProgress.total) * 100) : 0;
+  const hiddenSections = new Set(homePreferences.hidden);
+  const showModule = (id: HomeSectionId) => !hiddenSections.has(id);
+  const moduleOrder = (id: HomeSectionId) => 2 + Math.max(0, homePreferences.order.indexOf(id));
+  const updateHomePreferences = (next: HomePreferences) => {
+    setHomePreferences(next);
+    saveHomePreferences(next);
+  };
+  const resetHomePreferences = () => updateHomePreferences({
+    ...DEFAULT_HOME,
+    hidden: [],
+    order: [...DEFAULT_HOME.order],
+  });
 
   const playAll = () => {
     if (!onRepeat.length) return;
@@ -195,7 +219,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="page page--home">
+    <div className={clsx("page page--home", homePreferences.density === "compact" && "home--compact")}>
       <PageHeader
         eyebrow={todayLine()}
         title={greeting()}
@@ -205,7 +229,16 @@ export function HomePage() {
         )}
         actions={
           <>
-            <button type="button" className="button button--glass" onClick={() => void chooseLibrary()}>
+            <button
+              type="button"
+              className={clsx("button", customizing ? "button--dark" : "button--glass")}
+              onClick={() => setCustomizing((value) => !value)}
+              aria-expanded={customizing}
+            >
+              <SlidersHorizontal size={15} />
+              {tr("Customize", "自定义")}
+            </button>
+            <button type="button" className="button button--glass button--compact" onClick={() => void chooseLibrary()} title={tr("Import music folder", "导入音乐文件夹")} aria-label={tr("Import music folder", "导入音乐文件夹")}>
               <FolderOpen size={15} />
               {tr("Import", "导入")}
             </button>
@@ -217,9 +250,29 @@ export function HomePage() {
         }
       />
 
-      {featured && (
+      {customizing && (
+        <HomeCustomizer
+          preferences={homePreferences}
+          onChange={updateHomePreferences}
+          onClose={() => setCustomizing(false)}
+        />
+      )}
+
+      {!homePreferences.order.some((id) => showModule(id)) && (
+        <div className="home-empty glass" style={{ order: 2 }}>
+          <SlidersHorizontal size={22} />
+          <h2>{tr("A blank front page.", "一张空白的首页。")}</h2>
+          <p>{tr("Every module is hidden. Bring something back whenever you like.", "所有模块都已隐藏。随时把想要的模块放回来。")}</p>
+          <button type="button" className="button button--dark" onClick={resetHomePreferences}>
+            {tr("Restore home", "恢复首页")}
+          </button>
+        </div>
+      )}
+
+      {showModule("hero") && featured && (
         <motion.section
           className="hero"
+          style={{ order: moduleOrder("hero") }}
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
@@ -326,34 +379,36 @@ export function HomePage() {
         </motion.section>
       )}
 
-      <div className="stat-strip glass">
-        <div>
-          <span>{tr("Songs", "歌曲")}</span>
-          <strong>{tracks.length}</strong>
+      {showModule("overview") && (
+        <div className="stat-strip glass" style={{ order: moduleOrder("overview") }}>
+          <div>
+            <span>{tr("Songs", "歌曲")}</span>
+            <strong>{tracks.length}</strong>
+          </div>
+          <i />
+          <div>
+            <span>{tr("Library length", "资料库时长")}</span>
+            <strong>{formatLongDuration(totalDuration)}</strong>
+          </div>
+          <i />
+          <div>
+            <span>{tr("Artists", "艺术家")}</span>
+            <strong>{new Set(tracks.map((track) => track.artist)).size}</strong>
+          </div>
+          <i />
+          <div>
+            <span>{tr("Favorites", "收藏")}</span>
+            <strong>{favorites.length}</strong>
+          </div>
+          <div className="stat-strip__spark">
+            <Sparkles size={15} />
+            {tr("Local only", "仅限本地")}
+          </div>
         </div>
-        <i />
-        <div>
-          <span>{tr("Listening time", "聆听时长")}</span>
-          <strong>{formatLongDuration(totalDuration)}</strong>
-        </div>
-        <i />
-        <div>
-          <span>{tr("Artists", "艺术家")}</span>
-          <strong>{new Set(tracks.map((track) => track.artist)).size}</strong>
-        </div>
-        <i />
-        <div>
-          <span>{tr("Favorites", "收藏")}</span>
-          <strong>{favorites.length}</strong>
-        </div>
-        <div className="stat-strip__spark">
-          <Sparkles size={15} />
-          {tr("Local only", "仅限本地")}
-        </div>
-      </div>
+      )}
 
-      {(blockCounts.length > 0 || genreCounts.length > 0) && (
-        <section>
+      {showModule("taxonomy") && (blockCounts.length > 0 || genreCounts.length > 0) && (
+        <section style={{ order: moduleOrder("taxonomy") }}>
           <SectionHeader
             title={tr("Your system", "你的分类体系")}
             meta={tr("Blocks shelve it. Genres describe it.", "区块负责收纳，流派负责描述。")}
@@ -402,34 +457,36 @@ export function HomePage() {
         </section>
       )}
 
-      <section>
-        <SectionHeader
-          title={tr("Recently added", "最近添加")}
-          meta={
-            recent.length === 1
-              ? tr("1 fresh record", "1 首新近收录")
-              : tr("{count} fresh records", "{count} 首新近收录", { count: recent.length })
-          }
-          action={
-            <button type="button" className="text-button" onClick={() => navigate({ kind: "albums" })}>
-              {tr("Browse albums", "浏览专辑")} <ArrowUpRight size={13} />
-            </button>
-          }
-        />
-        <div className="card-row">
-          {recent.map((track: Track, index) => (
-            <TrackCard
-              key={track.id}
-              track={track}
-              index={index}
-              onPlay={() => void playTrack(track, recent.map((item) => item.id))}
-            />
-          ))}
-        </div>
-      </section>
+      {showModule("recent") && (
+        <section style={{ order: moduleOrder("recent") }}>
+          <SectionHeader
+            title={tr("Recently added", "最近添加")}
+            meta={
+              recent.length === 1
+                ? tr("1 fresh record", "1 首新近收录")
+                : tr("{count} fresh records", "{count} 首新近收录", { count: recent.length })
+            }
+            action={
+              <button type="button" className="text-button" onClick={() => navigate({ kind: "albums" })}>
+                {tr("Browse albums", "浏览专辑")} <ArrowUpRight size={13} />
+              </button>
+            }
+          />
+          <div className="card-row">
+            {recent.map((track: Track, index) => (
+              <TrackCard
+                key={track.id}
+                track={track}
+                index={index}
+                onPlay={() => void playTrack(track, recent.map((item) => item.id))}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {onRepeat.length > 0 && (
-        <section>
+      {showModule("onRepeat") && onRepeat.length > 0 && (
+        <section style={{ order: moduleOrder("onRepeat") }}>
           <SectionHeader
             title={tr("On repeat", "反复聆听")}
             meta={tr("The ones you keep coming back to", "那些你总想再听一遍的歌")}
@@ -450,8 +507,8 @@ export function HomePage() {
         </section>
       )}
 
-      {artists.length > 0 && (
-        <section>
+      {showModule("artists") && artists.length > 0 && (
+        <section style={{ order: moduleOrder("artists") }}>
           <SectionHeader
             title={tr("Artists in your orbit", "你常听的艺术家")}
             meta={tr("Based on what is in your library", "根据你资料库中的内容")}
@@ -476,7 +533,7 @@ export function HomePage() {
       )}
 
       {scanning && (
-        <div className="scan-toast">
+        <div className="scan-toast" style={{ order: 99 }}>
           <LoaderCircle size={14} className="is-spinning" />
           {tr("Indexing more music · {pct}%", "正在索引更多音乐 · {pct}%", { pct: scanPct })}
         </div>

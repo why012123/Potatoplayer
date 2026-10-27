@@ -26,6 +26,7 @@ import { SongEditorPage } from "@/pages/SongEditorPage";
 import { CollectionsPage } from "@/pages/CollectionsPage";
 import { TagPage } from "@/pages/TagPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
+import { StatsPage } from "@/pages/StatsPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 import { DownloadTasks } from "@/components/DownloadTasks";
@@ -246,7 +247,7 @@ export default function App() {
         }
         return;
       }
-      if (command && /^[1-7]$/.test(event.key)) {
+      if (command && /^[1-8]$/.test(event.key)) {
         event.preventDefault();
         const views = [
           { kind: "home" as const },
@@ -255,6 +256,7 @@ export default function App() {
           { kind: "artists" as const },
           { kind: "collections" as const },
           { kind: "favorites" as const },
+          { kind: "stats" as const },
           { kind: "discover" as const },
         ];
         state.navigate(views[Number(event.key) - 1]);
@@ -283,6 +285,8 @@ export default function App() {
         return <ArtistsPage />;
       case "favorites":
         return <FavoritesPage />;
+      case "stats":
+        return <StatsPage />;
       case "editor":
         return <SongEditorPage />;
       case "collections":

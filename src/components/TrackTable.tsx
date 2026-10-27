@@ -51,7 +51,15 @@ export function TrackTable({
         <span>{tr("Title", "标题")}</span>
         <span>{tr("Block", "区块")}</span>
         <span>{tr("Genre", "流派")}</span>
-        {showPlays && <span>{tr("Plays", "播放次数")}</span>}
+        {(showPlays || showRating) && (
+          <span className="track-table__metric-head">
+            {showPlays && showRating
+              ? tr("Plays · Rating", "次数 · 评分")
+              : showPlays
+                ? tr("Plays", "播放次数")
+                : tr("Rating", "评分")}
+          </span>
+        )}
         <span className="align-right">{tr("Time", "时长")}</span>
         <span />
         <span />

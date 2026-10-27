@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -19,12 +20,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s1.1.0";
+    public static final String VERSION = "s1.2.0";
 
     private final Object lock = new Object();
     private final DataStore store;
     private final Settings settings;
     private final EqStore eqStore;
+    private final StatsStore statsStore;
     private final LibraryState state;
     private final Map<String, Track> trackIndex = new HashMap<>();
     private final NeteaseBindings neteaseBindings;
@@ -57,6 +59,7 @@ public final class Backend implements PlaybackController.Host {
         Path legacyEq = musicRoot == null || musicRoot.getParent() == null
                 ? null : musicRoot.getParent().resolve("eq.json");
         this.eqStore = EqStore.load(store.eqFile(), legacyEq, musicRoot);
+        this.statsStore = StatsStore.load(store.statsFile());
         try {
             eqStore.save(store.eqFile());
         } catch (Exception e) {
@@ -963,9 +966,15 @@ public final class Backend implements PlaybackController.Host {
         synchronized (lock) {
             track.playCount++;
             count = track.playCount;
+            statsStore.recordPlay(track, LocalDateTime.now());
         }
         scheduleSave();
         emitter.accept("track.played", Map.of("trackId", track.id, "playCount", count));
+    }
+
+    @Override
+    public void recordListening(Track track, double seconds) {
+        statsStore.recordListening(track, seconds, LocalDateTime.now());
     }
 
     @Override
@@ -1015,6 +1024,7 @@ public final class Backend implements PlaybackController.Host {
             try {
                 store.saveSettings(settings);
                 store.saveLibrary(state);
+                statsStore.save();
             } catch (IOException e) {
                 System.err.println("[store] save failed: " + e.getMessage());
             }
@@ -1092,6 +1102,7 @@ public final class Backend implements PlaybackController.Host {
         JsonNode p = params == null ? Json.MAPPER.createObjectNode() : params;
         return switch (method) {
             case "bootstrap" -> bootstrap();
+            case "stats.get" -> statsStore.summary();
             case "library.scan" -> startScan();
             case "library.setRoot" -> setLibraryRoot(text(p, "path", ""));
             case "library.toggleFavorite" -> toggleFavorite(text(p, "trackId", ""));

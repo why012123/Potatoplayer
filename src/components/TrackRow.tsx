@@ -113,12 +113,15 @@ export function TrackRow({
           <span className="tag-empty">—</span>
         )}
       </div>
-      {showPlays && (
-        <div className="track-row__plays">
-          {track.playCount
-            ? tr("{count} plays", "{count} 次播放", { count: track.playCount })
-            : "—"}
-          {showRating && track.rating > 0 && <em>★ {track.rating.toFixed(1)}</em>}
+      {(showPlays || showRating) && (
+        <div className={clsx("track-row__plays", showRating && !showPlays && "is-rating")}>
+          {showPlays && (
+            <span>
+              <strong>{track.playCount || 0}</strong>
+              <i>{tr("plays", "次")}</i>
+            </span>
+          )}
+          {showRating && (track.rating > 0 ? <em>★ {track.rating.toFixed(1)}</em> : <em className="is-empty">—</em>)}
         </div>
       )}
       <div className="track-row__time">{formatTime(track.duration)}</div>

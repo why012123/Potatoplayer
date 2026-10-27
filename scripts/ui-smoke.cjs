@@ -142,10 +142,22 @@ function delay(ms) {
   assert.equal(await frameToggle.getAttribute("aria-checked"), "true", "lyrics frame should start enabled");
   await frameToggle.click();
   await page.waitForSelector(".immerse--no-lyrics-frame");
-  const frameBackground = await page
+  await page.waitForTimeout(350);
+  const frameSurface = await page
     .locator(".immerse__lyrics-side")
-    .evaluate((element) => getComputedStyle(element).backgroundColor);
-  assert.equal(frameBackground, "rgba(0, 0, 0, 0)", "lyrics frame toggle should remove the panel surface");
+    .evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        background: style.backgroundColor,
+        border: style.borderTopWidth,
+        shadow: style.boxShadow,
+        radius: style.borderRadius,
+      };
+    });
+  assert.equal(frameSurface.background, "rgba(0, 0, 0, 0)", "lyrics frame toggle should remove the panel surface");
+  assert.equal(frameSurface.border, "0px", "frameless lyrics must not leave a border");
+  assert.equal(frameSurface.shadow, "none", "frameless lyrics must not leave a shadow");
+  assert.equal(frameSurface.radius, "0px", "frameless lyrics must not leave a rounded card");
   await frameToggle.click();
   await page.waitForSelector(".immerse--no-lyrics-frame", { state: "detached" });
   await page.getByRole("button", { name: "Close customizer" }).click();
@@ -218,7 +230,15 @@ function delay(ms) {
   await page.waitForSelector(".page--albums .collection-card");
   const collections = await page.locator(".collection-card").count();
   assert.ok(collections > 0, "album collections should exist");
-  console.log(`[ui] album grid: ${collections} collections`);
+  await page.locator(".collection-card").first().click();
+  await page.waitForSelector(".page--detail");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.waitForSelector(".detail-more__menu");
+  assert.ok(await page.locator(".detail-more__menu").isVisible(), "collection secondary actions should open in a menu");
+  await page.keyboard.press("Escape");
+  await page.locator(".back-link").click();
+  await page.waitForSelector(".page--albums");
+  console.log(`[ui] album grid: ${collections} collections, action menu opened`);
 
   await page.getByRole("button", { name: "Songs", exact: true }).click();
   await page.waitForSelector(".page--songs");
@@ -354,8 +374,90 @@ function delay(ms) {
   await page.waitForSelector(".page--home .hero");
   await page.screenshot({ path: path.join(root, "dist", "test-ui-home.png") });
 
+  // Songs sorting must reveal the metric it is sorting by.
+  await page.getByRole("button", { name: "Songs", exact: true }).click();
+  await page.waitForSelector(".page--songs");
+  await page.locator(".sort-control select").selectOption("rating");
+  await page.waitForTimeout(500);
+  const ratingHeader = await page.locator(".track-table__head").innerText();
+  assert.equal(await page.locator(".sort-control select").inputValue(), "rating", "sort select should hold rating");
+  console.log(`[ui] rating header: ${ratingHeader.replace(/\n/g, " | ")} lang=${await page.evaluate(() => document.documentElement.lang)}`);
+  assert.ok(ratingHeader.toLowerCase().includes("rating"), "rating sort should show its column");
+  assert.ok((await page.locator(".page--songs .track-row__plays").first().innerText()).includes("★"), "rating sort should show stars");
+  await page.locator(".sort-control select").selectOption("plays");
+  await page.waitForTimeout(300);
+  assert.ok((await page.locator(".track-table__head").innerText()).toLowerCase().includes("plays"), "plays sort should show its column");
+  assert.ok((await page.locator(".page--songs .track-row__plays").first().innerText()).includes("plays"), "plays sort should show counts");
+  console.log("[ui] contextual sort metrics rendered for rating and plays");
+
+  // Listening stats page and its backend data. Resume briefly so the stats
+  // ticker observes real elapsed playback, not just a play counter.
+  const statsPlayState = await page.evaluate(async () => await window.potato.invoke("playback.state"));
+  if (!statsPlayState.playing) await page.evaluate(async () => await window.potato.invoke("playback.toggle"));
+  await page.waitForTimeout(1600);
+  if (!statsPlayState.playing) await page.evaluate(async () => await window.potato.invoke("playback.toggle"));
+  const statsData = await page.evaluate(async () => await window.potato.invoke("stats.get"));
+  assert.ok(Array.isArray(statsData.days), "stats response should include day buckets");
+  assert.ok(statsData.days.length >= 1, "playing a track should create a stats day");
+  assert.ok(statsData.tracks.length >= 1, "playing a track should create a track stat");
+  assert.ok(statsData.totalSeconds > 0, "the playback ticker should record listening time");
+  await page.getByRole("button", { name: "Stats", exact: true }).click();
+  await page.waitForSelector(".page--stats");
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator(".stats-card").count(), 4, "stats page should render four summary cards");
+  assert.ok((await page.locator(".stats-heatmap__cell").count()) > 300, "the annual heatmap should render");
+  console.log(`[ui] stats page: ${statsData.days.length} day(s), ${statsData.tracks.length} track(s), ${statsData.totalSeconds}s`);
+
+  // Home customization persists visibility and supports reset.
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.waitForSelector(".page--home .hero");
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page.waitForSelector(".home-customizer");
+  const recentRow = page.locator(".home-customizer__row").filter({ hasText: "Recently added" });
+  await recentRow.getByRole("button", { name: "Hide Recently added" }).click();
+  await page.waitForTimeout(150);
+  const storedHome = await page.evaluate(() => localStorage.getItem("potato:home:v1"));
+  assert.ok(storedHome && storedHome.includes("recent"), "home visibility should persist locally");
+  await page.locator(".home-customizer__close").click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator(".section-header").filter({ hasText: "Recently added" }).count(), 0, "hidden home module should disappear");
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page.getByRole("button", { name: "Reset home", exact: true }).click();
+  await page.locator(".home-customizer__close").click();
+  await page.waitForTimeout(250);
+  assert.ok((await page.locator(".section-header").filter({ hasText: "Recently added" }).count()) >= 1, "reset should restore home modules");
+  console.log("[ui] home modules hide and reset through the customizer");
+
   await page.getByRole("button", { name: "Switch to dark theme" }).click();
   await page.waitForTimeout(500);
+  const lyricInk = await page.locator(".lyric-line").nth(2).evaluate((element) => getComputedStyle(element).color);
+  assert.match(lyricInk, /244, 237, 230/, "dark-mode lyrics should use a light ink");
+  console.log(`[ui] dark lyric ink ${lyricInk}`);
+
+  // The EQ preset picker and save menu are the dark-mode contrast regression
+  // reported alongside the lyrics. Verify the computed ink, not just a class.
+  await page.getByRole("button", { name: "Equalizer" }).click();
+  await page.waitForSelector(".eq-dialog");
+  const eqContrast = await page.locator(".eq-preset select").evaluate((select) => ({
+    color: getComputedStyle(select).color,
+    option: getComputedStyle(select.options[0]).color,
+    background: getComputedStyle(select).backgroundColor,
+  }));
+  const rgb = (value) => (value.match(/\d+/g) || []).slice(0, 3).map(Number);
+  const [r, g, b] = rgb(eqContrast.color);
+  assert.ok(r > 160 && g > 150 && b > 140, `EQ select ink should be light in dark mode, got ${eqContrast.color}`);
+  assert.ok(eqContrast.background !== "rgba(0, 0, 0, 0)", "EQ select should have an explicit dark surface");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".eq-save-menu");
+  const saveMenu = await page.locator(".eq-save-menu").evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    color: getComputedStyle(element.querySelector("button")).color,
+  }));
+  assert.ok(saveMenu.background !== "rgba(0, 0, 0, 0)", "EQ save menu should have an explicit surface");
+  const [sr, sg, sb] = rgb(saveMenu.color);
+  assert.ok(sr > 130 && sg > 120 && sb > 110, `EQ save menu ink should be legible, got ${saveMenu.color}`);
+  await page.getByRole("button", { name: "Close equalizer" }).click();
+  console.log(`[ui] dark EQ contrast ${eqContrast.color} / menu ${saveMenu.color}`);
   let appearance = await page.evaluate(() => ({
     attr: document.documentElement.dataset.theme,
     stored: localStorage.getItem("potato:theme"),

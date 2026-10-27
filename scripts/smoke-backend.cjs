@@ -85,6 +85,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   } else {
     console.log("[smoke] VLC equalizer unavailable; continuing without EQ");
   }
+  if (process.env.POTATO_SMOKE_SILENT) {
+    // Full backend validation without waking the room: keep the output at zero
+    // until the volume response has been asserted.
+    await request("playback.volume", { volume: 0 });
+    await request("playback.mute", { muted: true });
+  }
   console.log(`[smoke] playing: ${track.artist} — ${track.title}`);
   await request("playback.play", {
     trackId: track.id,
@@ -111,6 +117,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   await request("playback.volume", { volume: 0.4 });
   const volume = await request("playback.state");
   if (Math.abs(volume.volume - 0.4) > 0.01) throw new Error("volume did not update");
+  if (process.env.POTATO_SMOKE_SILENT) await request("playback.mute", { muted: true });
   await request("playback.seek", { seconds: 5 });
   await request("playback.toggle");
   await sleep(300);
