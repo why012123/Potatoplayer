@@ -1,0 +1,5 @@
+mutagen
+python-vlc
+Pillow
+pycryptodome
+PySide6

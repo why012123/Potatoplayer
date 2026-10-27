@@ -1,0 +1,10 @@
+# Runtime data and local-only content
+__pycache__/
+*.py[cod]
+.DS_Store
+.vscode/
+logs/
+sample/
+source/
+*.docx
+*.log
