@@ -22,7 +22,15 @@ type Props = {
   onClassic: () => void;
   onExit: () => void;
   onCustomize: () => void;
-  effects: { particles: boolean; camera: boolean; intensity: number };
+  effects: {
+    particles: boolean;
+    camera: boolean;
+    formations?: boolean;
+    wordGlow?: boolean;
+    audioReact?: boolean;
+    intensity: number;
+  };
+  audioBars?: number[];
 };
 
 type HostMessage = {
@@ -47,6 +55,7 @@ export function Lyric3DStage({
   onExit,
   onCustomize,
   effects,
+  audioBars = [],
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -82,6 +91,11 @@ export function Lyric3DStage({
   }, [loaded]);
 
   useEffect(() => {
+    if (!loaded && !booted) return;
+    send({ type: "lyric3d:audio", bars: audioBars.slice(0, 48) });
+  }, [audioBars, loaded, booted]);
+
+  useEffect(() => {
     if ((!loaded && !booted) || !hasLyrics) return;
     send({
       type: "lyric3d:init",
@@ -105,7 +119,7 @@ export function Lyric3DStage({
   useEffect(() => {
     if (!loaded && !booted) return;
     send({ type: "lyric3d:fx", ...effects });
-  }, [loaded, booted, effects.particles, effects.camera, effects.intensity]);
+  }, [loaded, booted, effects.particles, effects.camera, effects.formations, effects.wordGlow, effects.audioReact, effects.intensity]);
 
   useEffect(() => {
     if ((!loaded && !booted) || !hasLyrics) return;

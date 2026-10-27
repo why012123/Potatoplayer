@@ -212,8 +212,12 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
           effects={{
             particles: prefs.stageParticles,
             camera: prefs.stageCamera,
+            formations: prefs.stageFormations,
+            wordGlow: prefs.stageWordGlow,
+            audioReact: prefs.stageAudioReact,
             intensity: prefs.stageIntensity,
           }}
+          audioBars={vizBars}
         />
         {showSpectrum && (
           <div className="lyric3d-spectrum-wrap" aria-hidden="true">

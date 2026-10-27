@@ -186,7 +186,10 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose, spectrumAvailabl
           <div className="custom-section-title">{tr("3D stage", "3D 舞台")}</div>
           <div className="custom-toggles">
             <Toggle label={tr("Particles", "粒子")} value={prefs.stageParticles} onChange={(value) => onChange({ stageParticles: value })} />
-            <Toggle label={tr("Camera drift", "镜头漂移")} value={prefs.stageCamera} onChange={(value) => onChange({ stageCamera: value })} />
+            <Toggle label={tr("Camera shots", "镜头调度")} value={prefs.stageCamera} onChange={(value) => onChange({ stageCamera: value })} />
+            <Toggle label={tr("Stage formations", "舞台阵列")} value={prefs.stageFormations} onChange={(value) => onChange({ stageFormations: value })} />
+            <Toggle label={tr("Word glow", "逐字辉光")} value={prefs.stageWordGlow} onChange={(value) => onChange({ stageWordGlow: value })} />
+            <Toggle label={tr("Audio reactive", "音频响应")} value={prefs.stageAudioReact} onChange={(value) => onChange({ stageAudioReact: value })} />
           </div>
           <Range label={tr("Intensity", "强度")} value={prefs.stageIntensity} min={0.4} max={1.6} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ stageIntensity: value })} />
           <p className="custom-note">{tr("Particles, camera motion and intensity apply to the 3D performance.", "粒子、镜头运动与强度仅作用于 3D 演出。")}</p>

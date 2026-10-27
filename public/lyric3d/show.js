@@ -206,7 +206,7 @@ const state = {
   glitch: 0,
   kick: 0,
   intensity: 1,
-  fx: { bloom: true, particles: true, camera: true },
+  fx: { bloom: true, particles: true, camera: true, formations: true, wordGlow: true, audio: true },
   audioCtx: null,
   analyser: null,
   freq: null,
@@ -220,6 +220,13 @@ const state = {
   lastFrame: performance.now(),
   pointerX: 0,
   pointerY: 0,
+  remoteBars: null,
+  bass: 0.2,
+  mid: 0.16,
+  high: 0.1,
+  bassBase: 0.12,
+  lastBeatAt: 0,
+  lastShots: [],
 };
 
 const themeCurrent = {
@@ -271,6 +278,7 @@ let currentLine = -1;
 let currentChapter = -1;
 let activeFx = "bloom";
 let camBase = new THREE.Vector3(0, 0, 8.4);
+const cameraRig = { x: 0, y: 0, z: 9.15, tx: 0, ty: 0.08, tz: 0.7, roll: 0, ready: false };
 let clockTime = 0;
 const startWall = performance.now();
 let raf = 0;
@@ -526,7 +534,7 @@ function buildPapers() {
     plane.position.set(
       (Math.random() - 0.5) * 26,
       (Math.random() - 0.5) * 13,
-      -24 + Math.random() * 30,
+      -24 + Math.random() * 20,
     );
     plane.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
     plane.userData = {
@@ -741,10 +749,10 @@ const POST_FRAGMENT = `
     color += flicker;
 
     float grain = hash(uv * uResolution + uTime * 9.0) - 0.5;
-    color += grain * (0.035 + uEnergy * 0.018);
+    color += grain * (0.012 + uEnergy * 0.007);
 
     float scan = step(0.5, sin(uv.y * uResolution.y * 0.72 + uTime * 1.5));
-    color *= 1.0 - scan * 0.012;
+    color *= 1.0 - scan * 0.004;
 
     float vignette = smoothstep(0.9, 0.28, length(center * vec2(1.0, 0.84)));
     color *= 0.55 + vignette * 0.55;
@@ -757,7 +765,7 @@ function buildComposer() {
   composer = new EffectComposer(renderer);
   composer.setSize(window.innerWidth, window.innerHeight);
   composer.addPass(new RenderPass(scene, camera));
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.65, 0.18);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.7, 0.34);
   composer.addPass(bloomPass);
   finalPass = new ShaderPass(
     new THREE.ShaderMaterial({
@@ -812,9 +820,16 @@ function initThree() {
   buildRing();
   buildRays();
   setTheme("sky");
+  buildComposer();
 }
 
 function disposeLineGroup(group) {
+  if (group.userData?.entries) {
+    for (const entry of group.userData.entries) {
+      entry.outlineTexture?.dispose?.();
+      entry.fillTexture?.dispose?.();
+    }
+  }
   group.traverse((obj) => {
     if (obj.isMesh || obj.isLineSegments) {
       obj.geometry?.dispose?.();
@@ -855,7 +870,29 @@ glowCanvas.height = 512;
 const lineGlowTexture = new THREE.CanvasTexture(glowCanvas);
 lineGlowTexture.colorSpace = THREE.SRGBColorSpace;
 
-function makeCharTexture(char, hot) {
+function makeDotTexture() {
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext("2d");
+  g.clearRect(0, 0, 64, 64);
+  g.fillStyle = "rgba(255,255,255,0.9)";
+  for (let y = 5; y < 64; y += 10) {
+    for (let x = 5; x < 64; x += 10) {
+      g.beginPath();
+      g.arc(x, y, 1.4, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+const formationDot = makeDotTexture();
+
+function makeCharTexture(char, hot, outline = false) {
   const c = document.createElement("canvas");
   const ctx = c.getContext("2d");
   const font = '800 200px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif';
@@ -872,6 +909,23 @@ function makeCharTexture(char, hot) {
 
   const accent = "#" + new THREE.Color(themeTarget.accent).getHexString();
   const accent2 = "#" + new THREE.Color(themeTarget.accent2).getHexString();
+  if (outline) {
+    g.shadowColor = accent2;
+    g.shadowBlur = 10;
+    g.strokeStyle = "rgba(241, 238, 228, 0.42)";
+    g.lineWidth = 6;
+    g.strokeText(char, width / 2, height / 2 + 9);
+    g.shadowBlur = 0;
+    g.strokeStyle = "rgba(250, 247, 240, 0.9)";
+    g.lineWidth = 2.2;
+    g.strokeText(char, width / 2, height / 2 + 9);
+    const outlineTexture = new THREE.CanvasTexture(c);
+    outlineTexture.colorSpace = THREE.SRGBColorSpace;
+    outlineTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    outlineTexture.minFilter = THREE.LinearFilter;
+    outlineTexture.generateMipmaps = true;
+    return { texture: outlineTexture, width, height };
+  }
   const grad = g.createLinearGradient(0, 20, 0, height - 20);
   if (hot) {
     grad.addColorStop(0, "#f1ede3");
@@ -903,10 +957,235 @@ function makeCharTexture(char, hot) {
   return { texture, width, height };
 }
 
+
+// ── Folia-inspired timing and staging ──────────────────────────────────────
+// Folia's Diorama treats each line as a timed 3D set-piece: grapheme-level
+// karaoke, a deliberate camera move, off-centre text and a formation grown
+// around it. These helpers adapt that grammar to Potatoplayer's LRC-only data.
+const CJK_CHAR = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/u;
+const WORD_CHAR = /[A-Za-z0-9'’\-]/;
+const WHITE = new THREE.Color(0xffffff);
+
+function seededUnit(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function hashSeed(value) {
+  const str = String(value ?? "");
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) hash = (hash * 31 + str.charCodeAt(i)) % 100000;
+  return hash || 1;
+}
+
+function finalizeLineTimings(lines, fallbackDuration) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const next = lines[i + 1];
+    const raw = next ? next.time - line.time : (fallbackDuration ? fallbackDuration - line.time : 6);
+    line.end = line.time + clamp(raw, 0.8, 9);
+  }
+}
+
+/**
+ * Builds grapheme/word timings from only an LRC line timestamp. CJK glyphs
+ * reveal one by one, Latin words reveal as words, and punctuation buys a
+ * small breath. This is not a substitute for TTML word timing, but it gives
+ * every local LRC file the same follow-the-voice vocabulary.
+ */
+function buildKaraokePlan(text, start, end) {
+  const chars = Array.from(text);
+  const revealAt = new Array(chars.length).fill(start);
+  const endAt = new Array(chars.length).fill(end);
+  const groups = [];
+  let i = 0;
+  while (i < chars.length) {
+    if (SPACE_CHARS.has(chars[i])) { i += 1; continue; }
+    let j = i + 1;
+    if (CJK_CHAR.test(chars[i])) {
+      // one CJK grapheme per unit
+    } else if (WORD_CHAR.test(chars[i])) {
+      while (j < chars.length && WORD_CHAR.test(chars[j])) j += 1;
+    }
+    const textUnit = chars.slice(i, j).join("");
+    let weight = 0;
+    for (const ch of textUnit) {
+      if (CJK_CHAR.test(ch)) weight += 1;
+      else if (WORD_CHAR.test(ch)) weight += 0.42;
+      else weight += 0.88;
+    }
+    groups.push({
+      from: i,
+      to: j,
+      weight: Math.max(0.42, weight),
+      pause: /[、，。！？!?…,.]$/.test(textUnit) ? 0.7 : 0,
+    });
+    i = j;
+  }
+  if (!groups.length) return { revealAt, endAt };
+  const span = Math.max(0.35, end - start);
+  const total = groups.reduce((sum, group) => sum + group.weight + group.pause, 0) || 1;
+  let cursor = 0;
+  for (const group of groups) {
+    const unitStart = start + (cursor / total) * span;
+    const unitEnd = start + ((cursor + group.weight) / total) * span;
+    for (let k = group.from; k < group.to; k += 1) {
+      revealAt[k] = unitStart;
+      endAt[k] = unitEnd;
+    }
+    cursor += group.weight + group.pause;
+  }
+  return { revealAt, endAt };
+}
+
+function linePlacement(index, line, shot) {
+  const seed = hashSeed(`${index}:${line.text}:${shot}`);
+  return {
+    x: (seededUnit(seed + 1) - 0.5) * 0.9,
+    y: (seededUnit(seed + 2) - 0.5) * 0.42,
+    z: (seededUnit(seed + 3) - 0.5) * 0.6,
+    roll: (seededUnit(seed + 4) - 0.5) * 0.055,
+    yaw: (seededUnit(seed + 5) - 0.5) * 0.035,
+    dir: seededUnit(seed + 6) < 0.5 ? -1 : 1,
+  };
+}
+
+const SHOT_KINDS = ["pushIn", "pullBack", "orbit", "track", "crane", "hold", "swell", "spiral", "pendulum", "flyby", "arc", "float", "glide"];
+
+function pickShot(index, line) {
+  const seed = hashSeed(`${index}:${line.text}:shot`);
+  const short = line.text.length <= 6;
+  const long = line.text.length >= 20;
+  const weights = {
+    pushIn: 1 + (short ? 1.5 : 0), pullBack: 1 + (long ? 0.4 : 0), orbit: 1 + (short ? 0.8 : 0),
+    track: 0.75 + (long ? 1.2 : 0), crane: 1, hold: 0.7 + (short ? 0.6 : 0),
+    swell: 0.85, spiral: 0.85 + (index % 5 === 0 ? 0.8 : 0), pendulum: 0.85,
+    flyby: 0.7 + (index % 7 === 0 ? 0.9 : 0), arc: 0.9, float: 0.8, glide: 0.8,
+  };
+  const total = SHOT_KINDS.reduce((sum, kind) => sum + (weights[kind] || 0), 0);
+  let choice = "hold";
+  let roll = seededUnit(seed) * total;
+  for (const kind of SHOT_KINDS) {
+    roll -= weights[kind] || 0;
+    if (roll <= 0) { choice = kind; break; }
+  }
+  const previous = state.lastShots;
+  if (previous.includes(choice)) {
+    const pool = SHOT_KINDS.filter((kind) => !previous.includes(kind));
+    if (pool.length) choice = pool[Math.floor(seededUnit(seed + 11) * pool.length) % pool.length];
+  }
+  state.lastShots = [choice, ...previous].slice(0, 2);
+  return choice;
+}
+
+function addFormationPart(parent, items, geometry, color, x, y, z, opacity, scale = 1) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    map: formationDot,
+    alphaTest: 0.04,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.scale.setScalar(scale);
+  parent.add(mesh);
+  items.push({ mesh, baseOpacity: opacity, baseScale: scale, phase: Math.random() * Math.PI * 2 });
+  return mesh;
+}
+
+/** A sparse, shot-matched architectural set around the words (Folia's formation grammar). */
+function createFormation(index, line, shot, stage) {
+  const group = new THREE.Group();
+  const items = [];
+  const seed = hashSeed(`${index}:${line.text}:formation`);
+  const rnd = (slot) => seededUnit(seed + slot);
+  const addBox = (x, y, z, w, h, d, opacity) =>
+    addFormationPart(group, items, new THREE.BoxGeometry(w, h, d), themeTarget.accent3, x, y, z, opacity);
+  const addOrb = (x, y, z, size, opacity) =>
+    addFormationPart(group, items, new THREE.SphereGeometry(size, 12, 8), themeTarget.accent2, x, y, z, opacity);
+  const addGate = (side) => {
+    addBox(side * (3.6 + rnd(side + 1) * 0.5), -0.2, -1.2, 0.07, 3.8 + rnd(side + 2) * 0.7, 0.07, 0.2);
+    addBox(side * (4.8 + rnd(side + 3) * 0.4), 0.2, -4.4, 0.055, 2.8, 0.055, 0.12);
+  };
+  switch (shot) {
+    case "pushIn":
+      addGate(-1); addGate(1);
+      break;
+    case "track":
+      for (const side of [-1, 1]) for (let j = 0; j < 3; j += 1) {
+        addBox(side * (3.5 + rnd(side * 9 + j) * 0.6), -0.5 + j * 0.25, -0.8 - j * 1.6, 0.06, 2.3 - j * 0.25, 0.06, 0.15 - j * 0.03);
+      }
+      break;
+    case "crane":
+      for (let j = 0; j < 5; j += 1) {
+        const a = Math.PI * (0.12 + 0.76 * (j / 4));
+        addBox(Math.cos(a) * (3.2 + rnd(j) * 0.7), 2.0 + Math.sin(a) * 2.4, -1.2 - j * 0.35, 0.07, 1.2, 0.07, 0.16);
+      }
+      break;
+    case "spiral":
+      for (let j = 0; j < 7; j += 1) {
+        const a = (j / 6) * Math.PI * 2.2;
+        addOrb(Math.cos(a) * (3.9 + rnd(j) * 0.4), -2.0 + (j / 6) * 4.8, -1.0 - (j / 6) * 1.8, 0.12 + rnd(j + 9) * 0.08, 0.24);
+      }
+      break;
+    case "pendulum":
+      for (let j = 0; j < 4; j += 1) addBox(-3.2 + j * 2.1, 2.6 + rnd(j) * 0.6, -1.4 - j * 0.25, 0.05, 2.5 + rnd(j + 4) * 0.7, 0.05, 0.15);
+      break;
+    case "flyby":
+      for (const side of [-1, 1]) for (let j = 0; j < 3; j += 1) {
+        addBox(side * (3.8 + rnd(j) * 0.4), -0.7 + j * 0.55, -1.0 - j * 1.2, 0.055, 2.0, 0.055, 0.14);
+      }
+      break;
+    case "pullBack":
+      addOrb(-4.3, 1.0, -5.8, 0.36, 0.2); addOrb(4.3, 1.0, -5.8, 0.36, 0.2);
+      addGate(-1); addGate(1);
+      break;
+    case "orbit":
+      for (let j = 0; j < 6; j += 1) {
+        const a = (j / 6) * Math.PI * 2;
+        addOrb(Math.cos(a) * 4.3, Math.sin(a) * 2.3, -1.4 - rnd(j) * 1.2, 0.1 + rnd(j + 4) * 0.06, 0.25);
+      }
+      break;
+    case "hold":
+      addOrb(-3.8, -0.8, -3.2, 0.16, 0.14); addOrb(3.8, -0.8, -3.2, 0.16, 0.14);
+      break;
+    default:
+      addOrb(-3.8, 0.8, -2.8, 0.13, 0.16); addOrb(3.8, -0.6, -3.4, 0.1, 0.13);
+      break;
+  }
+  group.position.set(stage.x * 0.45, stage.y * 0.35, 0);
+  group.userData.items = items;
+  return { group, items };
+}
+
+function createShockwave() {
+  const material = new THREE.MeshBasicMaterial({
+    color: themeTarget.accent2,
+    transparent: true,
+    opacity: 0,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const mesh = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.78, 64), material);
+  mesh.position.z = -0.7;
+  return mesh;
+}
+
 function createLineGroup(line, index) {
   const profile = fxProfiles[line.fx] || fxProfiles.bloom;
   const chars = Array.from(line.text);
   const hot = hotIndexSet(line.text, line.fx);
+  const lineEnd = Number(line.end) || (D.lines[index + 1]?.time ?? line.time + 5.4);
+  const karaoke = buildKaraokePlan(line.text, line.time, lineEnd);
+  const shot = pickShot(index, line);
+  const stage = linePlacement(index, line, shot);
   let height = 1.08;
   if (chars.length > 10) height = 0.94;
   if (chars.length > 16) height = 0.78;
@@ -924,8 +1203,9 @@ function createLineGroup(line, index) {
       continue;
     }
     const tex = makeCharTexture(char, hot.has(i));
+    const outline = makeCharTexture(char, hot.has(i), true);
     const width = height * (tex.width / tex.height);
-    tokens.push({ char, texture: tex, width, space: false, index: i });
+    tokens.push({ char, texture: tex, outline, width, space: false, index: i });
   }
 
   const rows = [];
@@ -951,7 +1231,8 @@ function createLineGroup(line, index) {
   if (row.length) rows.push({ tokens: row, width: rowWidth });
 
   const group = new THREE.Group();
-  group.position.set(0, 0, 1.1);
+  group.position.set(stage.x, stage.y, 1.1 + stage.z);
+  group.rotation.set(0, stage.yaw, stage.roll);
   const entries = [];
   const lineGlow = new THREE.Mesh(
     new THREE.PlaneGeometry(10.5, 4.2),
@@ -969,6 +1250,11 @@ function createLineGroup(line, index) {
   lineGlow.scale.setScalar(1.2);
   group.add(lineGlow);
 
+  const formation = createFormation(index, line, shot, stage);
+  group.add(formation.group);
+  const shock = createShockwave();
+  group.add(shock);
+
   for (let r = 0; r < rows.length; r += 1) {
     const rowData = rows[r];
     let cursor = -rowData.width / 2;
@@ -979,11 +1265,12 @@ function createLineGroup(line, index) {
         continue;
       }
       const { texture, width, height: texHeight } = token.texture;
+      const outlineTexture = token.outline.texture;
       const boxWidth = token.width;
       const boxHeight = height;
       const planeGeo = new THREE.PlaneGeometry(boxWidth, boxHeight);
       const front = new THREE.MeshBasicMaterial({
-        map: texture,
+        map: outlineTexture,
         transparent: true,
         opacity: 0,
         alphaTest: 0.015,
@@ -1008,7 +1295,7 @@ function createLineGroup(line, index) {
           depthWrite: false,
           toneMapped: false,
           side: THREE.DoubleSide,
-          color: new THREE.Color(d === 1 ? themeTarget.accent3 : 0x090b0c),
+          color: new THREE.Color(0x0b0b0e),
         });
         const mesh = new THREE.Mesh(planeGeo, layer);
         mesh.position.z = -0.04 * d;
@@ -1031,6 +1318,22 @@ function createLineGroup(line, index) {
       glow.position.z = -0.18;
       charGroup.add(glow);
 
+      const soul = new THREE.Mesh(
+        planeGeo,
+        new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false,
+          color: new THREE.Color(themeTarget.accent2),
+        }),
+      );
+      soul.position.z = -0.1;
+      soul.visible = false;
+      charGroup.add(soul);
+
       const z = (Math.random() - 0.5) * profile.zSpread;
       const target = new THREE.Vector3(cursor + boxWidth / 2, y, z);
       charGroup.position.copy(target).add(new THREE.Vector3((Math.random() - 0.5) * 3.2, (Math.random() - 0.5) * 2.2, -5 - Math.random() * 5));
@@ -1046,6 +1349,10 @@ function createLineGroup(line, index) {
         front,
         layers,
         glow,
+        soul,
+        fillTexture: texture,
+        outlineTexture,
+        filled: false,
         target,
         start: charGroup.position.clone(),
         targetRot,
@@ -1053,6 +1360,10 @@ function createLineGroup(line, index) {
         delay: token.index * (line.fx === "whisper" ? 0.035 : 0.018),
         width: boxWidth,
         height: boxHeight,
+        charIndex: token.index,
+        revealAt: karaoke.revealAt[token.index] ?? line.time,
+        endAt: karaoke.endAt[token.index] ?? lineEnd,
+        sungState: false,
       };
       entries.push(entry);
       group.add(charGroup);
@@ -1067,6 +1378,12 @@ function createLineGroup(line, index) {
     line,
     index,
     lineGlow,
+    formation,
+    shock,
+    stage,
+    shot,
+    lineEnd,
+    hotX: 0,
     exiting: false,
     exitStart: 0,
     baseOpacity: line.fx === "whisper" ? 0.64 : 1,
@@ -1115,7 +1432,15 @@ function updateLineGroup(group, now, dt) {
       entry.front.opacity = fade * data.baseOpacity;
       for (const layer of entry.layers) layer.opacity = fade * 0.2;
       if (entry.glow) entry.glow.material.opacity = fade * 0.025;
+      if (entry.soul) entry.soul.visible = false;
       entry.mesh.position.z -= dt * 1.8;
+    }
+    if (data.formation) {
+      for (const item of data.formation.items) item.mesh.material.opacity = item.baseOpacity * fade * 0.7;
+    }
+    if (data.shock) {
+      data.shock.material.opacity = fade * 0.06;
+      data.shock.scale.setScalar(1 + (1 - fade) * 2.4);
     }
     if (age > 1.2) {
       const at = lineGroups.indexOf(group);
@@ -1130,14 +1455,25 @@ function updateLineGroup(group, now, dt) {
   const drift = data.fx === "shatter" || data.fx === "final" ? clamp((age - 1.25) / 3.6, 0, 1) : 0;
   const glitch = data.fx === "glitch";
   const whisper = data.fx === "whisper";
+  const local = state.t - data.line.time;
+  const clock = state.t;
+  const energy = state.energy;
+  let hotX = 0;
+
   for (let i = 0; i < data.entries.length; i += 1) {
     const entry = data.entries[i];
     const p = smoothstep((age - entry.delay) / duration);
+    const revealAt = Number.isFinite(entry.revealAt) ? entry.revealAt : data.line.time;
+    const endAt = Number.isFinite(entry.endAt) ? entry.endAt : revealAt + 0.2;
+    const sungMix = clamp((clock - revealAt) / 0.24, 0, 1);
+    const sung = clock >= revealAt;
+    const current = clock >= revealAt && clock < endAt;
     const float = Math.sin(now * 0.9 + entry.phase) * 0.035;
     const float2 = Math.cos(now * 0.72 + entry.phase * 1.3) * 0.025;
+    const beatLift = current ? state.kick * 0.045 + state.bass * 0.028 : 0;
     const target = entry.target;
     const x = lerp(entry.start.x, target.x, p) + float2 * (whisper ? 1.8 : 1);
-    const y = lerp(entry.start.y, target.y, p) + float;
+    const y = lerp(entry.start.y, target.y, p) + float + beatLift;
     const z = lerp(entry.start.z, target.z, p) + Math.sin(now * 0.55 + entry.phase) * 0.035;
     let driftX = 0;
     let driftY = 0;
@@ -1156,25 +1492,74 @@ function updateLineGroup(group, now, dt) {
       const j = (Math.sin(now * 21 + entry.phase * 3.1) + Math.sin(now * 7.7 + entry.phase)) * 0.012;
       entry.mesh.position.x += j;
     }
-    entry.mesh.scale.setScalar(lerp(0.55, 1, p) * (1 - drift * 0.25));
-    entry.front.opacity = p * data.baseOpacity * (1 - drift * 0.88);
+    const currentScale = current ? 1.055 + state.kick * 0.035 : 1;
+    entry.mesh.scale.setScalar(lerp(0.55, 1, p) * (1 - drift * 0.25) * currentScale);
+    const karaokeOpacity = 0.38 + 0.62 * smoothstep(sungMix);
+    entry.front.opacity = p * data.baseOpacity * (1 - drift * 0.88) * karaokeOpacity;
+    if (sung !== entry.filled) {
+      entry.filled = sung;
+      entry.front.map = sung ? entry.fillTexture : entry.outlineTexture;
+      entry.front.needsUpdate = true;
+    }
+    entry.front.color.copy(current ? themeCurrent.accent2 : sung ? themeCurrent.accent2 : WHITE);
+    if (current) entry.front.color.lerp(WHITE, 0.22);
     for (let li = 0; li < entry.layers.length; li += 1) {
-      entry.layers[li].opacity = p * (0.2 - li * 0.035) * (1 - drift * 0.8);
+      entry.layers[li].opacity = sung ? p * (0.14 - li * 0.03) * (1 - drift * 0.8) : 0;
     }
     if (entry.glow) {
-      entry.glow.visible = state.fx.bloom;
-      entry.glow.material.opacity = p * (1 - drift * 0.9) * (0.038 + state.energy * 0.028);
+      entry.glow.visible = state.fx.bloom && state.fx.wordGlow;
+      const glowLevel = current ? 0.12 + state.kick * 0.06 : sung ? 0.055 : 0.035;
+      entry.glow.material.opacity = p * (1 - drift * 0.9) * (glowLevel + energy * 0.028);
+      entry.glow.material.color.copy(current ? themeCurrent.accent2 : themeCurrent.accent2);
     }
+    if (entry.soul) {
+      const since = clock - revealAt;
+      const alive = sung && since >= 0 && since < 0.95;
+      entry.soul.visible = alive && p > 0.35 && state.fx.bloom && state.fx.wordGlow;
+      if (alive) {
+        entry.soul.material.opacity = p * (1 - since / 0.95) * (0.12 + state.energy * 0.1);
+        entry.soul.material.color.copy(themeCurrent.accent2);
+        entry.soul.position.y = 0.03 + since * 0.22;
+        entry.soul.position.z = -0.12 - since * 0.1;
+        entry.soul.scale.setScalar(1 + since * 0.28);
+      }
+    }
+    if (current) hotX = entry.mesh.position.x;
+  }
+  data.hotX = hotX;
+
+  if (data.formation) {
+    const form = data.formation;
+    form.group.visible = state.fx.formations;
+    const formLife = smoothstep((age - 0.05) / 0.9);
+    form.group.rotation.y += dt * 0.055 * data.stage.dir;
+    form.group.rotation.z = Math.sin(now * 0.18) * 0.018;
+    const pulse = 1 + state.energy * 0.06 + state.kick * 0.025;
+    for (const item of form.items) {
+      item.mesh.material.opacity = item.baseOpacity * formLife * (0.9 + state.energy * 1.25);
+      item.mesh.material.color.copy(item.mesh.geometry.type === "SphereGeometry" ? themeCurrent.accent2 : themeCurrent.accent3);
+      item.mesh.scale.setScalar(item.baseScale * pulse * (1 + Math.sin(now * 0.7 + item.phase) * 0.012));
+    }
+  }
+
+  if (data.shock) {
+    const shockAge = clamp(age / 0.85, 0, 1);
+    data.shock.scale.setScalar(1 + shockAge * 3.8);
+    data.shock.material.opacity = (1 - shockAge) * 0.14 * data.baseOpacity;
+    data.shock.material.color.copy(themeCurrent.accent2);
   }
 
   if (data.lineGlow) {
     data.lineGlow.visible = state.fx.bloom;
-    data.lineGlow.material.opacity = 0.012 + state.energy * 0.018;
-    data.lineGlow.scale.setScalar(1 + state.energy * 0.08);
+    data.lineGlow.material.opacity = (0.012 + energy * 0.018) * (0.8 + state.kick * 0.3);
+    data.lineGlow.scale.setScalar(1 + energy * 0.08 + state.kick * 0.03);
   }
-  group.rotation.y = lerp(group.rotation.y, state.pointerX * 0.14 + Math.sin(now * 0.23) * 0.028, 0.035);
-  group.rotation.x = lerp(group.rotation.x, state.pointerY * 0.08 + Math.cos(now * 0.18) * 0.018, 0.035);
-  group.position.z = 1.1 - state.kick * 0.28;
+  group.position.x = lerp(group.position.x, data.stage.x, 0.055);
+  group.position.y = lerp(group.position.y, data.stage.y, 0.055);
+  group.position.z = 1.1 + data.stage.z - state.kick * 0.28;
+  group.rotation.y = lerp(group.rotation.y, data.stage.yaw + state.pointerX * 0.11 + Math.sin(now * 0.23) * 0.024, 0.035);
+  group.rotation.x = lerp(group.rotation.x, state.pointerY * 0.07 + Math.cos(now * 0.18) * 0.016, 0.035);
+  group.rotation.z = lerp(group.rotation.z, data.stage.roll + state.pointerX * 0.012, 0.04);
 }
 
 function updateRing(now) {
@@ -1188,7 +1573,10 @@ function updateRing(now) {
   for (let i = 0; i < ticks; i += 1) {
     const angle = (i / ticks) * Math.PI * 2;
     let value;
-    if (state.freq) {
+    if (state.fx.audio && state.remoteBars?.length) {
+      const bin = Math.max(0, Math.floor(Math.pow(i / ticks, 1.45) * state.remoteBars.length * 0.82));
+      value = state.remoteBars[Math.min(state.remoteBars.length - 1, bin)];
+    } else if (state.freq) {
       const bin = Math.max(1, Math.floor(Math.pow(i / ticks, 1.45) * state.freq.length * 0.72));
       value = state.freq[Math.min(state.freq.length - 1, bin)] / 255;
     } else {
@@ -1260,7 +1648,7 @@ function updateEnvironment(now, dt) {
     plane.position.y += Math.sin(now * 0.5 + plane.userData.phase) * dt * 0.025;
     plane.rotation.z += plane.userData.rot * dt;
     plane.rotation.y += plane.userData.rot * 0.55 * dt;
-    if (plane.position.z > 5) {
+    if (plane.position.z > -2.5) {
       plane.position.z = -27;
       plane.position.x = (Math.random() - 0.5) * 26;
       plane.position.y = (Math.random() - 0.5) * 13;
@@ -1485,37 +1873,178 @@ function updateChapter(t) {
 function updateEnvironmentMusic(dt, now) {
   state.kick = Math.max(0, state.kick - dt * 2.3);
   state.glitch = Math.max(0, state.glitch - dt * 2.2);
+  let target = 0.2;
   if (state.analyser && state.freq) {
     state.analyser.getByteFrequencyData(state.freq);
     let low = 0;
+    let mid = 0;
+    let high = 0;
     for (let i = 1; i < Math.min(18, state.freq.length); i += 1) low += state.freq[i];
-    low /= Math.max(1, Math.min(18, state.freq.length) - 1);
-    const target = clamp(low / 255, 0, 1);
-    state.energy = lerp(state.energy, target, 0.22);
+    for (let i = 18; i < Math.min(64, state.freq.length); i += 1) mid += state.freq[i];
+    for (let i = 64; i < state.freq.length; i += 1) high += state.freq[i];
+    state.bass = clamp(low / Math.max(1, 17) / 255, 0, 1);
+    state.mid = clamp(mid / Math.max(1, 46) / 255, 0, 1);
+    state.high = clamp(high / Math.max(1, state.freq.length - 64) / 255, 0, 1);
+    target = clamp(state.bass * 0.62 + state.mid * 0.28 + state.high * 0.1, 0, 1);
+  } else if (state.fx.audio && state.remoteBars?.length) {
+    const bars = state.remoteBars;
+    const span = (from, to) => {
+      let sum = 0;
+      let count = 0;
+      for (let i = from; i < Math.min(to, bars.length); i += 1) { sum += bars[i]; count += 1; }
+      return count ? sum / count : 0;
+    };
+    const bass = span(0, 8);
+    const mid = span(8, 28);
+    const high = span(28, 48);
+    state.bass = lerp(state.bass, bass, 0.3);
+    state.mid = lerp(state.mid, mid, 0.3);
+    state.high = lerp(state.high, high, 0.3);
+    target = clamp(bass * 0.58 + mid * 0.28 + high * 0.14, 0, 1);
+    state.bassBase = lerp(state.bassBase, state.bass, 0.025);
+    const nowMs = performance.now();
+    if (state.playing && state.bass > Math.max(0.08, state.bassBase + 0.045) && nowMs - state.lastBeatAt > 190) {
+      state.lastBeatAt = nowMs;
+      state.kick = Math.min(1, 0.65 + (state.bass - state.bassBase) * 3.2);
+    }
   } else {
-    const synthetic = 0.2 + Math.abs(Math.sin(state.t * 1.7)) * 0.18;
-    state.energy = lerp(state.energy, synthetic, 0.08);
+    target = 0.2 + Math.abs(Math.sin(state.t * 1.7)) * 0.18;
+    state.bass = lerp(state.bass, target * 0.75, 0.1);
+    state.mid = lerp(state.mid, target * 0.45, 0.1);
+    state.high = lerp(state.high, target * 0.22, 0.1);
   }
+  state.energy = lerp(state.energy, target, state.fx.audio && state.remoteBars?.length ? 0.2 : 0.15);
   state.energy = clamp(state.energy, 0, 1.1);
   updateEnvironment(now, dt);
   /* The direct render path keeps colour management stable. Glow is rendered
      in-scene through additive text halos and the line aura. */
 }
 
+function resolveCameraShot(shot, p, dir, hotX, move) {
+  const e = smoothstep(p);
+  let x = 0;
+  let y = 0.08;
+  let z = 9.15;
+  let roll = 0;
+  switch (shot) {
+    case "pushIn":
+      z = 9.15 - 1.35 * e;
+      y = 0.08 + 0.18 * e;
+      break;
+    case "pullBack":
+      z = 8.15 + 1.7 * e;
+      y = 0.08 + 0.48 * e;
+      break;
+    case "orbit":
+      x = Math.sin((2 * e - 1) * 0.72) * 1.9;
+      z = 8.95 - 0.45 * Math.cos((2 * e - 1) * 0.72);
+      y = 0.22;
+      roll = -x * 0.012;
+      break;
+    case "track":
+      x = hotX * 0.24;
+      z = 8.7;
+      y = 0.12;
+      break;
+    case "crane":
+      y = -1.15 + 2.35 * e;
+      z = 8.95;
+      roll = (e - 0.5) * 0.018;
+      break;
+    case "hold":
+      y = 0.08 + 0.18 * Math.sin(Math.PI * e);
+      z = 9.15;
+      break;
+    case "swell":
+      x = Math.sin(e * 0.62) * 1.0;
+      y = 0.08 + 1.45 * e;
+      z = 8.85 + 0.75 * e;
+      break;
+    case "spiral":
+      x = Math.sin((2 * e - 1) * 0.72) * 1.6;
+      y = -0.7 + 2.2 * e;
+      z = 8.85;
+      roll = x * 0.02;
+      break;
+    case "pendulum":
+      x = dir * Math.sin((2 * e - 1) * 0.58) * 1.45;
+      y = 0.45 - 0.62 * Math.sin(Math.PI * e);
+      z = 8.95;
+      roll = -x * 0.024;
+      break;
+    case "flyby":
+      x = dir * (2.25 - 4.5 * e);
+      z = 8.0 + 0.28 * Math.sin(Math.PI * e);
+      y = 0.12;
+      roll = -dir * 0.018 * Math.sin(Math.PI * e);
+      break;
+    case "arc":
+      x = dir * Math.sin(Math.PI * e) * 1.45;
+      y = 0.08 + 0.58 * Math.sin(Math.PI * e);
+      z = 8.95;
+      roll = -x * 0.012;
+      break;
+    case "float":
+      x = 0.35 * Math.sin(2 * Math.PI * e);
+      y = 0.3 + 0.42 * Math.sin(2 * Math.PI * e);
+      z = 9.0;
+      break;
+    case "glide":
+      x = dir * 0.55 * e;
+      y = 0.08 + 1.35 * e;
+      z = 9.0 - 0.6 * e;
+      break;
+    default:
+      break;
+  }
+  const m = clamp(move, 0, 1.8);
+  return {
+    x: x * m,
+    y: 0.08 + (y - 0.08) * m,
+    z: 9.15 + (z - 9.15) * m,
+    roll: roll * m,
+  };
+}
+
 function updateCamera(now, dt) {
   if (!camera) return;
   const t = state.t;
+  const data = currentGroup?.userData || null;
+  const line = data?.line || null;
+  const stage = data?.stage || { x: 0, y: 0, z: 0, dir: 1 };
+  const shot = data?.shot || "hold";
+  const span = line ? Math.max(0.8, (data.lineEnd || line.time + 4) - line.time) : 1;
+  const p = line ? clamp((t - line.time) / span, 0, 1) : 0;
   const drift = state.fx.camera ? 1 : 0;
-  const shake = state.fx.camera ? (state.energy * 0.012 + state.kick * 0.045) * state.intensity : 0;
+  const shotPose = resolveCameraShot(shot, p, stage.dir, data?.hotX || 0, drift * state.intensity);
   const px = state.pointerX * drift;
   const py = state.pointerY * drift;
-  camera.position.set(
-    Math.sin(t * 0.17 + 0.4) * 0.58 + px * 0.6 + (Math.random() - 0.5) * shake,
-    Math.cos(t * 0.14) * 0.34 + py * 0.32 + (Math.random() - 0.5) * shake,
-    9.15 + Math.sin(t * 0.12) * 0.26 - state.kick * 0.52 + state.energy * 0.08,
-  );
-  camera.lookAt(px * 0.15, py * 0.1, 0.7);
-  camera.rotateZ(Math.sin(t * 0.1) * 0.022 + px * 0.014);
+  const targetX = shotPose.x + stage.x * 0.2 + Math.sin(t * 0.17 + 0.4) * 0.16 * drift + px * 0.5;
+  const targetY = shotPose.y + stage.y * 0.2 + Math.cos(t * 0.14) * 0.1 * drift + py * 0.28;
+  const targetZ = shotPose.z + Math.sin(t * 0.12) * 0.1 * drift + state.energy * 0.08;
+  const lookX = stage.x * 0.62 + (data?.hotX || 0) * 0.13 + px * 0.12;
+  const lookY = stage.y * 0.5 + py * 0.07;
+  const lambda = state.fx.camera ? 3.4 : 1.15;
+  if (!cameraRig.ready) {
+    cameraRig.x = targetX; cameraRig.y = targetY; cameraRig.z = targetZ;
+    cameraRig.tx = lookX; cameraRig.ty = lookY; cameraRig.tz = 0.7;
+    cameraRig.roll = shotPose.roll; cameraRig.ready = true;
+  } else {
+    const k = 1 - Math.exp(-dt * lambda);
+    cameraRig.x = lerp(cameraRig.x, targetX, k);
+    cameraRig.y = lerp(cameraRig.y, targetY, k);
+    cameraRig.z = lerp(cameraRig.z, targetZ, k);
+    cameraRig.tx = lerp(cameraRig.tx, lookX, k * 1.15);
+    cameraRig.ty = lerp(cameraRig.ty, lookY, k * 1.15);
+    cameraRig.tz = lerp(cameraRig.tz, 0.7, k);
+    cameraRig.roll = lerp(cameraRig.roll, shotPose.roll, k);
+  }
+  const shake = state.fx.camera ? (state.energy * 0.012 + state.kick * 0.04) * state.intensity : 0;
+  const sx = Math.sin(now * 38.7) * shake;
+  const sy = Math.cos(now * 41.3) * shake;
+  camera.position.set(cameraRig.x + sx, cameraRig.y + sy, cameraRig.z - state.kick * 0.3);
+  camera.lookAt(cameraRig.tx, cameraRig.ty, cameraRig.tz);
+  camera.rotateZ(cameraRig.roll + Math.sin(t * 0.1) * 0.012 + px * 0.012);
 }
 
 function animate(nowMs) {
@@ -1561,7 +2090,20 @@ function animate(nowMs) {
   for (const group of [...lineGroups]) updateLineGroup(group, clockTime, dt);
   if (currentGroup) currentGroup.visible = true;
 
-  if (renderer) renderer.render(scene, camera);
+  if (composer) {
+    if (bloomPass) {
+      bloomPass.enabled = state.fx.bloom;
+      bloomPass.strength = state.fx.bloom ? 0.42 + state.energy * 0.22 + state.kick * 0.06 : 0;
+    }
+    if (finalPass) {
+      finalPass.uniforms.uTime.value = nowMs / 1000;
+      finalPass.uniforms.uEnergy.value = state.energy;
+      finalPass.uniforms.uGlitch.value = state.glitch * 0.45;
+    }
+    composer.render();
+  } else if (renderer) {
+    renderer.render(scene, camera);
+  }
 }
 
 // ── UI bindings ────────────────────────────────────────────────────────────
@@ -1767,6 +2309,7 @@ function buildSongData(song) {
       fx: classifyFx(line.text, index, rows.length),
     };
   });
+  finalizeLineTimings(lines, Number(song.duration) || 0);
   const fullTitle = String(song.title || "Untitled").trim();
   const bracket = fullTitle.match(/^(.*?)\s*[（(]([^()（）]+)[)）]\s*$/);
   const displayTitle = (bracket ? bracket[1] : fullTitle).trim();
@@ -1873,6 +2416,7 @@ function buildHostSong(payload) {
       fx: classifyFx(row.text, index, rows.length),
     };
   });
+  finalizeLineTimings(lines, Number(payload.duration) || 0);
   return {
     title: payload.title || "Untitled",
     artist: payload.artist || "",
@@ -1911,6 +2455,14 @@ function onHostMessage(event) {
       state.duration = D.duration;
       state.embed = true;
       state.started = true;
+      state.lastShots = [];
+      state.remoteBars = null;
+      state.bass = 0.2;
+      state.mid = 0.16;
+      state.high = 0.1;
+      state.bassBase = 0.12;
+      state.lastBeatAt = 0;
+      cameraRig.ready = false;
       state.hostTime = Number(data.payload?.time) || 0;
       state.hostPlaying = Boolean(data.payload?.playing);
       state.hostAt = performance.now();
@@ -1918,6 +2470,9 @@ function onHostMessage(event) {
       if (data.payload?.fx) {
         state.fx.particles = data.payload.fx.particles !== false;
         state.fx.camera = data.payload.fx.camera !== false;
+        state.fx.formations = data.payload.fx.formations !== false;
+        state.fx.wordGlow = data.payload.fx.wordGlow !== false;
+        state.fx.audio = data.payload.fx.audioReact !== false;
         state.intensity = clamp(Number(data.payload.fx.intensity) || 1, 0.35, 1.8);
         if (particleSystem) particleSystem.visible = state.fx.particles;
       }
@@ -1933,10 +2488,19 @@ function onHostMessage(event) {
   } else if (data.type === "lyric3d:fx") {
     state.fx.particles = data.particles !== false;
     state.fx.camera = data.camera !== false;
+    state.fx.formations = data.formations !== false;
+    state.fx.wordGlow = data.wordGlow !== false;
+    state.fx.audio = data.audioReact !== false;
     state.intensity = clamp(Number(data.intensity) || 1, 0.35, 1.8);
     if (particleSystem) particleSystem.visible = state.fx.particles;
   } else if (data.type === "lyric3d:ping") {
     window.parent.postMessage({ type: "lyric3d:booted" }, "*");
+  } else if (data.type === "lyric3d:audio") {
+    if (Array.isArray(data.bars) && data.bars.length) {
+      state.remoteBars = data.bars.slice(0, 48).map((value) => clamp(Number(value) || 0, 0, 1));
+    } else {
+      state.remoteBars = null;
+    }
   } else if (data.type === "lyric3d:time") {
     state.hostTime = Number(data.time) || 0;
     state.hostPlaying = Boolean(data.playing);
@@ -1988,7 +2552,8 @@ async function boot() {
 
 window.LyricDebug = () => ({
   renderer, scene, camera, composer, bloomPass, finalPass, skyMaterial,
-  particleSystem, papers, boxGroup, ringGroup, lineGroups,
+  particleSystem, papers, boxGroup, ringGroup, lineGroups, cameraRig, state,
+  data: D,
 });
 window.LyricStage = {
   start: (options) => start(options || {}),

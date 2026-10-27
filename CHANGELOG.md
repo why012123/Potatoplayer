@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.2.2`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.0`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,32 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.0 — 2026-10-28
+
+### Added
+
+- **3D 演出 v2**：重做 Three.js 歌词舞台的表演层。参考 Folia 的 Diorama 镜头语言、逐字单元、舞台阵列与
+  音频反应，按 Potatoplayer 的本地 LRC / potatoHQ 路径独立实现：
+  - **逐字跟唱**：LRC 只有行时间戳时，按 CJK 单字、拉丁词、标点停顿推导时间；未唱的字显示为细描边，
+    唱到的字切换为实心填充、金色辉光与轻微抬升，刚唱过的字生成上扬的灵魂残影。
+  - **镜头调度**：13 种镜头运动（push-in / pull-back / orbit / track / crane / hold / swell / spiral /
+    pendulum / flyby / arc / float / glide），按行长度、章节起点和随机种子选择，并避免连续重复；
+    位置、注视点与 roll 使用平滑跟随，支持鼠标视差与音频 kick 抖动。
+  - **舞台阵列**：每行根据镜头生成不同的点阵 3D 装置（门柱、柱廊、拱顶、螺旋、钟摆、轨道等），
+    位于文字后方，随歌声呼吸、随拍脉冲，并在离场时溶解。
+  - **potatoHQ 实时频谱**：48 段频谱通过宿主桥接进入 3D iframe，驱动低频 kick、粒子、光环、
+    镜头震动和字体重心；VLC / mpv 下退回合成呼吸，不报错。
+  - **画面合成**：启用 Bloom + 轻颗粒 + 轻微色差 + 扫描线后期，恢复舞台应有的光晕层次；
+    舞台开关可分别关闭粒子 / 镜头 / 阵列 / 逐字辉光 / 音频响应。
+  - **沉浸自定义**：3D 舞台新增舞台阵列、逐字辉光、音频响应开关，与粒子、镜头调度、强度一起持久化。
+
+### Verification
+
+- 使用 potatoHQ 实际播放验证：3D iframe 收到 48 段频谱；镜头在 spiral / pullBack / track 等不同行持续变化；
+  逐字填充从 0 到全部完成，关闭阵列 / 逐字辉光 / 音频响应开关后对应效果消失；无 JS 运行时错误。
+- 3D 舞台截图覆盖多行、不同镜头和逐字中段状态。
+- `npm run typecheck`、后端 63 项自检、Playwright UI smoke、静音 VLC 后端 smoke 全部通过。
 
 ## s1.2.2 — 2026-10-28
 

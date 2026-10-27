@@ -33,6 +33,9 @@ export interface ImmersivePreferences {
   accentColor: string;
   stageParticles: boolean;
   stageCamera: boolean;
+  stageFormations: boolean;
+  stageWordGlow: boolean;
+  stageAudioReact: boolean;
   stageIntensity: number;
 }
 
@@ -67,6 +70,9 @@ export const DEFAULT_IMMERSIVE: ImmersivePreferences = {
   accentColor: "#e5b37d",
   stageParticles: true,
   stageCamera: true,
+  stageFormations: true,
+  stageWordGlow: true,
+  stageAudioReact: true,
   stageIntensity: 1,
 };
 
