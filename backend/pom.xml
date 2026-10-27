@@ -6,7 +6,7 @@
 
     <groupId>com.potatomusic</groupId>
     <artifactId>potatoplayer-super-backend</artifactId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
     <name>Potatoplayer Super Backend</name>
     <description>Headless library and VLC playback service for Potatoplayer Super</description>
 

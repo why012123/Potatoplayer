@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.2.1`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.2.2`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,20 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.2.2 — 2026-10-28
+
+### Fixed
+
+- **衬线 / Editorial 沉浸模式与经典割裂**：Editorial 不再使用自己的一套沉浸排版与歌词卡片，
+  而是完整继承经典沉浸模式的布局、字体尺度、歌词面板、背景、顶部栏与底部控制。经典沉浸的
+  样式未做任何改动；两种外观现在在沉浸页看起来一致，只有全局强调色仍按用户选择生效。
+
+### Verification
+
+- 在同一曲目、同一时间点分别用 Editorial 与 Classic 进入沉浸模式，逐项比对歌词面板背景、
+  圆角、内边距、模糊、歌词字号、当前行字号与标题字体，计算样式完全一致。
+- 沉浸页的截图对照确认两者布局一致；动态频谱、自定义面板与无框歌词功能保持不变。
 
 ## s1.2.1 — 2026-10-28
 
