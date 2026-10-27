@@ -7,11 +7,29 @@ type Props = {
   prefs: ImmersivePreferences;
   onChange: (patch: Partial<ImmersivePreferences>) => void;
   onClose: () => void;
+  spectrumAvailable?: boolean;
 };
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+function Toggle({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
-    <button type="button" className={`custom-toggle ${value ? "is-on" : ""}`} onClick={() => onChange(!value)} role="switch" aria-checked={value}>
+    <button
+      type="button"
+      className={`custom-toggle ${value ? "is-on" : ""}`}
+      onClick={() => onChange(!value)}
+      role="switch"
+      aria-checked={value}
+      disabled={disabled}
+    >
       <span>{label}</span>
       <i />
     </button>
@@ -26,6 +44,7 @@ function Range({
   step,
   format,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
@@ -34,16 +53,17 @@ function Range({
   step: number;
   format: (value: number) => string;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="custom-range">
       <span><em>{label}</em><strong>{format(value)}</strong></span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
 }
 
-export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
+export function ImmersiveCustomizer({ prefs, onChange, onClose, spectrumAvailable = false }: Props) {
   const tr = useTr();
   return (
     <aside className="immersive-customizer glass-strong" role="complementary" aria-label={tr("Customize immersive mode", "自定义沉浸模式")}>
@@ -89,6 +109,49 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
             <Toggle label={tr("Lyrics frame", "歌词框")} value={prefs.lyricsFrame} onChange={(value) => onChange({ lyricsFrame: value })} />
             <Toggle label={tr("Active line highlight", "当前行高亮")} value={prefs.lyricActiveHighlight} onChange={(value) => onChange({ lyricActiveHighlight: value })} />
           </div>
+        </section>
+
+        <section>
+          <div className="custom-section-title">{tr("Live spectrum", "动态频谱")}</div>
+          <p className="custom-note custom-note--tight">
+            {spectrumAvailable
+              ? tr(
+                  "The real 48-band spectrum from the potatoHQ engine. Adjust its height and presence in both classic and 3D immersion.",
+                  "来自 potatoHQ 引擎的实时 48 段频谱。可在经典与 3D 沉浸中调节高度与存在感。",
+                )
+              : tr(
+                  "Available with the native potatoHQ engine. Switch engines in Settings, then restart once.",
+                  "仅在 potatoHQ 原生引擎下可用。在设置中切换引擎后重启一次。",
+                )}
+          </p>
+          <div className="custom-toggles">
+            <Toggle
+              label={tr("Show spectrum", "显示频谱")}
+              value={prefs.showSpectrum}
+              onChange={(value) => onChange({ showSpectrum: value })}
+              disabled={!spectrumAvailable}
+            />
+          </div>
+          <Range
+            label={tr("Height", "高度")}
+            value={prefs.spectrumScale}
+            min={0.6}
+            max={1.8}
+            step={0.01}
+            format={(value) => `${Math.round(value * 100)}%`}
+            onChange={(value) => onChange({ spectrumScale: value })}
+            disabled={!spectrumAvailable || !prefs.showSpectrum}
+          />
+          <Range
+            label={tr("Presence", "存在感")}
+            value={prefs.spectrumOpacity}
+            min={0.15}
+            max={1}
+            step={0.01}
+            format={(value) => `${Math.round(value * 100)}%`}
+            onChange={(value) => onChange({ spectrumOpacity: value })}
+            disabled={!spectrumAvailable || !prefs.showSpectrum}
+          />
         </section>
 
         <section>

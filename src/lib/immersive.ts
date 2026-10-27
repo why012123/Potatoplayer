@@ -19,6 +19,9 @@ export interface ImmersivePreferences {
   lyricPanelRadius: number;
   lyricLineSpacing: number;
   lyricActiveHighlight: boolean;
+  showSpectrum: boolean;
+  spectrumScale: number;
+  spectrumOpacity: number;
   lyricScale: number;
   lyricAlign: "left" | "center";
   lyricSerif: boolean;
@@ -50,6 +53,9 @@ export const DEFAULT_IMMERSIVE: ImmersivePreferences = {
   lyricPanelRadius: 22,
   lyricLineSpacing: 1.48,
   lyricActiveHighlight: true,
+  showSpectrum: true,
+  spectrumScale: 1,
+  spectrumOpacity: 0.78,
   lyricScale: 1,
   lyricAlign: "left",
   lyricSerif: false,
@@ -81,6 +87,9 @@ export function loadImmersivePreferences(): ImmersivePreferences {
       lyricPanelRadius: clamp(Number(parsed.lyricPanelRadius ?? 22), 0, 40),
       lyricLineSpacing: clamp(Number(parsed.lyricLineSpacing ?? 1.48), 1.2, 1.95),
       lyricActiveHighlight: parsed.lyricActiveHighlight !== false,
+      showSpectrum: parsed.showSpectrum !== false,
+      spectrumScale: clamp(Number(parsed.spectrumScale ?? 1), 0.6, 1.8),
+      spectrumOpacity: clamp(Number(parsed.spectrumOpacity ?? 0.78), 0.15, 1),
       backgroundBlur: clamp(Number(parsed.backgroundBlur ?? 1), 0.35, 1.7),
       backgroundDim: clamp(Number(parsed.backgroundDim ?? 1), 0.35, 1.45),
       backgroundGrain: clamp(Number(parsed.backgroundGrain ?? 1), 0, 1.8),

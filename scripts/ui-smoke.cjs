@@ -138,6 +138,9 @@ function delay(ms) {
   await page.waitForSelector(".immersive-customizer");
   assert.equal(await page.locator(".immersive-customizer-scrim").count(), 0, "customizer should not dim the scene");
   assert.ok(await page.locator(".immerse__lyrics-side").isVisible(), "lyrics should remain visible beside the panel");
+  const spectrumToggle = page.locator(".custom-toggle").filter({ hasText: "Show spectrum" });
+  assert.equal(await spectrumToggle.count(), 1, "immersive customizer should expose the spectrum switch");
+  assert.equal(await spectrumToggle.isDisabled(), true, "spectrum should be gated on potatoHQ in the VLC smoke run");
   const frameToggle = page.locator(".custom-toggle").filter({ hasText: "Lyrics frame" });
   assert.equal(await frameToggle.getAttribute("aria-checked"), "true", "lyrics frame should start enabled");
   await frameToggle.click();

@@ -77,3 +77,90 @@
   margin-bottom: 9px;
   line-height: 1.5;
 }
+
+/* Real potatoHQ spectrum inside classic immersion. */
+.immerse__spectrum-wrap {
+  width: min(640px, 76%);
+  height: calc(46px * var(--immerse-spectrum-scale, 1));
+  margin: 0 auto 1px;
+  opacity: var(--immerse-spectrum-opacity, 0.78);
+  pointer-events: none;
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+}
+
+.immerse__spectrum {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  gap: 2px;
+  color: color-mix(in srgb, var(--accent) 56%, #fff);
+}
+
+.immerse__spectrum i {
+  min-width: 1px;
+  border-radius: 2px 2px 1px 1px;
+  background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 28%, transparent));
+  opacity: 1;
+}
+
+/* The 3D stage is a fixed layer above the app; the spectrum is its own HUD. */
+.lyric3d-spectrum-wrap {
+  position: fixed;
+  left: 50%;
+  bottom: 150px;
+  z-index: 96;
+  width: min(560px, 58vw);
+  height: calc(42px * var(--immerse-spectrum-scale, 1));
+  transform: translateX(-50%);
+  opacity: var(--immerse-spectrum-opacity, 0.78);
+  pointer-events: none;
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.lyric3d-spectrum {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  gap: 2px;
+  color: color-mix(in srgb, var(--accent) 52%, #fff);
+}
+
+.lyric3d-spectrum i {
+  min-width: 1px;
+  border-radius: 2px 2px 1px 1px;
+  background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 26%, transparent));
+  opacity: 1;
+}
+
+.custom-toggle:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.custom-range input:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (max-width: 1120px) {
+  .immerse__spectrum-wrap {
+    width: 86%;
+  }
+
+  .lyric3d-spectrum-wrap {
+    width: min(470px, 64vw);
+  }
+}
+
+@media (max-height: 760px) {
+  .immerse__spectrum-wrap {
+    height: calc(34px * var(--immerse-spectrum-scale, 1));
+  }
+
+  .lyric3d-spectrum-wrap {
+    bottom: 128px;
+    height: calc(30px * var(--immerse-spectrum-scale, 1));
+  }
+}

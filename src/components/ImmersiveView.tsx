@@ -29,6 +29,7 @@ import { formatTime } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
 import { Lyric3DStage } from "@/components/Lyric3DStage";
 import { ImmersiveCustomizer } from "@/components/ImmersiveCustomizer";
+import { SpectrumBars } from "@/components/SpectrumBars";
 import {
   accentFromPreferences,
   loadImmersivePreferences,
@@ -38,6 +39,8 @@ import {
 
 export function ImmersiveView({ palette }: { palette: { primary: string; secondary: string } | null }) {
   const playback = useAppStore((state) => state.playback);
+  const vizBars = useAppStore((state) => state.vizBars);
+  const capabilities = useAppStore((state) => state.engineCapabilities);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
@@ -60,6 +63,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const [prefs, setPrefs] = useState<ImmersivePreferences>(() => loadImmersivePreferences());
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const view3d = prefs.lyricView === "3d";
+  const spectrumAvailable = Boolean(capabilities?.visualizer);
+  const showSpectrum = Boolean(prefs.showSpectrum && spectrumAvailable && vizBars.length > 0);
   const setView3d = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "3d" : "classic" }));
   const updatePrefs = (patch: Partial<ImmersivePreferences>) => setPrefs((current) => ({ ...current, ...patch }));
 
@@ -145,6 +150,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     "--immerse-panel-blur": `${prefs.lyricPanelBlur}px`,
     "--immerse-panel-radius": `${prefs.lyricPanelRadius}px`,
     "--immerse-line-height": prefs.lyricLineSpacing,
+    "--immerse-spectrum-scale": prefs.spectrumScale,
+    "--immerse-spectrum-opacity": prefs.spectrumOpacity,
     ...(prefs.accent !== "cover" && customAccent ? { "--accent": customAccent } : {}),
   } as CSSProperties;
   const immersiveClasses = clsx(
@@ -177,6 +184,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
             prefs={prefs}
             onChange={updatePrefs}
             onClose={() => setCustomizerOpen(false)}
+            spectrumAvailable={spectrumAvailable}
           />
         </motion.div>
       )}
@@ -207,6 +215,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
             intensity: prefs.stageIntensity,
           }}
         />
+        {showSpectrum && (
+          <div className="lyric3d-spectrum-wrap" aria-hidden="true">
+            <SpectrumBars bars={vizBars} className="lyric3d-spectrum" />
+          </div>
+        )}
         {customizerModal}
       </>
     );
@@ -370,6 +383,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
           </main>
 
           <footer className="immerse__bottom">
+            {showSpectrum && (
+              <div className="immerse__spectrum-wrap" aria-hidden="true">
+                <SpectrumBars bars={vizBars} className="immerse__spectrum" />
+              </div>
+            )}
             <div className="immerse__timeline">
               <span>{formatTime(time)}</span>
               <Slider

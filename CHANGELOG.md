@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.2.0`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.2.1`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,21 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.2.1 — 2026-10-28
+
+### Added
+
+- **沉浸模式动态频谱**：potatoHQ 的 48 段实时频谱现在也进入沉浸播放。经典视图中它位于进度条上方；
+  3D 舞台中作为独立 HUD 悬浮在底部控制栏上方。沉浸自定义面板新增「动态频谱」区块，可单独
+  开关、调节高度与存在感（不透明度），设置持久化；VLC / mpv 模式下显示说明并禁用控件。
+
+### Verification
+
+- 使用 potatoHQ 实际播放验证：沉浸经典模式与 3D 舞台均收到 48 段数据，关闭开关后频谱立即消失；
+  自定义面板的高度 / 存在感滑块实时生效。
+- `npm run typecheck`、后端 63 项自检、Playwright UI smoke 与静音 VLC 后端 smoke 全部通过。
+- 沉浸自定义面板新增回归：VLC 下频谱控件禁用并提示 potatoHQ 限定。
 
 ## s1.2.0 — 2026-10-28
 
