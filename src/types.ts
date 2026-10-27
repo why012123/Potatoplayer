@@ -32,6 +32,27 @@ export interface Playlist {
   createdAt: number;
 }
 
+export type PlaybackEngineId = "vlc" | "potatohq" | "mpv";
+export type OutputMode = "pcm" | "dop64" | "dop128";
+
+export interface EngineCapabilities {
+  id: PlaybackEngineId;
+  eqLive: boolean;
+  spatial: boolean;
+  crossfeed: boolean;
+  visualizer: boolean;
+  dsd: boolean;
+  exclusive: boolean;
+  followSourceRate: boolean;
+  gapless: boolean;
+}
+
+export interface EngineAvailability {
+  available: boolean;
+  path: string;
+  detail: string;
+}
+
 export interface Settings {
   libraryRoot: string | null;
   volume: number;
@@ -40,6 +61,15 @@ export interface Settings {
   lastTrackId?: string | null;
   lastPosition: number;
   reducedMotion: boolean;
+  playbackEngine?: PlaybackEngineId;
+  outputMode?: OutputMode;
+  spatialEnabled?: boolean;
+  spatialX?: number;
+  spatialY?: number;
+  exclusive?: boolean;
+  crossfeedEnabled?: boolean;
+  crossfeedStrength?: number;
+  followSourceRate?: boolean;
 }
 
 export interface PlaybackState {
@@ -66,6 +96,8 @@ export interface Bootstrap {
   blocks: Tag[];
   genres: Tag[];
   settings: Settings;
+  engines?: Record<PlaybackEngineId, EngineAvailability>;
+  engineCapabilities?: EngineCapabilities;
   playback: PlaybackState;
   scanNeeded: boolean;
   scannedAt: number;

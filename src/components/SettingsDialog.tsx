@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { AnimatePresence } from "motion/react";
 import {
+  AudioLines,
   Check,
   Disc3,
   Feather,
@@ -8,6 +10,7 @@ import {
   HardDrive,
   Keyboard,
   LibraryBig,
+  Radar,
   Moon,
   Palette,
   Play,
@@ -23,6 +26,7 @@ import {
 import clsx from "clsx";
 import { useAppStore } from "@/store";
 import { Modal } from "@/components/Modal";
+import { SpatialPad } from "@/components/SpatialPad";
 import { IconButton } from "@/components/IconButton";
 import { useTr } from "@/lib/i18n";
 import type { AppearancePreferences, Density, DisplayFont, CornerStyle, Atmosphere } from "@/lib/appearance";
@@ -63,12 +67,14 @@ function Choice({
   label,
   detail,
   active,
+  disabled,
   onClick,
 }: {
   icon?: React.ReactNode;
   label: string;
   detail?: string;
   active: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -76,6 +82,7 @@ function Choice({
       type="button"
       className={clsx("settings-choice", active && "is-active")}
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
     >
       {icon}
@@ -126,6 +133,26 @@ export function SettingsDialog() {
   const scanning = useAppStore((state) => state.scanning);
   const scanProgress = useAppStore((state) => state.scanProgress);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
+  const playbackEngine = useAppStore((state) => state.playbackEngine);
+  const setPlaybackEngine = useAppStore((state) => state.setPlaybackEngine);
+  const engines = useAppStore((state) => state.engines);
+  const outputMode = useAppStore((state) => state.outputMode);
+  const capabilities = useAppStore((state) => state.engineCapabilities);
+  const spatialEnabled = useAppStore((state) => state.spatialEnabled);
+  const spatialX = useAppStore((state) => state.spatialX);
+  const spatialY = useAppStore((state) => state.spatialY);
+  const setSpatialEnabled = useAppStore((state) => state.setSpatialEnabled);
+  const setSpatialPosition = useAppStore((state) => state.setSpatialPosition);
+  const exclusive = useAppStore((state) => state.exclusive);
+  const setExclusiveOutput = useAppStore((state) => state.setExclusiveOutput);
+  const crossfeedEnabled = useAppStore((state) => state.crossfeedEnabled);
+  const crossfeedStrength = useAppStore((state) => state.crossfeedStrength);
+  const setCrossfeedEnabled = useAppStore((state) => state.setCrossfeedEnabled);
+  const followSourceRate = useAppStore((state) => state.followSourceRate);
+  const setFollowSourceRate = useAppStore((state) => state.setFollowSourceRate);
+  const setCrossfeedStrength = useAppStore((state) => state.setCrossfeedStrength);
+  const [pendingEngine, setPendingEngine] = useState<"potatohq" | "mpv" | null>(null);
+  const setOutputMode = useAppStore((state) => state.setOutputMode);
   const setReducedMotion = useAppStore((state) => state.setReducedMotion);
   const theme = useAppStore((state) => state.theme);
   const setTheme = useAppStore((state) => state.setTheme);
@@ -426,6 +453,232 @@ export function SettingsDialog() {
               </button>
             </Section>
 
+
+
+            {capabilities?.spatial ? (
+              <Section
+                icon={<Radar size={16} />}
+                title={tr("Virtual sound field", "空间声场")}
+                detail={tr(
+                  "Drag the source anywhere on the disc. Only the native potatoHQ engine can render it.",
+                  "把声源拖到圆盘上的任意位置。仅 potatoHQ 原生引擎支持。",
+                )}
+              >
+                <div className="spatial-layout">
+                  <SpatialPad
+                    x={spatialX}
+                    y={spatialY}
+                    enabled={spatialEnabled}
+                    onChange={(nx, ny) => setSpatialPosition(nx, ny, false)}
+                    onCommit={(nx, ny) => setSpatialPosition(nx, ny, true)}
+                  />
+                  <div className="spatial-side">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={spatialEnabled}
+                      className="settings-toggle-row"
+                      onClick={() => void setSpatialEnabled(!spatialEnabled)}
+                    >
+                      <div>
+                        <strong>{tr("Enable sound field", "启用空间声场")}</strong>
+                        <span>
+                          {tr(
+                            "Adds interaural delay, level and a rear tilt. Double-click the pad to recentre.",
+                            "加入双耳时差、电平差与后方高频倾斜。双击圆盘复位。",
+                          )}
+                        </span>
+                      </div>
+                      <span className={`switch ${spatialEnabled ? "is-on" : ""}`}>
+                        <i />
+                      </span>
+                    </button>
+                    {capabilities?.followSourceRate ? (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={followSourceRate}
+                        className="settings-toggle-row"
+                        onClick={() => void setFollowSourceRate(!followSourceRate)}
+                      >
+                        <div>
+                          <strong>{tr("Follow source sample rate", "采样率跟随源")}</strong>
+                          <span>
+                            {tr(
+                              "Switch the device to the file's rate (e.g. 96 kHz) instead of resampling. Applies on the next playback.",
+                              "把设备切到文件采样率(如 96 kHz),不再由引擎重采样。下一次播放生效。",
+                            )}
+                          </span>
+                        </div>
+                        <span className={`switch ${followSourceRate ? "is-on" : ""}`}>
+                          <i />
+                        </span>
+                      </button>
+                    ) : null}
+                    {capabilities?.crossfeed ? (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={crossfeedEnabled}
+                      className="settings-toggle-row"
+                      onClick={() => void setCrossfeedEnabled(!crossfeedEnabled)}
+                    >
+                      <div>
+                        <strong>{tr("Headphone crossfeed", "耳机交叉馈电")}</strong>
+                        <span>
+                          {tr(
+                            "Blends a delayed low-passed copy of the opposite channel. Softer hard pans.",
+                            "把对侧声道延迟、低通后轻微混入,减弱硬分离的“头中效应”。",
+                          )}
+                        </span>
+                      </div>
+                      <span className={`switch ${crossfeedEnabled ? "is-on" : ""}`}>
+                        <i />
+                      </span>
+                    </button>
+                    ) : null}
+                    {crossfeedEnabled ? (
+                      <label className="spatial-slider">
+                        <span>{tr("Amount", "强度")}</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={crossfeedStrength}
+                          onChange={(event) => setCrossfeedStrength(Number(event.target.value), false)}
+                          onPointerUp={(event) =>
+                            setCrossfeedStrength(Number((event.target as HTMLInputElement).value), true)
+                          }
+                          onKeyUp={(event) =>
+                            setCrossfeedStrength(Number((event.target as HTMLInputElement).value), true)
+                          }
+                        />
+                        <em>{Math.round(crossfeedStrength * 100)}%</em>
+                      </label>
+                    ) : null}
+                    {capabilities?.exclusive ? (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={exclusive}
+                        className="settings-toggle-row"
+                        onClick={() => void setExclusiveOutput(!exclusive)}
+                      >
+                        <div>
+                          <strong>{tr("Exclusive output (Hog)", "独占输出(Hog)")}</strong>
+                          <span>
+                            {tr(
+                              "Takes the device exclusively on the next playback. May silence other apps.",
+                              "下一次播放时独占设备,可能会让其它应用无声。",
+                            )}
+                          </span>
+                        </div>
+                        <span className={`switch ${exclusive ? "is-on" : ""}`}>
+                          <i />
+                        </span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </Section>
+            ) : null}
+
+            <Section
+              icon={<AudioLines size={16} />}
+              title={tr("Playback engine", "播放引擎")}
+              detail={tr(
+                "Which backend drives playback. Switching takes effect after a restart.",
+                "选择驱动播放的音频后端。切换需要重启应用后生效。",
+              )}
+            >
+              <div className="language-choice" role="group" aria-label={tr("Playback engine", "播放引擎")}>
+                {(
+                  [
+                    {
+                      id: "vlc" as const,
+                      label: "VLC",
+                      en: "Compatibility first · libVLC",
+                      zh: "兼容性优先 · libVLC",
+                    },
+                    {
+                      id: "potatohq" as const,
+                      label: "potatoHQ",
+                      en: "Native engine · exclusive, upsampling, DSD",
+                      zh: "原生引擎 · 独占、升频、DSD",
+                    },
+                    {
+                      id: "mpv" as const,
+                      label: "mpv",
+                      en: "Fallback · widest format coverage",
+                      zh: "备用 · 格式覆盖最广",
+                    },
+                  ] as const
+                ).map((item) => {
+                  const info = engines?.[item.id];
+                  const unavailable = info ? !info.available : false;
+                  return (
+                    <Choice
+                      key={item.id}
+                      label={item.label}
+                      detail={unavailable ? tr("Not available on this machine", "本机不可用") : tr(item.en, item.zh)}
+                      active={playbackEngine === item.id}
+                      disabled={unavailable}
+                      onClick={() => {
+                        if (item.id === "vlc") {
+                          void setPlaybackEngine("vlc");
+                        } else {
+                          setPendingEngine(item.id);
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              {playbackEngine === "potatohq" ? (
+                <>
+                  <div
+                    className="language-choice"
+                    role="group"
+                    aria-label={tr("potatoHQ output mode", "potatoHQ 输出模式")}
+                    style={{ marginTop: 12 }}
+                  >
+                    {(
+                      [
+                        { id: "pcm" as const, label: "PCM", en: "DAC-native PCM (default)", zh: "原生 PCM(默认)" },
+                        {
+                          id: "dop64" as const,
+                          label: "DSD64 · DoP",
+                          en: "Needs a 176.4 kHz DoP DAC",
+                          zh: "需要支持 176.4 kHz 的 DoP DAC",
+                        },
+                        {
+                          id: "dop128" as const,
+                          label: "DSD128 · DoP",
+                          en: "Needs a 352.8 kHz DoP DAC",
+                          zh: "需要支持 352.8 kHz 的 DoP DAC",
+                        },
+                      ] as const
+                    ).map((item) => (
+                      <Choice
+                        key={item.id}
+                        label={item.label}
+                        detail={tr(item.en, item.zh)}
+                        active={outputMode === item.id}
+                        onClick={() => void setOutputMode(item.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              <p style={{ margin: "10px 2px 0", fontSize: 12, opacity: 0.65 }}>
+                {tr(
+                  "Engine changes take effect after a restart; output mode applies on the next playback. VLC stays the default.",
+                  "切换引擎需重启后生效;输出模式下一次播放生效。默认仍为 VLC。",
+                )}
+              </p>
+            </Section>
+
             <Section
               icon={<LibraryBig size={16} />}
               title={tr("Music library", "音乐资料库")}
@@ -527,6 +780,57 @@ export function SettingsDialog() {
           </div>
         </Modal>
       )}
+      <AnimatePresence>
+        {pendingEngine && (
+          <Modal
+            onClose={() => setPendingEngine(null)}
+            className="engine-warning"
+            labelledBy="engine-warning-title"
+          >
+            <div className="settings-head">
+              <div>
+                <div className="modal__eyebrow">{tr("Hearing safety", "听力安全")}</div>
+                <h2 id="engine-warning-title">{tr("Turn your volume down first", "请先把音量调低")}</h2>
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: 12, padding: "0 4px 4px" }}>
+              <p style={{ margin: 0, lineHeight: 1.7 }}>
+                {tr(
+                  "potatoHQ and mpv use their own volume, EQ and output path. After switching, loudness can differ from VLC — a sudden loud passage, a boosted EQ band or clipping can cause hearing damage, especially with headphones.",
+                  "potatoHQ 与 mpv 使用各自独立的音量、EQ 与输出路径。切换后响度可能与 VLC 不同:突然的高音量、被提升的 EQ 频段或削波都可能造成听力损伤,戴耳机时尤其危险。",
+                )}
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                <li>{tr("Lower the volume before you press play.", "开始播放前先把音量调低。")}</li>
+                <li>{tr("Reset the EQ before switching engines.", "切换引擎前先把 EQ 复位。")}</li>
+                <li>{tr("Take the headphones off while you test.", "测试时先摘下耳机。")}</li>
+              </ul>
+              <p style={{ margin: 0, opacity: 0.7, fontSize: 12 }}>
+                {tr(
+                  "Switching to " + pendingEngine + " requires a restart to apply.",
+                  "切换到 " + pendingEngine + " 需要重启后生效。",
+                )}
+              </p>
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="button button--glass" onClick={() => setPendingEngine(null)}>
+                {tr("Cancel", "取消")}
+              </button>
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={() => {
+                  const target = pendingEngine;
+                  setPendingEngine(null);
+                  if (target) void setPlaybackEngine(target);
+                }}
+              >
+                {tr("I lowered the volume — switch", "已调低音量,切换")}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }

@@ -10,6 +10,10 @@ import type {
   PlaylistImport,
   PromptState,
   ScanProgress,
+  PlaybackEngineId,
+  OutputMode,
+  EngineAvailability,
+  EngineCapabilities,
   Settings,
   Tag,
   TagKind,
@@ -53,6 +57,18 @@ interface AppStore {
   blocks: Tag[];
   genres: Tag[];
   settings: Settings | null;
+  playbackEngine: PlaybackEngineId;
+  outputMode: OutputMode;
+  engines: Record<PlaybackEngineId, EngineAvailability> | null;
+  engineCapabilities: EngineCapabilities | null;
+  spatialEnabled: boolean;
+  spatialX: number;
+  spatialY: number;
+  exclusive: boolean;
+  crossfeedEnabled: boolean;
+  crossfeedStrength: number;
+  followSourceRate: boolean;
+  vizBars: number[];
   playback: PlaybackState | null;
   scanning: boolean;
   scanProgress: ScanProgress | null;
@@ -121,6 +137,14 @@ interface AppStore {
   setRightTab: (tab: RightTab) => void;
   setCommandOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setPlaybackEngine: (engine: PlaybackEngineId) => Promise<void>;
+  setOutputMode: (mode: OutputMode) => Promise<void>;
+  setSpatialEnabled: (enabled: boolean) => Promise<void>;
+  setSpatialPosition: (x: number, y: number, persist: boolean) => void;
+  setExclusiveOutput: (enabled: boolean) => Promise<void>;
+  setCrossfeedEnabled: (enabled: boolean) => Promise<void>;
+  setCrossfeedStrength: (strength: number, persist: boolean) => void;
+  setFollowSourceRate: (enabled: boolean) => Promise<void>;
   setTrackMenu: (menu: TrackMenuState | null) => void;
   setAddToPlaylistTrackId: (id: string | null) => void;
   setAddToPlaylistTrackIds: (ids: string[]) => void;
@@ -302,6 +326,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   blocks: [],
   genres: [],
   settings: null,
+  playbackEngine: "vlc",
+  outputMode: "pcm",
+  engines: null,
+  engineCapabilities: null,
+  spatialEnabled: false,
+  spatialX: 0,
+  spatialY: 0,
+  exclusive: false,
+  crossfeedEnabled: false,
+  crossfeedStrength: 0.5,
+  followSourceRate: true,
+  vizBars: [],
   playback: null,
   scanning: false,
   scanProgress: null,
@@ -358,6 +394,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
         blocks: data.blocks ?? [],
         genres: data.genres ?? [],
         settings: data.settings,
+        playbackEngine: data.settings?.playbackEngine ?? "vlc",
+        outputMode: data.settings?.outputMode ?? "pcm",
+        engines: data.engines ?? null,
+        engineCapabilities: data.engineCapabilities ?? null,
+        spatialEnabled: data.settings?.spatialEnabled ?? false,
+        spatialX: data.settings?.spatialX ?? 0,
+        spatialY: data.settings?.spatialY ?? 0,
+        exclusive: data.settings?.exclusive ?? false,
+        crossfeedEnabled: data.settings?.crossfeedEnabled ?? false,
+        crossfeedStrength: data.settings?.crossfeedStrength ?? 0.5,
+        followSourceRate: data.settings?.followSourceRate ?? true,
         playback: data.playback,
         previewTrackId: preview,
         scanning: Boolean(data.scanNeeded),
@@ -431,10 +478,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         get().pushToast(lx("Scan failed", "扫描失败"), message, "error");
         break;
       }
+      case "engine.spectrum": {
+        const bars = (data as { bars?: number[] })?.bars;
+        if (Array.isArray(bars)) set({ vizBars: bars });
+        break;
+      }
       case "playback.state": {
         const playback = data as PlaybackState;
         const previous = get().playback;
-        set({ playback });
+        set({ playback, ...(playback.playing ? {} : { vizBars: [] }) });
         if (playback.trackId && playback.trackId !== previous?.trackId) {
           set({ previewTrackId: playback.trackId });
           void get().ensureLyrics(playback.trackId);
@@ -902,6 +954,137 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setRightTab: (tab) => set({ rightTab: tab }),
   setCommandOpen: (open) => set({ commandOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+
+  setSpatialEnabled: async (enabled) => {
+    const previous = get().spatialEnabled;
+    set({ spatialEnabled: enabled });
+    try {
+      await bridge().invoke("settings.setSpatial", {
+        enabled,
+        x: get().spatialX,
+        y: get().spatialY,
+        persist: true,
+      });
+      set((state) => ({
+        settings: state.settings ? { ...state.settings, spatialEnabled: enabled } : state.settings,
+      }));
+    } catch (error) {
+      set({ spatialEnabled: previous });
+      get().pushToast(lx("Could not change the sound field", "无法切换空间声场"), friendlyError(error), "error");
+    }
+  },
+
+  setSpatialPosition: (x, y, persist) => {
+    set({ spatialX: x, spatialY: y });
+    void bridge()
+      .invoke("settings.setSpatial", { enabled: get().spatialEnabled, x, y, persist })
+      .then(() => {
+        if (!persist) return;
+        const state = get();
+        if (state.settings) {
+          set({ settings: { ...state.settings, spatialX: x, spatialY: y } });
+        }
+      })
+      .catch(() => undefined);
+  },
+
+  setFollowSourceRate: async (enabled) => {
+    const previous = get().followSourceRate;
+    set({ followSourceRate: enabled });
+    try {
+      await bridge().invoke("settings.setFollowRate", { enabled });
+      set((state) => ({
+        settings: state.settings ? { ...state.settings, followSourceRate: enabled } : state.settings,
+      }));
+    } catch (error) {
+      set({ followSourceRate: previous });
+      get().pushToast(lx("Could not change rate following", "无法切换采样率跟随"), friendlyError(error), "error");
+    }
+  },
+
+  setCrossfeedEnabled: async (enabled) => {
+    const previous = get().crossfeedEnabled;
+    set({ crossfeedEnabled: enabled });
+    try {
+      await bridge().invoke("settings.setCrossfeed", {
+        enabled,
+        strength: get().crossfeedStrength,
+        persist: true,
+      });
+      set((state) => ({
+        settings: state.settings ? { ...state.settings, crossfeedEnabled: enabled } : state.settings,
+      }));
+    } catch (error) {
+      set({ crossfeedEnabled: previous });
+      get().pushToast(lx("Could not change crossfeed", "无法切换交叉馈电"), friendlyError(error), "error");
+    }
+  },
+
+  setCrossfeedStrength: (strength, persist) => {
+    set({ crossfeedStrength: strength });
+    void bridge()
+      .invoke("settings.setCrossfeed", { enabled: get().crossfeedEnabled, strength, persist })
+      .then(() => {
+        if (!persist) return;
+        const state = get();
+        if (state.settings) set({ settings: { ...state.settings, crossfeedStrength: strength } });
+      })
+      .catch(() => undefined);
+  },
+
+  setExclusiveOutput: async (enabled) => {
+    const previous = get().exclusive;
+    set({ exclusive: enabled });
+    try {
+      await bridge().invoke("settings.setExclusive", { enabled });
+      set((state) => ({ settings: state.settings ? { ...state.settings, exclusive: enabled } : state.settings }));
+    } catch (error) {
+      set({ exclusive: previous });
+      get().pushToast(lx("Could not change exclusive mode", "无法切换独占模式"), friendlyError(error), "error");
+    }
+  },
+
+  setOutputMode: async (mode) => {
+    const previous = get().outputMode;
+    set({ outputMode: mode });
+    try {
+      const result = await bridge().invoke<{ outputMode: OutputMode }>("settings.setOutputMode", { mode });
+      const saved = result?.outputMode ?? mode;
+      set((state) => ({
+        outputMode: saved,
+        settings: state.settings ? { ...state.settings, outputMode: saved } : state.settings,
+      }));
+      get().pushToast(
+        lx("Output mode saved", "输出模式已保存"),
+        lx("Applies on the next playback.", "下一次播放生效。"),
+        "success",
+      );
+    } catch (error) {
+      set({ outputMode: previous });
+      get().pushToast(lx("Could not change output mode", "无法切换输出模式"), friendlyError(error), "error");
+    }
+  },
+
+  setPlaybackEngine: async (engine) => {
+    const previous = get().playbackEngine;
+    set({ playbackEngine: engine });
+    try {
+      const result = await bridge().invoke<{ playbackEngine: PlaybackEngineId }>("settings.setEngine", { engine });
+      const saved = result?.playbackEngine ?? engine;
+      set((state) => ({
+        playbackEngine: saved,
+        settings: state.settings ? { ...state.settings, playbackEngine: saved } : state.settings,
+      }));
+      get().pushToast(
+        lx("Playback engine saved", "播放引擎已保存"),
+        lx("Restart Potatoplayer to apply.", "重启 Potatoplayer 后生效。"),
+        "success",
+      );
+    } catch (error) {
+      set({ playbackEngine: previous });
+      get().pushToast(lx("Could not change engine", "无法切换引擎"), friendlyError(error), "error");
+    }
+  },
   setTrackMenu: (menu) => set({ trackMenu: menu }),
   setAddToPlaylistTrackId: (id) => set({ addToPlaylistTrackId: id, addToPlaylistTrackIds: [] }),
   setAddToPlaylistTrackIds: (ids) => set({ addToPlaylistTrackId: null, addToPlaylistTrackIds: ids }),

@@ -15,6 +15,54 @@ All notable changes to Potatoplayer Super are documented here.
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
+## Unreleased
+
+### Added
+
+- **可切换播放引擎**：设置 → 播放引擎，可选 **VLC（默认，保持原样）**、**potatoHQ**（自研原生引擎）、
+  **mpv**。选择写入 `settings.json` 的 `playbackEngine`，**重启后生效**；目标引擎不可用时自动回退 VLC
+  并弹出提示。`playback.state` 新增 `engine` 字段，bootstrap 新增 `engines` 可用性与
+  `engineCapabilities` 能力矩阵，UI 据此显示或隐藏仅 potatoHQ 可用的功能。
+- **听力安全警告**：切换到 potatoHQ / mpv 时弹出确认框，明确提示可能造成听力损伤，要求先调低音量、
+  复位 EQ、摘下耳机后才能继续；VLC 不弹。
+- **potatoHQ 无缝连播**：队列下一首提前通过 `playback.setNext` 交给引擎，播完由引擎在同一音频流里
+  接力（不重开设备）；后端收到 `playback.track` 后同步队列指针与界面。VLC / mpv 保持原有切歌方式。
+- **采样率跟随源（potatoHQ）**：播放前把设备切到文件采样率（设备支持时），退出时恢复原速率；
+  96 kHz FLAC 不再经过引擎重采样。设置中可关闭。
+- **空间声场（potatoHQ）**：四象限圆盘拖动声源位置，双击复位；引擎侧实现双耳电平差、0.6 ms 内的
+  分数延迟时差（Hermite 插值）、后方 3.5 kHz 高频倾斜与距离衰减，参数 20 ms 平滑，关闭时逐样本直通。
+- **频谱可视化（potatoHQ）**：引擎在最终输出上做 2048 点 FFT，以 20 Hz 推送 48 段频谱；播放页封面
+  下方显示实时条。渲染回调只做定长拷贝，无分配、无锁。
+- **交叉馈电（potatoHQ）**：0.3 ms 延迟 + 700 Hz 低通的耳机 crossfeed，强度可调；关闭或强度 0 时透传。
+- **独占输出开关（potatoHQ）**：默认关闭；开启后下一次播放以 Hog Mode 独占设备。
+- **输出模式（potatoHQ）**：PCM / DSD64(DoP) / DSD128(DoP)。DSD 需要 DAC 支持 176.4 / 352.8 kHz
+  载波，设备不支持时播放前明确报错，不静默降级。
+
+### Changed
+
+- potatoHQ 的暂停与拖动：`seek` 改为原地重定位（不关闭/重开 CoreAudio 设备），并保持当前暂停状态；
+  设备独占默认关闭，避免蓝牙设备被反复抢占导致无声。
+- 暂停后忽略仍在途的 `playback.time` 事件，避免"界面显示暂停但时间还在走"的假象。
+
+### Fixed
+
+- **EQ 响度事故的根因**：Super 的 EQ preamp 是 VLC 语义（`12 dB == 单位增益`，源自 VLC 的 0.25
+  干声系数），两个新引擎此前把它当作普通 dB 直接叠加，等于平坦 EQ 也凭空 +12 dB，再叠加最多
+  +20 dB 的频段。现在适配层先换算为 `p − 12.04 dB`，然后：
+  - potatoHQ 在引擎内测量 10 段级联峰值，自动衰减 preamp，保证峰值 ≤ 0 dBFS；
+  - mpv 在 Java 侧做同样的峰值测量，并追加 `alimiter=limit=0.95`；音量不再被 preamp 抬高。
+- mpv 的 `observe_property` id 曾以浮点发送导致时间/时长始终为 0，已改为整数。
+- 构建：`Makefile` 增加头文件依赖（`.d`），修复改头文件后增量构建踩旧对象导致崩溃的问题。
+
+### Verification
+
+- 引擎单测 **102 项**（升频、ΣΔ、抖动、DoP、EQ 头空间、空间声场、交叉馈电、频谱、gapless 相关）。
+- 后端自检 **53 项**。
+- 端到端（真实后端 + 隔离数据目录）：暂停后时间冻结、暂停中拖动保持暂停、连续拖动不中断、
+  两首曲目 gapless 交接、空间/交叉馈电实时开关。
+- UI：设置页引擎选择、听力警告、空间圆盘、频谱条均用 Playwright + Electron（`--no-sandbox`）
+  实拍验证；VLC 模式下不显示任何 potatoHQ 专属控件。
+
 ## s1.1.0 — 2026-10-26
 
 ### Added

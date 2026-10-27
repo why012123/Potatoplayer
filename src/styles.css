@@ -9378,3 +9378,65 @@ img {
   .mv-dialog { padding-inline: 14px; }
   .mv-result__thumb { width: 112px; }
 }
+
+/* Virtual sound field pad (potatoHQ only) */
+.spatial-layout { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.spatial-side { display: grid; gap: 10px; flex: 1 1 260px; min-width: 240px; }
+.spatial-pad { display: grid; gap: 8px; }
+.spatial-pad__surface {
+  position: relative;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.55), rgba(255,255,255,0.12) 70%);
+  border: 1px solid rgba(120, 100, 90, 0.25);
+  box-shadow: inset 0 0 40px rgba(120, 90, 70, 0.12);
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  transition: opacity 160ms ease;
+}
+.spatial-pad__surface:focus-visible { outline: 2px solid rgba(120, 90, 70, 0.45); outline-offset: 3px; }
+.spatial-pad__surface svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.spatial-pad__rim { fill: none; stroke: rgba(120, 100, 90, 0.35); stroke-width: 1; }
+.spatial-pad__ring { fill: none; stroke: rgba(120, 100, 90, 0.16); stroke-width: 1; stroke-dasharray: 3 5; }
+.spatial-pad__axis { stroke: rgba(120, 100, 90, 0.18); stroke-width: 1; }
+.spatial-pad__label {
+  position: absolute; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(90, 74, 66, 0.6); pointer-events: none;
+}
+.spatial-pad__label--front { top: 6px; left: 50%; transform: translateX(-50%); }
+.spatial-pad__label--back { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.spatial-pad__label--left { left: 8px; top: 50%; transform: translateY(-50%); }
+.spatial-pad__label--right { right: 8px; top: 50%; transform: translateY(-50%); }
+.spatial-pad__dot {
+  position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #c98d6b);
+  box-shadow: 0 2px 8px rgba(120, 70, 40, 0.45), 0 0 0 4px rgba(201, 141, 107, 0.18);
+  pointer-events: none; transition: left 40ms linear, top 40ms linear;
+}
+.spatial-pad__readout {
+  display: flex; justify-content: space-between; font-size: 11px; opacity: 0.65;
+  padding: 0 4px; font-variant-numeric: tabular-nums;
+}
+
+/* Real spectrum bars (potatoHQ visualization tap) */
+.spectrum-bars {
+  display: inline-flex; align-items: flex-end; gap: 2px; height: 20px; width: 118px;
+  vertical-align: middle; margin-right: 10px;
+}
+.spectrum-bars i {
+  flex: 1 1 auto; min-width: 2px; border-radius: 1px 1px 0 0;
+  background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 40%, transparent));
+  transition: height 90ms linear; opacity: 0.9;
+}
+
+.now-playing__spectrum {
+  display: flex; align-items: flex-end; gap: 2px; width: 100%; height: 26px;
+  margin: 2px 0 10px; opacity: 0.55;
+}
+.now-playing__spectrum i { flex: 1 1 auto; min-width: 2px; border-radius: 1px 1px 0 0;
+  background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 30%, transparent));
+  transition: height 90ms linear; }
+
+.spatial-slider { display: flex; align-items: center; gap: 10px; padding: 4px 2px; font-size: 12px; opacity: 0.9; }
+.spatial-slider input { flex: 1; accent-color: currentColor; }
+.spatial-slider em { font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.7; min-width: 38px; text-align: right; }

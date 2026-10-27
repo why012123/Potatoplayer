@@ -100,6 +100,8 @@ public final class Backend implements PlaybackController.Host {
             out.put("blocks", copies(state.blocks));
             out.put("genres", copies(state.genres));
             out.put("settings", settings);
+            out.put("engines", EngineFactory.availability());
+            out.put("engineCapabilities", EngineFactory.capabilities(settings.playbackEngine));
             out.put("playback", playback.state());
             out.put("scanNeeded", scanNeeded);
             out.put("scannedAt", state.scannedAt);
@@ -639,6 +641,103 @@ public final class Backend implements PlaybackController.Host {
         return tags.stream().map(Tag::copy).toList();
     }
 
+    public Map<String, Object> setPlaybackEngine(String requested) {
+        synchronized (lock) {
+            String engine = EngineFactory.normalize(requested);
+            settings.playbackEngine = engine;
+            try {
+                store.saveSettings(settings);
+            } catch (IOException e) {
+                throw new IllegalStateException("无法保存播放引擎设置: " + e.getMessage(), e);
+            }
+            return Map.of(
+                    "playbackEngine", engine,
+                    "restartRequired", true,
+                    "engines", EngineFactory.availability());
+        }
+    }
+
+    public Map<String, Object> setOutputMode(String requested) {
+        synchronized (lock) {
+            String mode = switch (requested == null ? "" : requested.trim().toLowerCase()) {
+                case "dop64" -> "dop64";
+                case "dop128" -> "dop128";
+                default -> "pcm";
+            };
+            settings.outputMode = mode;
+            try {
+                store.saveSettings(settings);
+            } catch (IOException e) {
+                throw new IllegalStateException("无法保存输出模式: " + e.getMessage(), e);
+            }
+            return Map.of("outputMode", mode, "restartRequired", true);
+        }
+    }
+
+    public Map<String, Object> setSpatial(boolean enabled, double x, double y, boolean persist) {
+        synchronized (lock) {
+            settings.spatialEnabled = enabled;
+            settings.spatialX = Math.max(-1, Math.min(1, x));
+            settings.spatialY = Math.max(-1, Math.min(1, y));
+            if (persist) {
+                try {
+                    store.saveSettings(settings);
+                } catch (IOException e) {
+                    throw new IllegalStateException("无法保存空间声场: " + e.getMessage(), e);
+                }
+            }
+            // Live preview while dragging: apply without touching the disk.
+            playback.applySpatial();
+            return Map.of("enabled", settings.spatialEnabled,
+                    "x", settings.spatialX, "y", settings.spatialY,
+                    "persisted", persist);
+        }
+    }
+
+    public Map<String, Object> setFollowRate(boolean enabled) {
+        synchronized (lock) {
+            settings.followSourceRate = enabled;
+            try {
+                store.saveSettings(settings);
+            } catch (IOException e) {
+                throw new IllegalStateException("无法保存采样率跟随: " + e.getMessage(), e);
+            }
+            PlaybackEngine engine = playback.engine();
+            if (engine != null) engine.setFollowSourceRate(enabled);
+            return Map.of("followSourceRate", enabled, "appliesOnNextPlay", true);
+        }
+    }
+
+    public Map<String, Object> setCrossfeed(boolean enabled, double strength, boolean persist) {
+        synchronized (lock) {
+            settings.crossfeedEnabled = enabled;
+            settings.crossfeedStrength = Math.max(0, Math.min(1, strength));
+            if (persist) {
+                try {
+                    store.saveSettings(settings);
+                } catch (IOException e) {
+                    throw new IllegalStateException("无法保存交叉馈电: " + e.getMessage(), e);
+                }
+            }
+            playback.applyCrossfeed();
+            return Map.of("enabled", enabled, "strength", settings.crossfeedStrength, "persisted", persist);
+        }
+    }
+
+    public Map<String, Object> setExclusive(boolean enabled) {
+        synchronized (lock) {
+            settings.exclusive = enabled;
+            try {
+                store.saveSettings(settings);
+            } catch (IOException e) {
+                throw new IllegalStateException("无法保存独占设置: " + e.getMessage(), e);
+            }
+            PlaybackEngine engine = playback.engine();
+            if (engine != null) engine.setExclusive(enabled);
+            return Map.of("exclusive", enabled, "restartRequired", false);
+        }
+    }
+
     public Map<String, Object> eqState() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("enabled", eqStore.on);
@@ -1026,6 +1125,19 @@ public final class Backend implements PlaybackController.Host {
             case "playback.previous" -> playback.previous();
             case "playback.seek" -> playback.seek(number(p, "seconds", 0));
             case "playback.volume" -> playback.setVolume(number(p, "volume", settings.volume));
+            case "settings.setEngine" -> setPlaybackEngine(text(p, "engine", settings.playbackEngine));
+            case "settings.setOutputMode" -> setOutputMode(text(p, "mode", settings.outputMode));
+            case "settings.setSpatial" -> setSpatial(
+                    bool(p, "enabled", settings.spatialEnabled),
+                    number(p, "x", settings.spatialX),
+                    number(p, "y", settings.spatialY),
+                    bool(p, "persist", true));
+            case "settings.setExclusive" -> setExclusive(bool(p, "enabled", settings.exclusive));
+            case "settings.setFollowRate" -> setFollowRate(bool(p, "enabled", settings.followSourceRate));
+            case "settings.setCrossfeed" -> setCrossfeed(
+                    bool(p, "enabled", settings.crossfeedEnabled),
+                    number(p, "strength", settings.crossfeedStrength),
+                    bool(p, "persist", true));
             case "playback.mute" -> playback.setMuted(bool(p, "muted", false));
             case "playback.repeat" -> playback.setRepeat(text(p, "mode", "off"));
             case "playback.shuffle" -> playback.setShuffle(bool(p, "enabled", false));

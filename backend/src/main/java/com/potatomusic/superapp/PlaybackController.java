@@ -74,11 +74,25 @@ public final class PlaybackController {
 
     public synchronized PlaybackEngine engine() {
         if (engine == null) {
-            PlaybackEngine created = new PlaybackEngine();
+            PlaybackEngine created = EngineFactory.create(host.settings().playbackEngine);
+            String fallback = EngineFactory.lastFallbackReason();
+            if (fallback != null) {
+                host.emit("toast", Map.of("kind", "error", "message", fallback));
+            }
             created.setListener(new PlaybackEngine.Listener() {
                 @Override
                 public void onFinished() {
                     events.execute(() -> handleFinished());
+                }
+
+                @Override
+                public void onSpectrum(java.util.List<Double> bars) {
+                    host.emit("engine.spectrum", Map.of("bars", bars));
+                }
+
+                @Override
+                public void onAdvanced(String path) {
+                    events.execute(() -> handleAdvanced(path));
                 }
 
                 @Override
@@ -96,6 +110,21 @@ public final class PlaybackController {
             engine = created;
         }
         return engine;
+    }
+
+    /** Push the persisted virtual sound field to the active engine, live. */
+    public synchronized void applyCrossfeed() {
+        PlaybackEngine current = engine;
+        if (current != null) {
+            current.setCrossfeed(host.settings().crossfeedEnabled, host.settings().crossfeedStrength);
+        }
+    }
+
+    public synchronized void applySpatial() {
+        PlaybackEngine current = engine;
+        if (current != null) {
+            current.setSpatial(host.settings().spatialEnabled, host.settings().spatialX, host.settings().spatialY);
+        }
     }
 
     public synchronized void applyEq() {
@@ -140,6 +169,7 @@ public final class PlaybackController {
         state.put("queue", List.copyOf(queue));
         state.put("queueIndex", queueIndex);
         PlaybackEngine e = engine;
+        state.put("engine", e == null ? null : e.id());
         state.put("available", e == null || e.available());
         state.put("error", e == null ? null : e.error());
         return state;
@@ -299,7 +329,13 @@ public final class PlaybackController {
         muted = value;
         PlaybackEngine e = engine;
         if (e != null) {
-            e.setVolume(muted ? 0 : host.settings().volume);
+            e.setDsdMode(dsdMultFromSettings());
+        e.setExclusive(host.settings().exclusive);
+        e.setSpatial(host.settings().spatialEnabled, host.settings().spatialX, host.settings().spatialY);
+        e.setFollowSourceRate(host.settings().followSourceRate);
+        e.setCrossfeed(host.settings().crossfeedEnabled, host.settings().crossfeedStrength);
+        e.setVisualization(true);
+        e.setVolume(muted ? 0 : host.settings().volume);
         }
         host.scheduleSave();
         emitState();
@@ -416,6 +452,12 @@ public final class PlaybackController {
             emitState();
             return;
         }
+        e.setDsdMode(dsdMultFromSettings());
+        e.setExclusive(host.settings().exclusive);
+        e.setSpatial(host.settings().spatialEnabled, host.settings().spatialX, host.settings().spatialY);
+        e.setFollowSourceRate(host.settings().followSourceRate);
+        e.setCrossfeed(host.settings().crossfeedEnabled, host.settings().crossfeedStrength);
+        e.setVisualization(true);
         e.setVolume(muted ? 0 : host.settings().volume);
         // Apply the saved per-song preset before play(), matching the legacy player:
         // the new VLC output inherits the equalizer without a filter rebuild.
@@ -438,6 +480,68 @@ public final class PlaybackController {
         changed.put("state", state());
         host.emit("playback.track", changed);
         emitState();
+        schedulePreload();
+    }
+
+    private int dsdMultFromSettings() {
+        String mode = host.settings().outputMode;
+        if ("dop64".equals(mode)) return 64;
+        if ("dop128".equals(mode)) return 128;
+        if ("dop256".equals(mode)) return 256;
+        return 0;
+    }
+
+    /** The queue entry that follows the current one, honouring repeat/shuffle. */
+    private String nextTrackIdForGapless() {
+        if (queue.isEmpty() || currentId == null || shuffle) return null;
+        if ("one".equals(repeat)) return currentId;
+        int index = queue.indexOf(currentId);
+        if (index < 0) return null;
+        int following = index + 1;
+        if (following >= queue.size()) {
+            return "all".equals(repeat) ? queue.get(0) : null;
+        }
+        return queue.get(following);
+    }
+
+    private void schedulePreload() {
+        PlaybackEngine e = engine;
+        if (e == null || !e.supportsGapless()) return;
+        String nextId = nextTrackIdForGapless();
+        Track track = nextId == null ? null : host.findTrack(nextId);
+        e.setNext(track == null ? "" : track.path);
+    }
+
+    /** The engine handed off to the next file without stopping the device. */
+    private void handleAdvanced(String path) {
+        synchronized (this) {
+            if (shuttingDown || path == null || path.isBlank()) return;
+            Track track = null;
+            for (Track candidate : host.tracks()) {
+                if (path.equals(candidate.path)) {
+                    track = candidate;
+                    break;
+                }
+            }
+            if (track == null) return;
+            currentId = track.id;
+            int index = queue.indexOf(track.id);
+            if (index >= 0) queueIndex = index;
+            duration = Math.max(0, track.duration);
+            time = 0;
+            playing = true;
+            loaded = true;
+            host.settings().lastTrackId = track.id;
+            host.settings().lastPosition = 0;
+            host.markPlayed(track);
+            host.scheduleSave();
+            Map<String, Object> changed = new LinkedHashMap<>();
+            changed.put("trackId", track.id);
+            changed.put("state", state());
+            host.emit("playback.track", changed);
+            emitState();
+            schedulePreload();
+        }
     }
 
     private void handleFinished() {
@@ -453,6 +557,7 @@ public final class PlaybackController {
     private void stopAtEnd() {
         PlaybackEngine e = engine;
         if (e != null) {
+            e.setVisualization(false);
             e.stop();
         }
         playing = false;

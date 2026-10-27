@@ -24,6 +24,7 @@ import {
 import type { Track } from "@/types";
 import { Cover } from "@/components/Cover";
 import { EqualizerBars } from "@/components/EqualizerBars";
+import { SpectrumBars } from "@/components/SpectrumBars";
 import { Slider } from "@/components/Slider";
 import { IconButton } from "@/components/IconButton";
 import { useAppStore } from "@/store";
@@ -33,6 +34,8 @@ import { formatTime } from "@/lib/format";
 export function NowPlaying() {
   const tr = useTr();
   const playback = useAppStore((state) => state.playback);
+  const vizBars = useAppStore((state) => state.vizBars);
+  const capabilities = useAppStore((state) => state.engineCapabilities);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
@@ -227,6 +230,10 @@ export function NowPlaying() {
                 </span>
               </button>
             </motion.div>
+
+            {capabilities?.visualizer && vizBars.length > 0 ? (
+              <SpectrumBars bars={vizBars} className="now-playing__spectrum" />
+            ) : null}
 
             <div className="now-playing__meta">
               <div className="now-playing__title-line">
