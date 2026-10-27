@@ -148,8 +148,20 @@ function delay(ms) {
   assert.equal(frameBackground, "rgba(0, 0, 0, 0)", "lyrics frame toggle should remove the panel surface");
   await frameToggle.click();
   await page.waitForSelector(".immerse--no-lyrics-frame", { state: "detached" });
-  await page.getByRole("button", { name: "Close customizer" }).click();
+
+  // The old 3D stage is gone. Exercise the replacement from the same
+  // customizer and confirm the two views can switch without losing playback.
+  await page.locator(".immersive-customizer").getByRole("button", { name: "Lyric stage", exact: true }).click();
+  await page.waitForSelector(".stage", { timeout: 10_000 });
+  await page.waitForSelector(".stage-line", { timeout: 10_000 });
+  assert.ok((await page.locator(".stage-line").count()) > 0, "lyric stage should render timed lines");
+  assert.ok(await page.locator(".stage__lyrics-head").isVisible(), "lyric stage header should be visible");
+  await page.locator(".immersive-customizer").getByRole("button", { name: "Close customizer" }).click();
   await page.waitForSelector(".immersive-customizer", { state: "detached" });
+  await page.locator(".stage__view-switch").getByRole("button", { name: "Classic", exact: true }).click();
+  await page.waitForSelector(".immerse", { timeout: 10_000 });
+  await page.waitForSelector(".immersive-customizer", { state: "detached" });
+  console.log("[ui] lyric stage opened and returned to classic");
   await page.getByRole("button", { name: "Open equalizer" }).click();
   await page.waitForSelector(".eq-dialog");
   await page.getByRole("button", { name: "Close equalizer" }).click();

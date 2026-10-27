@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Potatoplayer Super
+title Potatoplayer Ultra
 
 echo.
 echo   potato super
@@ -32,7 +32,7 @@ if not exist "node_modules\electron" (
   )
 )
 
-echo [*] Starting Potatoplayer Super...
+echo [*] Starting Potatoplayer Ultra...
 call npm start
 if errorlevel 1 (
   echo.

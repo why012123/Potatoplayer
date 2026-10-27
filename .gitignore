@@ -15,12 +15,10 @@ backend/target/
 .mvn/wrapper/maven-wrapper.jar.tmp
 backend/.deps/
 
-# Runtime data (normally in ~/.potatoplayer-super)
+# Runtime data (normally in ~/.potatoplayer-ultra)
 data/
 covers/
 
-# Generated 3D stage bundle (rebuilt by npm run build:renderer)
-public/lyric3d/stage.bundle.js
 
 # Local screenshots / scratch
 *.tmp.png

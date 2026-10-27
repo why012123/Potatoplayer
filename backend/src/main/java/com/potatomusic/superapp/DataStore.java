@@ -136,6 +136,6 @@ public final class DataStore {
         if (override != null && !override.isBlank()) {
             return Path.of(override).toAbsolutePath().normalize();
         }
-        return Path.of(System.getProperty("user.home"), ".potatoplayer-super").toAbsolutePath().normalize();
+        return Path.of(System.getProperty("user.home"), ".potatoplayer-ultra").toAbsolutePath().normalize();
     }
 }

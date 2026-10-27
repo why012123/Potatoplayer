@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Potatoplayer Super — dark room
+   Potatoplayer Ultra — dark room
    A warm charcoal counterpart to the paper-and-glass light theme.
    ───────────────────────────────────────────────────────────────────────────── */
 
@@ -705,11 +705,9 @@
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Immersive / 3D controls sit on their own dark stage and keep a cream active
+/* Immersive controls sit on their own dark stage and keep a cream active
    pill regardless of the app theme. */
-[data-theme="dark"] .immerse__view-switch button.is-active,
-[data-theme="dark"] .lyric3d-view-switch button.is-active,
-[data-theme="dark"] .lyric3d-controls .lyric3d-play {
+[data-theme="dark"] .immerse__view-switch button.is-active {
   color: #181516;
   background: #f3ece5;
 }

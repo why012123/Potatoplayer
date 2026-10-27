@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.potatomusic</groupId>
-    <artifactId>potatoplayer-super-backend</artifactId>
-    <version>1.1.0</version>
-    <name>Potatoplayer Super Backend</name>
-    <description>Headless library and VLC playback service for Potatoplayer Super</description>
+    <artifactId>potatoplayer-ultra-backend</artifactId>
+    <version>1.2.0-ultra.1</version>
+    <name>Potatoplayer Ultra Backend</name>
+    <description>Headless library and VLC playback service for Potatoplayer Ultra</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -43,7 +43,7 @@
     </dependencies>
 
     <build>
-        <finalName>potatoplayer-super-backend</finalName>
+        <finalName>potatoplayer-ultra-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

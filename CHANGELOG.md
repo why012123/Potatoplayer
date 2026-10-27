@@ -1,19 +1,52 @@
 # Changelog
 
-All notable changes to Potatoplayer Super are documented here.
+All notable changes to Potatoplayer Ultra are documented here. Ultra is built on Potatoplayer Super `s1.1.0`.
 
 ## Versioning
 
-- **Current release:** `s1.1.0`. The line started at `s1.0.0`; patch releases use
-  the familiar `s1.0.x` sequence, while this release introduces the first
-  feature-level minor bump.
-- The `s` prefix is the user-facing Super version label. The package and Maven
-  metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
+- **Current release:** `s1.2.0-ultra.1`. Ultra starts from Super `s1.1.0`
+  (commit `8bcea69`) and keeps the same user-facing `s` prefix.
+- The `s` prefix is the user-facing version label. The package and Maven
+  metadata use the equivalent plain semver; this release is `1.2.0-ultra.1`.
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.2.0-ultra.1 — 2026-10-27
+
+### Added
+- **Lyric stage.** A new full-screen, lyrics-first stage replaces the
+  iframe-based 3D performance. It supports Cinema / Focus / Minimal layouts,
+  Cover / Ember / Mono / Night palettes, configurable glow, context lines,
+  drift/still motion and independent stage alignment. The classic immersive
+  view remains available alongside it.
+- **Word-level lyrics.** The Java service now emits optional `end` and
+  `words[]` fields and reads enhanced LRC/A2, TTML, QRC, YRC and WebVTT in
+  addition to plain LRC. Translation sidecars still merge by nearest line
+  time. Plain LRC files fall back to line-level highlighting rather than
+  inventing timings; KRC remains unsupported.
+- **Smooth lyric clock.** The 500 ms backend progress tick is interpolated
+  with `requestAnimationFrame` in the stage, so karaoke fills no longer step
+  at 500 ms.
+- **Stage customizer.** Theme, layout, motion, word highlight, glow, context
+  count and alignment are persisted in `potato:immersive-preferences:v1`.
+  Existing `"3d"` preferences migrate to `"stage"`.
+- **Ultra identity.** Package, backend artifact, window title, launcher
+  labels and default profile are now Ultra. The default data directory is
+  `~/.potatoplayer-ultra`; migration from Super is documented in the README.
+
+### Removed
+- The `Lyric3DStage` React component, the `public/lyric3d` iframe stage and
+  vendor tree, `vite.lyric3d.config.ts`, the `lyric-3d-lab` prototype and the
+  old 3D-specific styles and preferences.
+
+### Credits
+- Lyric-stage product inspiration: [Folia](https://github.com/chthollyphile/folia-major)
+  by chthollyphile and contributors (AGPL-3.0). No Folia source code,
+  styles, fonts, assets or generated bundles were copied. See `CREDITS.md`
+  and `docs/lyrics-stage.md`.
 
 ## s1.1.0 — 2026-10-26
 

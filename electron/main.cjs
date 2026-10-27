@@ -14,7 +14,7 @@ const capturePath = process.env.POTATO_CAPTURE_PATH || null;
 const captureView = process.env.POTATO_CAPTURE_VIEW || process.env.POTATO_START_VIEW || null;
 const shouldExitAfterCapture = process.env.POTATO_CAPTURE_EXIT !== "0";
 const previewMode = Boolean(process.env.POTATO_PREVIEW);
-const windowTitle = previewMode ? "Potatoplayer Super — UI Preview" : "Potatoplayer Super";
+const windowTitle = previewMode ? "Potatoplayer Ultra — UI Preview" : "Potatoplayer Ultra";
 
 let mainWindow = null;
 let backend = null;
@@ -36,7 +36,7 @@ protocol.registerSchemesAsPrivileged([
 
 function dataDir() {
   if (process.env.POTATOMUSIC_HOME) return path.resolve(process.env.POTATOMUSIC_HOME);
-  return path.join(app.getPath("home"), ".potatoplayer-super");
+  return path.join(app.getPath("home"), ".potatoplayer-ultra");
 }
 
 function sanitizeCoverPath(encoded) {
@@ -193,7 +193,7 @@ function buildMenu() {
   }
   const template = [
     {
-      label: "Potatoplayer Super",
+      label: "Potatoplayer Ultra",
       submenu: [
         { role: "about" },
         { type: "separator" },
@@ -241,7 +241,7 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
   });
 
   app.whenReady().then(async () => {
-    app.setName("Potatoplayer Super");
+    app.setName("Potatoplayer Ultra");
     if (process.platform === "darwin" && app.dock) {
       const icon = path.join(appRoot, "build", "icon.png");
       if (fs.existsSync(icon)) app.dock.setIcon(icon);
@@ -269,7 +269,7 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     try {
       await backend.start();
     } catch (error) {
-      dialog.showErrorBox("Potatoplayer Super", error.message);
+      dialog.showErrorBox("Potatoplayer Ultra", error.message);
       app.quit();
       return;
     }

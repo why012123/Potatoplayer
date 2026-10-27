@@ -5,7 +5,7 @@ const { spawn } = require("node:child_process");
 const readline = require("node:readline");
 
 const root = path.resolve(__dirname, "..");
-const jar = path.join(root, "backend", "target", "potatoplayer-super-backend.jar");
+const jar = path.join(root, "backend", "target", "potatoplayer-ultra-backend.jar");
 if (!fs.existsSync(jar)) {
   console.error("Build the backend first: npm run build:backend");
   process.exit(1);

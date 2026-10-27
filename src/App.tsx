@@ -82,7 +82,7 @@ function LoadingScreen() {
         </div>
         <div className="boot-word">
           <strong>potato</strong>
-          <em>super</em>
+          <em>ultra</em>
         </div>
         <div className="boot-loader">
           <span />
@@ -106,7 +106,7 @@ function FatalScreen({ message }: { message: string }) {
         <div className="fatal-card__steps">
           <strong>{tr("Try this", "可以试试")}</strong>
           <code>npm run build:backend</code>
-          <span>{tr("Then reopen Potatoplayer Super.", "然后重新打开 Potatoplayer Super。")}</span>
+          <span>{tr("Then reopen Potatoplayer Ultra.", "然后重新打开 Potatoplayer Ultra。")}</span>
         </div>
         <button type="button" className="button button--dark" onClick={() => window.location.reload()}>
           <RefreshCw size={15} /> {tr("Try again", "重试")}

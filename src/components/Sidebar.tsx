@@ -87,7 +87,7 @@ export function Sidebar() {
         </div>
         <div className="brand__type">
           <strong>potato</strong>
-          <em>super</em>
+          <em>ultra</em>
         </div>
       </div>
 

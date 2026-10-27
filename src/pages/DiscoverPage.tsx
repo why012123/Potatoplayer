@@ -456,7 +456,7 @@ export function DiscoverPage() {
             })}
           </h2>
           <p>
-            {tr("Potatoplayer Super talks to", "Potatoplayer Super 通过")}{" "}
+            {tr("Potatoplayer Ultra talks to", "Potatoplayer Ultra 通过")}{" "}
             <code>{onlineSource === "qq" ? "qq-music-api" : "api-enhanced"}</code>{" "}
             {tr("on", "连接")} <strong>{status?.apiBase}</strong>
             {tr(". Start it once and the connection stays local.", "。启动一次后，连接会保持本地。")}
@@ -486,12 +486,12 @@ export function DiscoverPage() {
               <em>
                 {onlineSource === "qq"
                   ? tr(
-                      "Install @yakult-green-tea/qq-music-api in ~/.potatoplayer-super/api/qq-music-api",
-                      "请在 ~/.potatoplayer-super/api/qq-music-api 中安装 @yakult-green-tea/qq-music-api",
+                      "Install @yakult-green-tea/qq-music-api in ~/.potatoplayer-ultra/api/qq-music-api",
+                      "请在 ~/.potatoplayer-ultra/api/qq-music-api 中安装 @yakult-green-tea/qq-music-api",
                     )
                   : tr(
-                      "Set -Dpotatomusic.apiDir or place api-enhanced in ~/.potatoplayer-super/api/",
-                      "设置 -Dpotatomusic.apiDir，或将 api-enhanced 放入 ~/.potatoplayer-super/api/",
+                      "Set -Dpotatomusic.apiDir or place api-enhanced in ~/.potatoplayer-ultra/api/",
+                      "设置 -Dpotatomusic.apiDir，或将 api-enhanced 放入 ~/.potatoplayer-ultra/api/",
                     )}
               </em>
             )}

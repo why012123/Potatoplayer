@@ -293,7 +293,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.1.0",
+  version: "s1.2.0-ultra.1",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -493,7 +493,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       case "toast": {
         const payload = data as { kind?: Toast["tone"]; title?: string; message: string };
         get().pushToast(
-          payload.title ?? (payload.kind === "error" ? lx("Something went wrong", "出了点问题") : "Potatoplayer Super"),
+          payload.title ?? (payload.kind === "error" ? lx("Something went wrong", "出了点问题") : "Potatoplayer Ultra"),
           payload.message,
           payload.kind,
         );

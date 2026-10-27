@@ -4,7 +4,7 @@ const { spawnSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const backend = path.join(root, "backend");
-const jar = path.join(backend, "target", "potatoplayer-super-backend.jar");
+const jar = path.join(backend, "target", "potatoplayer-ultra-backend.jar");
 
 function newestSource() {
   let newest = 0;

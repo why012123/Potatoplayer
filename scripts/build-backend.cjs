@@ -8,7 +8,7 @@ const backend = path.join(root, "backend");
 const target = path.join(backend, "target");
 const classes = path.join(target, "classes");
 const lib = path.join(target, "lib");
-const jar = path.join(target, "potatoplayer-super-backend.jar");
+const jar = path.join(target, "potatoplayer-ultra-backend.jar");
 
 function javaTool(name) {
   if (process.env.JAVA_HOME) {

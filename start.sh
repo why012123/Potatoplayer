@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Potatoplayer Super — one-command launcher for macOS / Linux.
+# Potatoplayer Ultra — one-command launcher for macOS / Linux.
 set -u
 
 cd "$(dirname "$0")" || exit 1
@@ -71,7 +71,7 @@ fi
 
 # ── Launch ────────────────────────────────────────────────────────────────────
 # npm start runs prestart: renderer build + backend freshness check.
-step "启动 Potatoplayer Super"
+step "启动 Potatoplayer Ultra"
 say "${DIM}  首次启动会构建 Java 音频服务和界面，之后会快很多。${RESET}"
 printf '\n'
 npm start

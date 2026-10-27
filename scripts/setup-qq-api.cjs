@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const target = path.join(os.homedir(), ".potatoplayer-super", "api", "qq-music-api");
+const target = path.join(os.homedir(), ".potatoplayer-ultra", "api", "qq-music-api");
 const entry = path.join(target, "node_modules", "@yakult-green-tea", "qq-music-api", "dist", "src", "app.js");
 
 if (fs.existsSync(entry)) {

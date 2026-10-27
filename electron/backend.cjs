@@ -21,7 +21,7 @@ class BackendProcess extends EventEmitter {
   }
 
   jarPath() {
-    return process.env.POTATOMUSIC_BACKEND_JAR || path.join(this.appRoot, "backend", "target", "potatoplayer-super-backend.jar");
+    return process.env.POTATOMUSIC_BACKEND_JAR || path.join(this.appRoot, "backend", "target", "potatoplayer-ultra-backend.jar");
   }
 
   javaBinary() {

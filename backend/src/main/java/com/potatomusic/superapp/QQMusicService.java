@@ -111,7 +111,7 @@ public final class QQMusicService {
         Path entry = startEntry();
         if (entry == null) {
             throw new IllegalStateException(
-                    "qq-music-api was not found. Install @yakult-green-tea/qq-music-api at ~/.potatoplayer-super/api/qq-music-api or set -Dpotatomusic.qqApiDir.");
+                    "qq-music-api was not found. Install @yakult-green-tea/qq-music-api at ~/.potatoplayer-ultra/api/qq-music-api or set -Dpotatomusic.qqApiDir.");
         }
         String node = findNode();
         if (node == null) throw new IllegalStateException("Node.js 20+ was not found. Install Node and try again.");
@@ -593,7 +593,7 @@ public final class QQMusicService {
         List<Path> roots = new ArrayList<>();
         if (cwd.getParent() != null) roots.add(cwd.getParent().resolve("api"));
         roots.add(dataDir.resolve("api"));
-        roots.add(Path.of(System.getProperty("user.home"), ".potatoplayer-super", "api"));
+        roots.add(Path.of(System.getProperty("user.home"), ".potatoplayer-ultra", "api"));
         for (Path root : roots) {
             Path direct = root.resolve("qq-music-api");
             if (startEntry(direct) != null) return direct;

@@ -117,7 +117,7 @@ public final class NeteaseService {
         }
         if (apiDir == null || !Files.isRegularFile(apiDir.resolve("app.js"))) {
             throw new IllegalStateException(
-                    "api-enhanced was not found. Place it at ~/.potatoplayer-super/api/api-enhanced-4.35.0 or set -Dpotatomusic.apiDir.");
+                    "api-enhanced was not found. Place it at ~/.potatoplayer-ultra/api/api-enhanced-4.35.0 or set -Dpotatomusic.apiDir.");
         }
         String node = findNode();
         if (node == null) {
@@ -733,7 +733,7 @@ public final class NeteaseService {
         List<Path> roots = new ArrayList<>();
         if (cwd.getParent() != null) roots.add(cwd.getParent().resolve("api"));
         roots.add(dataDir.resolve("api"));
-        roots.add(Path.of(System.getProperty("user.home"), ".potatoplayer-super", "api"));
+        roots.add(Path.of(System.getProperty("user.home"), ".potatoplayer-ultra", "api"));
         roots.add(Path.of(System.getProperty("user.home"), "api"));
         for (Path root : roots) {
             Path direct = root.resolve("api-enhanced");

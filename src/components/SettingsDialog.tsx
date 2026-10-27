@@ -154,7 +154,7 @@ export function SettingsDialog() {
             <div>
               <div className="modal__eyebrow">
                 <Sparkles size={13} />
-                Potatoplayer Super
+                Potatoplayer Ultra
               </div>
               <h2 id="settings-title">{tr("Settings", "设置")}</h2>
               <p className="settings-subtitle">{tr("Tune the room, the language, and the way things move.", "调整你的房间、语言与动效。")}</p>
@@ -519,7 +519,7 @@ export function SettingsDialog() {
 
             <section className="settings-about">
               <div>
-                <strong>Potatoplayer Super</strong>
+                <strong>Potatoplayer Ultra</strong>
                 <span>{tr("Version {version} · Local listening room", "版本 {version} · 本地聆听室", { version })}</span>
               </div>
               <span className="settings-about__badge">{tr("Local first", "本地优先")}</span>

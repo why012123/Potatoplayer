@@ -27,7 +27,7 @@ import { useAppStore } from "@/store";
 import { coverUrl } from "@/lib/covers";
 import { formatTime } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
-import { Lyric3DStage } from "@/components/Lyric3DStage";
+import { LyricStage } from "@/components/LyricStage";
 import { ImmersiveCustomizer } from "@/components/ImmersiveCustomizer";
 import {
   accentFromPreferences,
@@ -42,6 +42,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
   const lyrics = useAppStore((state) => state.lyrics);
+  const lyricsLoading = useAppStore((state) => state.lyricsLoading);
   const settings = useAppStore((state) => state.settings);
   const setImmersive = useAppStore((state) => state.setImmersive);
   const togglePlay = useAppStore((state) => state.togglePlay);
@@ -59,8 +60,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const tr = useTr();
   const [prefs, setPrefs] = useState<ImmersivePreferences>(() => loadImmersivePreferences());
   const [customizerOpen, setCustomizerOpen] = useState(false);
-  const view3d = prefs.lyricView === "3d";
-  const setView3d = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "3d" : "classic" }));
+  const stageView = prefs.lyricView === "stage";
+  const setStageView = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "stage" : "classic" }));
   const updatePrefs = (patch: Partial<ImmersivePreferences>) => setPrefs((current) => ({ ...current, ...patch }));
 
   const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
@@ -102,8 +103,8 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   }, [track, setImmersive]);
 
   useEffect(() => {
-    if (view3d && track) void ensureLyrics(track.id);
-  }, [view3d, track, ensureLyrics]);
+    if (track?.id) void ensureLyrics(track.id);
+  }, [track?.id, ensureLyrics]);
 
   useEffect(() => {
     saveImmersivePreferences(prefs);
@@ -177,29 +178,43 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     </AnimatePresence>
   );
 
-  if (view3d && track) {
+  if (stageView && track) {
     return (
       <>
-        <Lyric3DStage
+        <LyricStage
           track={track}
           lyrics={lyrics}
+          lyricsLoading={lyricsLoading}
           palette={palette}
           time={time}
           duration={duration}
           playing={isPlaying}
           isCurrent={isCurrent}
+          favorite={favorite}
+          showCover={prefs.showCover}
+          showInfo={prefs.showInfo}
+          showHeader={prefs.showHeader}
+          showTranslation={prefs.showTranslation}
+          showProgress={prefs.showProgress}
+          showFavorite={prefs.showFavorite}
+          lyricScale={prefs.lyricScale}
+          lyricSerif={prefs.lyricSerif}
+          stageTheme={prefs.stageTheme}
+          stageLayout={prefs.stageLayout}
+          stageMotion={prefs.stageMotion}
+          stageAlign={prefs.stageAlign}
+          stageWordHighlight={prefs.stageWordHighlight}
+          stageContext={prefs.stageContext}
+          stageGlow={prefs.stageGlow}
+          reducedMotion={Boolean(settings?.reducedMotion)}
           onToggle={onPlay}
           onSeek={onSeek}
           onNext={() => void next()}
           onPrevious={() => void previous()}
-          onClassic={() => setView3d(false)}
+          onClassic={() => setStageView(false)}
           onExit={exit}
           onCustomize={() => setCustomizerOpen(true)}
-          effects={{
-            particles: prefs.stageParticles,
-            camera: prefs.stageCamera,
-            intensity: prefs.stageIntensity,
-          }}
+          onFavorite={() => void toggleFavorite(track.id)}
         />
         {customizerModal}
       </>
@@ -229,7 +244,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
             <Disc3 size={16} />
           </span>
           <strong>potato</strong>
-          <em>super</em>
+          <em>ultra</em>
         </div>
         <div className="immerse__label">
           <EqualizerBars playing={isPlaying} />
@@ -238,7 +253,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
         <div className="immerse__top-right">
           <div className="immerse__view-switch" role="group" aria-label={tr("Lyric view", "歌词视图")}>
             <button type="button" className="is-active">{tr("Classic", "经典")}</button>
-            <button type="button" onClick={() => setView3d(true)}>{tr("3D stage", "3D 演出")}</button>
+            <button type="button" onClick={() => setStageView(true)}>{tr("Lyric stage", "歌词舞台")}</button>
           </div>
           <button type="button" className="immerse__customize" onClick={() => setCustomizerOpen(true)} title={tr("Customize immersive mode", "自定义沉浸模式")} aria-label={tr("Customize immersive mode", "自定义沉浸模式")}>
             <SlidersHorizontal size={15} />

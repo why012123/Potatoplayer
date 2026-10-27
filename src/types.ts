@@ -73,16 +73,25 @@ export interface Bootstrap {
   dataDir: string;
 }
 
+export interface LyricsWord {
+  time: number;
+  end: number;
+  text: string;
+}
+
 export interface LyricsLine {
   time: number;
+  end?: number;
   text: string;
   translation: string;
+  words?: LyricsWord[];
 }
 
 export interface LyricsPayload {
   found: boolean;
   translated: boolean;
   source?: string;
+  format?: string;
   lines: LyricsLine[];
 }
 

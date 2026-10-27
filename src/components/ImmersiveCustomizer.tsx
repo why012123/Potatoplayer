@@ -61,19 +61,21 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
         <section>
           <div className="custom-section-title">{tr("View", "视图")}</div>
           <div className="custom-segment">
-            {(["classic", "3d"] as const).map((value) => (
+            {(["classic", "stage"] as const).map((value) => (
               <button key={value} type="button" className={prefs.lyricView === value ? "is-active" : ""} onClick={() => onChange({ lyricView: value })}>
-                {value === "classic" ? tr("Classic", "经典") : tr("3D stage", "3D 演出")}
+                {value === "classic" ? tr("Classic", "经典") : tr("Lyric stage", "歌词舞台")}
               </button>
             ))}
           </div>
-          <div className="custom-segment custom-segment--three">
-            {(["split", "focus", "minimal"] as const).map((value) => (
-              <button key={value} type="button" className={prefs.layout === value ? "is-active" : ""} onClick={() => onChange({ layout: value })}>
-                {value === "split" ? tr("Split", "分栏") : value === "focus" ? tr("Lyrics focus", "歌词聚焦") : tr("Minimal", "极简")}
-              </button>
-            ))}
-          </div>
+          {prefs.lyricView === "classic" && (
+            <div className="custom-segment custom-segment--three">
+              {(["split", "focus", "minimal"] as const).map((value) => (
+                <button key={value} type="button" className={prefs.layout === value ? "is-active" : ""} onClick={() => onChange({ layout: value })}>
+                  {value === "split" ? tr("Split", "分栏") : value === "focus" ? tr("Lyrics focus", "歌词聚焦") : tr("Minimal", "极简")}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section>
@@ -84,35 +86,72 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
             <Toggle label={tr("Lyrics header", "歌词顶栏")} value={prefs.showHeader} onChange={(value) => onChange({ showHeader: value })} />
             <Toggle label={tr("Translation", "翻译")} value={prefs.showTranslation} onChange={(value) => onChange({ showTranslation: value })} />
             <Toggle label={tr("Progress", "进度条")} value={prefs.showProgress} onChange={(value) => onChange({ showProgress: value })} />
-            <Toggle label={tr("Volume", "音量")} value={prefs.showVolume} onChange={(value) => onChange({ showVolume: value })} />
+            {prefs.lyricView === "classic" && (
+              <>
+                <Toggle label={tr("Volume", "音量")} value={prefs.showVolume} onChange={(value) => onChange({ showVolume: value })} />
+                <Toggle label={tr("Lyrics frame", "歌词框")} value={prefs.lyricsFrame} onChange={(value) => onChange({ lyricsFrame: value })} />
+              </>
+            )}
             <Toggle label={tr("Favorite", "收藏")} value={prefs.showFavorite} onChange={(value) => onChange({ showFavorite: value })} />
-            <Toggle label={tr("Lyrics frame", "歌词框")} value={prefs.lyricsFrame} onChange={(value) => onChange({ lyricsFrame: value })} />
           </div>
         </section>
 
         <section>
           <div className="custom-section-title">{tr("Lyrics type", "歌词样式")}</div>
           <Range label={tr("Size", "字号")} value={prefs.lyricScale} min={0.72} max={1.6} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ lyricScale: value })} />
-          <div className="custom-segment">
-            <button type="button" className={prefs.lyricAlign === "left" ? "is-active" : ""} onClick={() => onChange({ lyricAlign: "left" })}>{tr("Left", "左对齐")}</button>
-            <button type="button" className={prefs.lyricAlign === "center" ? "is-active" : ""} onClick={() => onChange({ lyricAlign: "center" })}>{tr("Center", "居中")}</button>
-          </div>
+          {prefs.lyricView === "classic" && (
+            <div className="custom-segment">
+              <button type="button" className={prefs.lyricAlign === "left" ? "is-active" : ""} onClick={() => onChange({ lyricAlign: "left" })}>{tr("Left", "左对齐")}</button>
+              <button type="button" className={prefs.lyricAlign === "center" ? "is-active" : ""} onClick={() => onChange({ lyricAlign: "center" })}>{tr("Center", "居中")}</button>
+            </div>
+          )}
           <div className="custom-segment">
             <button type="button" className={!prefs.lyricSerif ? "is-active" : ""} onClick={() => onChange({ lyricSerif: false })}>{tr("Sans", "无衬线")}</button>
             <button type="button" className={prefs.lyricSerif ? "is-active" : ""} onClick={() => onChange({ lyricSerif: true })}>{tr("Serif", "衬线")}</button>
           </div>
         </section>
 
+        {prefs.lyricView === "stage" && (
         <section>
-          <div className="custom-section-title">{tr("3D stage", "3D 舞台")}</div>
-          <div className="custom-toggles">
-            <Toggle label={tr("Particles", "粒子")} value={prefs.stageParticles} onChange={(value) => onChange({ stageParticles: value })} />
-            <Toggle label={tr("Camera drift", "镜头漂移")} value={prefs.stageCamera} onChange={(value) => onChange({ stageCamera: value })} />
+          <div className="custom-section-title">{tr("Lyric stage", "歌词舞台")}</div>
+          <div className="custom-segment custom-segment--four">
+            {(["cover", "ember", "mono", "night"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={prefs.stageTheme === value ? "is-active" : ""}
+                onClick={() => onChange({ stageTheme: value })}
+              >
+                {value === "cover" ? tr("Cover", "封面") : value === "ember" ? tr("Ember", "余烬") : value === "mono" ? tr("Mono", "单色") : tr("Night", "夜蓝")}
+              </button>
+            ))}
           </div>
-          <Range label={tr("Intensity", "强度")} value={prefs.stageIntensity} min={0.4} max={1.6} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ stageIntensity: value })} />
-          <p className="custom-note">{tr("Particles, camera motion and intensity apply to the 3D performance.", "粒子、镜头运动与强度仅作用于 3D 演出。")}</p>
+          <div className="custom-segment custom-segment--three">
+            {(["cinema", "focus", "minimal"] as const).map((value) => (
+              <button key={value} type="button" className={prefs.stageLayout === value ? "is-active" : ""} onClick={() => onChange({ stageLayout: value })}>
+                {value === "cinema" ? tr("Cinema", "影院") : value === "focus" ? tr("Focus", "聚焦") : tr("Minimal", "极简")}
+              </button>
+            ))}
+          </div>
+          <div className="custom-segment">
+            <button type="button" className={prefs.stageMotion === "drift" ? "is-active" : ""} onClick={() => onChange({ stageMotion: "drift" })}>{tr("Drift", "漂移")}</button>
+            <button type="button" className={prefs.stageMotion === "still" ? "is-active" : ""} onClick={() => onChange({ stageMotion: "still" })}>{tr("Still", "静止")}</button>
+          </div>
+          <div className="custom-segment">
+            <button type="button" className={prefs.stageAlign === "left" ? "is-active" : ""} onClick={() => onChange({ stageAlign: "left" })}>{tr("Left", "左对齐")}</button>
+            <button type="button" className={prefs.stageAlign === "center" ? "is-active" : ""} onClick={() => onChange({ stageAlign: "center" })}>{tr("Center", "居中")}</button>
+          </div>
+          <Range label={tr("Glow", "光晕")} value={prefs.stageGlow} min={0} max={1.6} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ stageGlow: value })} />
+          <Range label={tr("Context lines", "上下文行数")} value={prefs.stageContext} min={1} max={5} step={1} format={(value) => `${value}`} onChange={(value) => onChange({ stageContext: value })} />
+          <div className="custom-toggles">
+            <Toggle label={tr("Word highlight", "逐字高亮")} value={prefs.stageWordHighlight} onChange={(value) => onChange({ stageWordHighlight: value })} />
+          </div>
+          <p className="custom-note">{tr("A focused, word-synced lyric stage. Inspired by Folia's lyric-first presentation.", "聚焦、逐字同步的歌词舞台。灵感来自 Folia 的歌词优先演出。")}</p>
         </section>
 
+        )}
+
+        {prefs.lyricView === "classic" && (
         <section>
           <div className="custom-section-title">{tr("Classic scene", "经典场景")}</div>
           <Range label={tr("Blur", "模糊")} value={prefs.backgroundBlur} min={0.35} max={1.7} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ backgroundBlur: value })} />
@@ -120,7 +159,9 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
           <Range label={tr("Grain", "颗粒")} value={prefs.backgroundGrain} min={0} max={1.8} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ backgroundGrain: value })} />
           <Range label={tr("Veil", "纱幕")} value={prefs.backgroundVeil} min={0.25} max={1.5} step={0.01} format={(value) => `${Math.round(value * 100)}%`} onChange={(value) => onChange({ backgroundVeil: value })} />
         </section>
+        )}
 
+        {prefs.lyricView === "classic" && (
         <section>
           <div className="custom-section-title">{tr("Accent", "强调色")}</div>
           <div className="custom-swatches">
@@ -137,6 +178,7 @@ export function ImmersiveCustomizer({ prefs, onChange, onClose }: Props) {
             </label>
           </div>
         </section>
+        )}
       </div>
 
       <footer className="immersive-customizer__foot">

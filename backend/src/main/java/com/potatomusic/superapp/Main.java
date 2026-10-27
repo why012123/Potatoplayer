@@ -6,7 +6,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-/** Entry point for the headless Potatoplayer Super backend. */
+/** Entry point for the headless Potatoplayer Ultra backend. */
 public final class Main {
     public static void main(String[] args) {
         System.setProperty("java.awt.headless", "true");

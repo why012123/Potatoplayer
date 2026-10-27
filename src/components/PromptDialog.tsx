@@ -49,7 +49,7 @@ export function PromptDialog() {
         >
           <div className="modal__eyebrow">
             <span className="modal__dot" />
-            {prompt.destructive ? tr("Please confirm", "请确认") : "Potatoplayer Super"}
+            {prompt.destructive ? tr("Please confirm", "请确认") : "Potatoplayer Ultra"}
           </div>
           <h2 id="prompt-title">{prompt.title}</h2>
           {prompt.description && <p className="modal__description">{prompt.description}</p>}

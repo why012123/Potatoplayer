@@ -1,11 +1,12 @@
-# Potatoplayer Super
+# Potatoplayer Ultra
 
-**一个从旧 Potatoplayer Java 版重构而来的 Electron 桌面音乐播放器。**  
-保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
-块、流派和网易云是这个版本的核心，而不是附属设置。
+**以 Potatoplayer Super 为主干、把歌词演出做成核心的 Electron 桌面音乐播放器。**
+保留 Java + VLCJ 的播放与扫描内核，以及 Super 的块 / 流派 / 网易云工作流；
+Ultra 用一套新的逐字歌词舞台取代原来的 3D 演出，并继续沿用 Super 的经典 / 编辑纸感外观。
 
-> 当前版本：`s1.1.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
-> 完整更新记录（含旧 Java 2.1.19 / Python 1.x 历史）见 [`CHANGELOG.md`](CHANGELOG.md)。
+> 当前版本：`s1.2.0-ultra.1` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> Ultra 基于 Potatoplayer Super `s1.1.0`（提交 `8bcea69`）建立；完整更新记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+> 独立数据目录为 `~/.potatoplayer-ultra`，不会和 Super 共用 profile；迁移说明见[数据与迁移](#数据与迁移)。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
 
@@ -13,7 +14,8 @@
 
 ## 目录
 
-- [为什么是 Super](#为什么是-super)
+- [为什么是 Ultra](#为什么是-ultra)
+- [歌词舞台](#歌词舞台)
 - [界面](#界面)
 - [核心功能](#核心功能)
 - [块 / 流派系统](#块--流派系统)
@@ -25,11 +27,14 @@
 - [架构](#架构)
 - [开发与测试](#开发与测试)
 - [已知限制](#已知限制)
+- [Folia 借鉴与致谢](#folia-借鉴与致谢)
 - [致谢](#致谢)
 
-## 为什么是 Super
+## 为什么是 Ultra
 
-旧版是一个功能非常完整的 JavaFX 应用，但界面把大量能力塞进了三栏面板，且动效受 JavaFX 布局方式限制。Super 的目标不是“换个配色”，而是重新组织产品：
+Super 解决了“把旧 Java 播放器重做成现代 Electron 应用”的问题；Ultra 继续以 Super 为主干，但把**歌词表现**从沉浸页里的一个附加功能提升为独立的演出舞台。旧版 3D 舞台和 `lyric-3d-lab` 已移除，取而代之的是可直接读取逐字时间轴的 cinematic lyric stage。
+
+Super 原有目标仍然成立：
 
 - **新渲染层**：Electron + React + TypeScript + Framer Motion。
 - **保留可靠内核**：扫描、元数据、VLC 播放和歌词逻辑改为无头 Java 服务。
@@ -77,6 +82,23 @@
   <img src="docs/screenshots/manager.jpg" width="720" alt="Blocks and genres manager" />
 </p>
 
+## 歌词舞台
+
+Ultra 用 React + CSS 的 **Lyric Stage** 取代原来的 3D iframe 演出。设计目标是“让歌词成为画面”，而不是在封面旁边加一块歌词列表。
+
+![Lyric stage](docs/screenshots/lyric-stage.jpg)
+
+- **逐字时间轴**：读取增强 LRC / A2 的 `<mm:ss.xx>` 标签，以及 TTML、QRC、YRC、WebVTT 的子行时间；普通 LRC 自动回退为逐行高亮。
+- **平滑时钟**：Java 播放服务仍以 500 ms 推送进度，前端用 `requestAnimationFrame` 在两次推送之间插值，逐字高亮不会按 500 ms 跳动。
+- **三种舞台布局**：Cinema（当前行 + 上下文）、Focus（当前行 + 相邻行）、Minimal（只留当前行）。
+- **四套配色**：Cover（跟随封面）、Ember、Mono、Night；光晕、字号、上下文行数、逐字高亮、漂移/静止都可单独调。
+- **当前行演出**：当前行放大、前后行失焦、翻译跟随当前行、点击任意行跳转；逐字文件会把已完成字词染成强调色。
+- **翻译与多格式**：继续合并 `.trans.lrc` / `.zh.lrc` / `.zh-CN.lrc` / `.translation.lrc`；`lyrics.get` 新增可选的 `end`、`words[]` 和 `format` 字段，旧数据仍可显示。
+- **范围说明**：KRC 是混淆格式，当前不解析；没有逐字时间的 LRC 不会伪造逐字高亮；歌词匹配仍以本地 sidecar 文件为主，不内置 AI 对齐。
+- **界面**：Ultra 默认仍进入经典沉浸页，避免改变既有听歌习惯；点顶部的 **Lyric stage** 即可切到新舞台。Stage 顶栏可以在经典与舞台之间切换；经典视图仍保留歌词框开关，舞台视图不再有“框”的概念。
+
+舞台的“歌词优先、当前行聚焦、逐字高亮、上下文失焦”这些产品思路参考了 [Folia](https://github.com/chthollyphile/folia-major)；实现代码、样式和数据模型为 Ultra 自行编写，详见[致谢与灵感来源](#folia-借鉴与致谢)。
+
 ## 核心功能
 
 ### 外观与语言
@@ -96,7 +118,7 @@
 - **浅色 / 深色**：顶栏太阳 / 月亮按钮或设置中的两张卡片；浅色是暖纸与日光玻璃，深色是暖炭与低光玻璃，而不是简单反色。
 - **语言**：设置顶部可即时切换 **English / 中文**。导航、页面标题、按钮、空态、弹窗、EQ、Bilibili、下载面板、命令面板、无障碍标签、日期问候和长时长格式都会一起切换。默认英文，选择会持久化。
 - 所有选择保存在 `localStorage`（`potato:appearance:v1` 与 `potato:theme`），在首次绘制前应用，刷新和重启后保持。
-- 沉浸播放和 3D 舞台保持电影感深色；切回浅色后恢复日光玻璃。
+- 沉浸播放和歌词舞台保持电影感深色；切回浅色后恢复日光玻璃。
 
 ### 本地资料库
 
@@ -128,7 +150,7 @@
 - 切换歌曲前会自动保存未提交修改；也提供手动 **Save changes / Discard**。
 - Previous / Next 可在全库中顺序编辑；列表会自动滚动到当前歌曲。
 - 编辑结果会保留在重扫和旧资料库迁移之后。
-- 编辑页提供 **Delete song**：确认后从资料库、收藏、歌单和播放队列中移除；位于资料库内的音频文件会移到 `~/.potatoplayer-super/trash/`，仍可手动恢复。
+- 编辑页提供 **Delete song**：确认后从资料库、收藏、歌单和播放队列中移除；位于资料库内的音频文件会移到 `~/.potatoplayer-ultra/trash/`，仍可手动恢复。
 
 ### 均衡器
 
@@ -144,7 +166,7 @@
   对话框会丢弃未保存草稿并恢复已保存曲线。
 - 可保存到 **本曲 / 全局 / 新命名预设**；支持 VLC 18 个内置预设、Bypass、Flat、Reset、
   删除命名预设。播放某首歌前会自动应用它的单曲预设。
-- 数据以 v2 格式保存在 `~/.potatoplayer-super/eq.json`；旧版文件只读导入，不回写。
+- 数据以 v2 格式保存在 `~/.potatoplayer-ultra/eq.json`；旧版文件只读导入，不回写。
 
 ### 跨启动保留
 
@@ -152,13 +174,12 @@
 - 当前播放队列、队列顺序、当前歌曲和播放位置会保存；下次启动恢复同一队列，不再默认变回全库顺序。
 - 删除歌曲时也会同步从队列和所有歌单中清理，避免留下失效 ID。
 
-### 歌词与动效
+### 动效
 
-- LRC 解析，支持一行多时间戳与翻译文件（`.trans.lrc` / `.zh.lrc`）。
-- 当前行平滑滚动、点击 seek、原文 + 译文双行显示。
+- 经典沉浸页保留当前行平滑滚动、点击 seek、原文 + 译文双行显示。
+- 新歌词舞台使用当前行放大 / 前后行失焦 / 逐字填充 / 封面色环境光；`reduce motion` 会关闭漂移和位移动画。
 - 封面变化时交叉淡入环境背景；环境色从封面主色中提取。
 - 页面转场、共享导航 pill、列表悬浮、播放按钮 morph、Toast、下载进度条。
-- 设置里可以开启“减少动态效果”。
 
 ## 块 / 流派系统
 
@@ -180,7 +201,7 @@
 - 用户修改在重扫后保留；已删除的旧标签不会因为再次读取旧资料库而复活。
 
 > 新版不会回写旧版 `ratings.json`。数据迁移只发生一次，之后以
-> `~/.potatoplayer-super/library.json` 为准。
+> `~/.potatoplayer-ultra/library.json` 为准。
 
 ## 网易云
 
@@ -220,7 +241,7 @@ QQ 源使用本地 [qq-music-api](https://github.com/yakult-green-tea/qq-music-a
 npm run setup:qq-api
 ```
 
-它会把第三方服务安装到 `~/.potatoplayer-super/api/qq-music-api`。也可以在 Discover 的服务状态卡片里看到服务地址与启动状态。
+它会把第三方服务安装到 `~/.potatoplayer-ultra/api/qq-music-api`。也可以在 Discover 的服务状态卡片里看到服务地址与启动状态。
 
 > QQ Music API 是独立第三方项目，不随本仓库分发。需要 Node.js 20+。
 
@@ -301,7 +322,7 @@ npm start
 | 变量 | 说明 |
 | --- | --- |
 | `POTATOMUSIC_LIBRARY` | 覆盖音乐资料库目录 |
-| `POTATOMUSIC_HOME` | 覆盖应用数据目录（默认 `~/.potatoplayer-super`） |
+| `POTATOMUSIC_HOME` | 覆盖应用数据目录（默认 `~/.potatoplayer-ultra`） |
 | `POTATOMUSIC_API_BASE` | 网易云服务地址，默认 `http://localhost:3000` |
 | `POTATOMUSIC_API_DIR` | api-enhanced 目录 |
 | `POTATOMUSIC_QQ_API_BASE` | QQ Music 服务地址，默认 `http://localhost:3200` |
@@ -315,15 +336,15 @@ npm start
 
 1. `POTATOMUSIC_API_DIR`
 2. 工程同级的 `../api/api-enhanced-*`
-3. `~/.potatoplayer-super/api/api-enhanced-*`
+3. `~/.potatoplayer-ultra/api/api-enhanced-*`
 
 推荐安装到应用数据目录：
 
 ```bash
-mkdir -p ~/.potatoplayer-super/api
+mkdir -p ~/.potatoplayer-ultra/api
 git clone https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git \
-  ~/.potatoplayer-super/api/api-enhanced
-cd ~/.potatoplayer-super/api/api-enhanced
+  ~/.potatoplayer-ultra/api/api-enhanced
+cd ~/.potatoplayer-ultra/api/api-enhanced
 npm install
 ```
 
@@ -346,7 +367,7 @@ npm install
 
 ### 数据目录
 
-默认 `~/.potatoplayer-super/`：
+默认 `~/.potatoplayer-ultra/`：
 
 ```text
 settings.json             音量 / 循环 / 上次歌曲 / 上次进度
@@ -355,6 +376,22 @@ covers/                   新写入的封面缓存
 netease_bindings.json     网易云下载的封面 / 专辑映射
 netease_cookie.txt        网易云登录 cookie（不会进入仓库）
 ```
+
+### 从 Super 迁移
+
+Ultra 和 Super 默认使用不同的数据目录，避免两个应用同时写入同一份 `library.json`：
+
+- Ultra：`~/.potatoplayer-ultra/`
+- Super：`~/.potatoplayer-super/`
+
+Ultra **不会自动复制** Super 的 profile。若想沿用 Super 的收藏、歌单、评分、块 / 流派和 EQ：
+
+1. 先完全退出 Super（包括后台 Java 服务）。
+2. 备份两边的数据目录。
+3. 把 Super 目录中的 `library.json`、`settings.json`、`eq.json`、`netease_bindings.json`、`covers/` 复制到 Ultra 目录。
+4. 如果旧封面路径仍指向 Super 的绝对路径，重新扫描一次资料库，或把 `POTATOMUSIC_HOME` 指向 Super 的目录（不要同时运行两个实例）。
+
+也可以直接用 `POTATOMUSIC_HOME=~/.potatoplayer-super` 启动 Ultra 来共享 profile；这适合迁移期，不建议长期和 Super 并行使用。
 
 ### 旧 Potatoplayer 数据
 
@@ -409,7 +446,7 @@ covers/                   封面文件
 ### 目录
 
 ```text
-potatomusic/
+Ultra/
 ├── electron/
 │   ├── main.cjs              窗口、协议、截图、IPC
 │   ├── preload.cjs           类型化安全桥
@@ -468,9 +505,9 @@ npm test
 
 测试使用临时数据目录，不会改动你的真实资料库。UI 测试会额外验证：
 
-- 310 首本地曲库渲染；
+- 315 首本地曲库渲染；
 - VLC 实际播放时间推进；
-- 块筛选从 310 缩到 48 首；
+- 块筛选从 315 缩到 48 首；
 - 单曲修改块；
 - 批量设置流派；
 - 网易云登录态与搜索。
@@ -478,7 +515,7 @@ npm test
 ### 构建产物
 
 - `dist/`：React 静态资源（gitignored）
-- `backend/target/potatoplayer-super-backend.jar`：Java 服务（gitignored）
+- `backend/target/potatoplayer-ultra-backend.jar`：Java 服务（gitignored）
 - `backend/target/lib/`：运行时依赖（gitignored）
 
 ## 已知限制
@@ -492,9 +529,24 @@ npm test
 - 新版的块 / 流派 / 评分修改不会写回旧版 JSON。
 - 桌面歌词、悬浮动图、屏幕起雾、BPM 等旧版实验功能没有带入 1.0.x；EQ 已在 s1.0.4 完整还原。当前版本把桌面体验集中在主窗口和 Now Playing 上。
 
+## Folia 借鉴与致谢
+
+Ultra 的歌词舞台明确借鉴了 [Folia](https://github.com/chthollyphile/folia-major)（作者 **chthollyphile** 及贡献者，AGPL-3.0）的产品思路：
+
+- 把全屏歌词当作独立演出，而不是播放器的附属面板；
+- 当前行聚焦、上下文行失焦、逐字高亮和翻译跟随；
+- 多种舞台主题、布局和可调视觉参数；
+- 以本地 sidecar 歌词为主、支持带子行时间轴的多格式歌词。
+
+这些是**设计思路和交互范式**的借鉴。Ultra 没有复制 Folia 的源代码、样式、字体、素材或构建产物；Java 解析器、React 组件、CSS 舞台和 `LyricsPayload` 数据模型均为 Ultra 独立实现。Folia 的 AGPL-3.0 许可证不适用于 Ultra 的原创实现，但如果未来直接移植 Folia 代码，必须按 AGPL-3.0 处理。
+
+感谢 Folia 的作者和社区把歌词演出做得如此完整，也感谢 [AMLL](https://github.com/amll-dev/applemusic-like-lyrics)、[Lyricify](https://github.com/WXRIW/Lyricify-Lyrics-Helper) 等项目公开的歌词格式资料；Ultra 的格式支持依据公开格式说明独立编写。更细的技术说明见 [`docs/lyrics-stage.md`](docs/lyrics-stage.md)。
+
 ## 致谢
 
+
 - 原始 [Potatoplayer](https://github.com/why012123/Potatoplayer) Java 版及其背后的 Python 版，提供了功能清单、数据格式和 VLCJ 经验。
+- [Folia](https://github.com/chthollyphile/folia-major) 提供了歌词优先舞台、逐字歌词与多格式歌词的产品灵感；Ultra 未复制其代码或素材。
 - [VLCJ](https://github.com/caprica/vlcj) / [libVLC](https://www.videolan.org/vlc/)。
 - [Electron](https://www.electronjs.org/)、[React](https://react.dev/)、[Motion](https://motion.dev/)、[Lucide](https://lucide.dev/)。
 - [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)（MIT）提供本地网易云 API。

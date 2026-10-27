@@ -123,8 +123,8 @@ export function HomePage() {
                   "正在读取文件夹、封面与评分，很快就好。",
                 )
               : tr(
-                  "Point Potatoplayer Super at a music folder. Your files stay exactly where they are.",
-                  "让 Potatoplayer Super 指向一个音乐文件夹。文件仍留在原处，不会移动。",
+                  "Point Potatoplayer Ultra at a music folder. Your files stay exactly where they are.",
+                  "让 Potatoplayer Ultra 指向一个音乐文件夹。文件仍留在原处，不会移动。",
                 )
           }
         />

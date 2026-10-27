@@ -14,6 +14,7 @@ public final class BackendSelfTest {
         testFileNameParsing();
         testStableIds();
         testLrcParsing();
+        testWordLevelLyrics();
         testLegacyImport();
         testTaxonomyMerge();
         testEqMergeAndPreamp();
@@ -66,6 +67,61 @@ public final class BackendSelfTest {
         check("Hello".equals(payload.lines.get(0).text), "first line parsed");
         check("你好".equals(payload.lines.get(0).translation), "translation merged by timestamp");
         check(Math.abs(payload.lines.get(3).time - 12.345) < 0.0001, "centiseconds parsed");
+    }
+
+    private static void testWordLevelLyrics() throws Exception {
+        Path dir = Files.createTempDirectory("potato-word-lyrics-test");
+
+        Path a2 = dir.resolve("word.lrc");
+        Files.writeString(a2, "[00:01.00]<00:01.00>Hel<00:01.30>lo <00:01.60>world[00:02.10]\n",
+                StandardCharsets.UTF_8);
+        LyricsService.Payload a2Payload = LyricsService.parse(a2, null);
+        check(a2Payload.found, "enhanced LRC is found");
+        LyricsService.Line a2Line = a2Payload.lines.get(0);
+        check("Hello world".equals(a2Line.text), "A2 word tags are removed from display text");
+        check(a2Line.words.size() == 3, "A2 word timings are exposed");
+        check(Math.abs(a2Line.words.get(1).time - 1.30) < 0.0001, "A2 word start parsed");
+        check(Math.abs(a2Line.end - 2.10) < 0.0001, "A2 explicit line end parsed");
+
+        Path ttml = dir.resolve("word.ttml");
+        Files.writeString(ttml, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <tt xmlns="http://www.w3.org/ns/ttml">
+                  <body><div>
+                    <p begin="00:00:01.000" end="00:00:03.000">
+                      <span begin="00:00:01.000" end="00:00:01.400">Hello</span>
+                      <span begin="00:00:01.400" end="00:00:02.000"> world</span>
+                    </p>
+                  </div></body>
+                </tt>
+                """, StandardCharsets.UTF_8);
+        LyricsService.Payload ttmlPayload = LyricsService.parse(ttml, null);
+        check(ttmlPayload.found, "TTML is found");
+        check("Hello world".equals(ttmlPayload.lines.get(0).text), "TTML line text parsed");
+        check(ttmlPayload.lines.get(0).words.size() == 2, "TTML spans become words");
+
+        Path qrc = dir.resolve("word.qrc");
+        Files.writeString(qrc, "[1000,1000]你(0,400)好(400,600)\n", StandardCharsets.UTF_8);
+        LyricsService.Line qrcLine = LyricsService.parse(qrc, null).lines.get(0);
+        check("你好".equals(qrcLine.text), "QRC text parsed");
+        check(Math.abs(qrcLine.words.get(1).time - 1.40) < 0.0001, "QRC relative word timing parsed");
+
+        Path yrc = dir.resolve("word.yrc");
+        Files.writeString(yrc, "[1000,1000](1000,400,0)你(1400,600,0)好\n", StandardCharsets.UTF_8);
+        LyricsService.Line yrcLine = LyricsService.parse(yrc, null).lines.get(0);
+        check("你好".equals(yrcLine.text), "YRC text parsed");
+        check(Math.abs(yrcLine.words.get(1).time - 1.40) < 0.0001, "YRC absolute word timing parsed");
+
+        Path vtt = dir.resolve("word.vtt");
+        Files.writeString(vtt, """
+                WEBVTT
+
+                00:01.000 --> 00:03.000
+                Hello from VTT
+                """, StandardCharsets.UTF_8);
+        LyricsService.Line vttLine = LyricsService.parse(vtt, null).lines.get(0);
+        check("Hello from VTT".equals(vttLine.text), "WebVTT cue text parsed");
+        check(Math.abs(vttLine.end - 3.0) < 0.0001, "WebVTT cue end parsed");
     }
 
     private static void testLegacyImport() throws Exception {
