@@ -28,6 +28,7 @@ import { TagPage } from "@/pages/TagPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
+import { DivePage } from "@/pages/DivePage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 import { DownloadTasks } from "@/components/DownloadTasks";
@@ -310,6 +311,8 @@ export default function App() {
         return <FavoritesPage />;
       case "daily":
         return <DailyMixPage />;
+      case "dive":
+        return <DivePage />;
       case "stats":
         return <StatsPage />;
       case "editor":

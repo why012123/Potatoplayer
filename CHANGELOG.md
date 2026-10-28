@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.0`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.1`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,30 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.1 — 2026-10-29
+
+### Added
+
+- **Dive（beta）本地节奏模式**：参考 RhyDive 的“横向五线谱 + 任意键跟拍”原型。
+  - 侧边栏与命令面板新增 **Dive** 入口
+  - 从本地资料库选曲，手动 BPM 或 Tap tempo 测速后生成谱面
+  - 横向五线谱、判定线、任意键/鼠标/触屏游玩；Dive 无轨道、无长按
+  - EXACT / GREAT / GOOD / LOOSE / MISS 判定、Early/Late 偏移、连击倍率与 Sync
+  - 结算页显示分数、最大连击、准确率、EXACT 与 Miss
+  - 离开页面自动暂停播放；游戏期间拦截全局 Space 等快捷键，避免误触播放控制
+  - 谱面完全本地生成，不上传
+
+### Verification
+
+- 真实本地曲目游玩：命中、MISS、连击、Sync、暂停结算与返回设置流程正常；一次测试结算 4,087 分。
+- UI smoke 新增 Dive setup 页面断言。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
+
+### Known limits
+
+- 这是玩法原型：BPM/节拍目前手工输入，不由音频自动分析；没有谱面编辑器、长按、多轨或联机。
+- 后续可以接 BPM/onset 分析、自动生成谱面和 osu! 谱面导入。
 
 ## s1.4.0 — 2026-10-28
 

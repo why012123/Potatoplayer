@@ -420,6 +420,14 @@ function delay(ms) {
   console.log(`[ui] daily mix: ${dailyRows} songs`);
   await page.screenshot({ path: path.join(root, "dist", "test-daily-mix.png") });
 
+  // Dive setup is available without starting playback; the game itself needs
+  // an audio device and is exercised separately.
+  await page.getByRole("button", { name: "Dive", exact: true }).click();
+  await page.waitForSelector(".page--dive .dive-hero", { timeout: 10_000 });
+  assert.ok(await page.locator(".dive-setup").isVisible(), "Dive setup should render");
+  console.log("[ui] Dive setup rendered");
+  await page.screenshot({ path: path.join(root, "dist", "test-dive.png") });
+
   // Home customization persists visibility and supports reset.
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.waitForSelector(".page--home .hero");

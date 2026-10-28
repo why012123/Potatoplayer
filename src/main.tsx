@@ -10,6 +10,7 @@ import "./stats.css";
 import "./home.css";
 import "./immersion.css";
 import "./redesign.css";
+import "./dive.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());

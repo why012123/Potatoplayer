@@ -63,6 +63,8 @@ export function TopBar() {
         return tr("Favorites", "收藏");
       case "daily":
         return tr("Daily Mix", "每日推荐");
+      case "dive":
+        return tr("Dive", "Dive");
       case "stats":
         return tr("Stats", "统计");
       case "editor":

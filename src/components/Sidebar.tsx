@@ -4,6 +4,7 @@ import {
   Cloud,
   Disc3,
   FolderOpen,
+  Gamepad2,
   Heart,
   Home,
   BarChart3,
@@ -30,8 +31,9 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Collections", labelZh: "合集", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
   { label: "Favorites", labelZh: "收藏", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
   { label: "Daily Mix", labelZh: "每日推荐", view: { kind: "daily" }, icon: Sparkles, shortcut: "7" },
-  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "8" },
-  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "9" },
+  { label: "Dive", labelZh: "Dive", view: { kind: "dive" }, icon: Gamepad2, shortcut: "8" },
+  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "9" },
+  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "0" },
 ];
 
 export function Sidebar() {

@@ -154,6 +154,7 @@ export type View =
   | { kind: "artists" }
   | { kind: "favorites" }
   | { kind: "daily" }
+  | { kind: "dive" }
   | { kind: "stats" }
   | { kind: "collections" }
   | { kind: "editor"; trackId?: string }
