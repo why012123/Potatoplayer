@@ -29,7 +29,7 @@ function CommentAvatar({ comment }: { comment: NeteaseComment }) {
   return (
     <div className="comment-item__avatar">
       {avatar && !failed ? (
-        <img src={avatar} alt="" loading="lazy" onError={() => setFailed(true)} />
+        <img src={avatar} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
       ) : (
         <span>{initials(comment.user)}</span>
       )}
@@ -115,7 +115,11 @@ export function NeteaseCommentsDialog({ song, onClose }: { song: NeteaseSong; on
     <Modal className="comments-dialog" onClose={onClose} labelledBy="comments-title">
       <header className="comments-dialog__head">
         <div className="comments-dialog__art">
-          {song.coverUrl ? <img src={onlineImageUrl(song.coverUrl) ?? ""} alt="" /> : <MessageCircle size={20} />}
+          {song.coverUrl ? (
+            <img src={onlineImageUrl(song.coverUrl) ?? ""} alt="" loading="lazy" referrerPolicy="no-referrer" />
+          ) : (
+            <MessageCircle size={20} />
+          )}
         </div>
         <div className="comments-dialog__copy">
           <span className="eyebrow">{tr("NetEase comments", "网易云评论")}</span>

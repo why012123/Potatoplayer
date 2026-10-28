@@ -161,6 +161,13 @@ public final class StatsStore {
         }
     }
 
+    /** A copy of per-track totals for recommendation scoring. */
+    public Map<String, TrackStat> trackSnapshot() {
+        synchronized (lock) {
+            return new LinkedHashMap<>(state.tracks);
+        }
+    }
+
     public void save() throws IOException {
         synchronized (lock) {
             if (file == null) return;

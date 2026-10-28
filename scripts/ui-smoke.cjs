@@ -411,6 +411,15 @@ function delay(ms) {
   assert.ok((await page.locator(".stats-heatmap__cell").count()) > 300, "the annual heatmap should render");
   console.log(`[ui] stats page: ${statsData.days.length} day(s), ${statsData.tracks.length} track(s), ${statsData.totalSeconds}s`);
 
+  // Daily Mix is generated locally from the library and listening stats.
+  await page.getByRole("button", { name: /Daily Mix/ }).click();
+  await page.waitForSelector(".page--daily .track-row", { timeout: 10_000 });
+  const dailyRows = await page.locator(".page--daily .track-row").count();
+  assert.ok(dailyRows > 0, "daily mix should contain songs");
+  assert.ok(await page.locator(".page--daily .playlist-hero").isVisible(), "daily mix hero should render");
+  console.log(`[ui] daily mix: ${dailyRows} songs`);
+  await page.screenshot({ path: path.join(root, "dist", "test-daily-mix.png") });
+
   // Home customization persists visibility and supports reset.
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.waitForSelector(".page--home .hero");

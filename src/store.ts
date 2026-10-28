@@ -16,6 +16,7 @@ import type {
   EngineCapabilities,
   Settings,
   Tag,
+  DailyMix,
   TagKind,
   Toast,
   Theme,
@@ -69,6 +70,7 @@ interface AppStore {
   crossfeedStrength: number;
   followSourceRate: boolean;
   vizBars: number[];
+  dailyMix: DailyMix | null;
   playback: PlaybackState | null;
   scanning: boolean;
   scanProgress: ScanProgress | null;
@@ -164,6 +166,7 @@ interface AppStore {
   openPrompt: (prompt: PromptState) => void;
   closePrompt: () => void;
   setReducedMotion: (value: boolean) => void;
+  refreshDailyMix: () => Promise<DailyMix | null>;
   setTheme: (value: Theme) => void;
   setAppearance: (patch: Partial<AppearancePreferences>) => void;
   setStylePreset: (style: UiStyle) => void;
@@ -333,7 +336,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.3.5",
+  version: "s1.4.0",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -354,6 +357,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   crossfeedStrength: 0.5,
   followSourceRate: true,
   vizBars: [],
+  dailyMix: null,
   playback: null,
   scanning: false,
   scanProgress: null,
@@ -403,6 +407,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         fatalError: null,
         version: data.version,
         dataDir: data.dataDir,
+        dailyMix: data.dailyMix ?? null,
         libraryRoot: data.libraryRoot ?? "",
         tracks: data.tracks,
         favorites: data.favorites,
@@ -481,6 +486,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             : preview,
         });
         if (state.previewTrackId) void get().ensureLyrics(state.previewTrackId);
+        void get().refreshDailyMix();
         if (payload.legacyImport) {
           get().pushToast(lx("Library imported", "资料库已导入"), lx("{count} songs, covers and ratings from Potato Player.", "已从 Potato Player 导入 {count} 首歌曲、封面与评分。", { count: payload.tracks.length }), "success");
         } else {
@@ -1188,6 +1194,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   openPrompt: (prompt) => set({ prompt }),
   closePrompt: () => set({ prompt: null }),
+
+  refreshDailyMix: async () => {
+    try {
+      const mix = await bridge().invoke<DailyMix>("recommendations.refresh");
+      set({ dailyMix: mix });
+      return mix;
+    } catch (error) {
+      get().pushToast(lx("Could not refresh today’s mix", "无法刷新今日推荐"), friendlyError(error), "error");
+      return null;
+    }
+  },
 
   setReducedMotion: (value) => {
     set({ reducedMotion: value });

@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.5`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.0`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,24 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.0 — 2026-10-28
+
+### Added
+
+- **本地每日推荐歌单（Daily Mix）**：不依赖网易云/QQ 推荐接口，完全根据本地资料库生成。
+  - 综合评分、收藏、历史播放次数、聆听时长、最近播放时间与新增时间打分
+  - 每天用日期作为随机种子，生成 30 首；结果按天缓存，一天内不会自行变化
+  - 对同一艺术家/区块/流派/专辑做贪心降权，避免整张歌单变成同一位歌手
+  - 侧边栏新增 **Daily Mix / 每日推荐** 入口与数量
+  - 独立页面支持播放、随机播放、下一首播放、加入队列、手动刷新
+  - 刷新使用递增 revision，确保“重新生成”真的会得到不同组合
+  - 空资料库/歌曲不足时有明确的空状态
+
+### Verification
+
+- 真实资料库生成 30 首；`npm test` 中的 UI smoke 新增 Daily Mix 页面断言。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
 
 ## s1.3.5 — 2026-10-28
 

@@ -9454,6 +9454,19 @@ img {
 .spatial-slider input { flex: 1; accent-color: currentColor; }
 .spatial-slider em { font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.7; min-width: 38px; text-align: right; }
 
+.page--daily .playlist-hero__copy .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.daily-mix__note {
+  max-width: 540px;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--faint) !important;
+}
+
 /* ── NetEase comments ───────────────────────────────────────────────────── */
 
 .online-comments {

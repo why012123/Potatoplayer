@@ -20,13 +20,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s1.3.5";
+    public static final String VERSION = "s1.4.0";
 
     private final Object lock = new Object();
     private final DataStore store;
     private final Settings settings;
     private final EqStore eqStore;
     private final StatsStore statsStore;
+    private final DailyMixService dailyMix;
     private final LibraryState state;
     private final Map<String, Track> trackIndex = new HashMap<>();
     private final NeteaseBindings neteaseBindings;
@@ -60,6 +61,7 @@ public final class Backend implements PlaybackController.Host {
                 ? null : musicRoot.getParent().resolve("eq.json");
         this.eqStore = EqStore.load(store.eqFile(), legacyEq, musicRoot);
         this.statsStore = StatsStore.load(store.statsFile());
+        this.dailyMix = new DailyMixService(store.dataDir());
         try {
             eqStore.save(store.eqFile());
         } catch (Exception e) {
@@ -110,6 +112,7 @@ public final class Backend implements PlaybackController.Host {
             out.put("scannedAt", state.scannedAt);
             out.put("coverRoots", store.coverRoots(settings.libraryRoot == null ? null : Path.of(settings.libraryRoot)));
             out.put("dataDir", store.dataDir().toString());
+            out.put("dailyMix", dailyMix.get(state.tracks, state.favorites, statsStore.trackSnapshot()));
             return out;
         }
     }
@@ -1103,6 +1106,8 @@ public final class Backend implements PlaybackController.Host {
         return switch (method) {
             case "bootstrap" -> bootstrap();
             case "stats.get" -> statsStore.summary();
+            case "recommendations.refresh" -> dailyMix.refresh(
+                    state.tracks, state.favorites, statsStore.trackSnapshot());
             case "library.scan" -> startScan();
             case "library.setRoot" -> setLibraryRoot(text(p, "path", ""));
             case "library.toggleFavorite" -> toggleFavorite(text(p, "trackId", ""));

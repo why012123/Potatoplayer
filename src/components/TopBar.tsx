@@ -61,6 +61,8 @@ export function TopBar() {
         return tr("Collections", "合集");
       case "favorites":
         return tr("Favorites", "收藏");
+      case "daily":
+        return tr("Daily Mix", "每日推荐");
       case "stats":
         return tr("Stats", "统计");
       case "editor":

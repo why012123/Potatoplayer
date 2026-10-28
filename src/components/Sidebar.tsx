@@ -29,8 +29,9 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Artists", labelZh: "艺术家", view: { kind: "artists" }, icon: Users, shortcut: "4" },
   { label: "Collections", labelZh: "合集", view: { kind: "collections" }, icon: Layers3, shortcut: "5" },
   { label: "Favorites", labelZh: "收藏", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
-  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "7" },
-  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "8" },
+  { label: "Daily Mix", labelZh: "每日推荐", view: { kind: "daily" }, icon: Sparkles, shortcut: "7" },
+  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "8" },
+  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "9" },
 ];
 
 export function Sidebar() {
@@ -40,6 +41,7 @@ export function Sidebar() {
   const playlists = useAppStore((state) => state.playlists);
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
+  const dailyMix = useAppStore((state) => state.dailyMix);
   const scanning = useAppStore((state) => state.scanning);
   const scanProgress = useAppStore((state) => state.scanProgress);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
@@ -119,6 +121,9 @@ export function Sidebar() {
               {item.view.kind === "favorites" && favorites.length > 0 && (
                 <span className="nav-item__count">{favorites.length}</span>
               )}
+              {item.view.kind === "daily" && dailyMix?.trackIds.length ? (
+                <span className="nav-item__count">{dailyMix.trackIds.length}</span>
+              ) : null}
             </button>
           );
         })}

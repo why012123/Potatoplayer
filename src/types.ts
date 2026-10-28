@@ -87,6 +87,12 @@ export interface PlaybackState {
   error: string | null;
 }
 
+export interface DailyMix {
+  date: string;
+  generatedAt: number;
+  trackIds: string[];
+}
+
 export interface Bootstrap {
   version: string;
   libraryRoot: string;
@@ -103,6 +109,7 @@ export interface Bootstrap {
   scannedAt: number;
   coverRoots: string[];
   dataDir: string;
+  dailyMix?: DailyMix | null;
 }
 
 export interface LyricsLine {
@@ -146,6 +153,7 @@ export type View =
   | { kind: "albums" }
   | { kind: "artists" }
   | { kind: "favorites" }
+  | { kind: "daily" }
   | { kind: "stats" }
   | { kind: "collections" }
   | { kind: "editor"; trackId?: string }
