@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.3`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.4`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,23 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.4 — 2026-10-28
+
+### Fixed
+
+- **采样率切换失败不再中断播放**：potatoHQ 的 CoreAudio 输出在设备拒绝源采样率时，
+  会先尝试 48 kHz（蓝牙 A2DP 常用），再退回设备当前采样率，由引擎重采样后继续播放。
+  这修复了通话中的蓝牙耳机（HFP 单声道 16 kHz）导致 `cannot switch device to 44100 Hz`
+  并直接拒绝播放的问题。
+- **输出设备被拔掉时回退到系统默认设备**：保存的 USB/蓝牙设备不存在时，不再直接失败，
+  改用当前默认输出。
+
+### Verification
+
+- 在 Technics EAH-AZ80 上复测 44.1 kHz FLAC：播放在返回后正常推进，`outputRate=44100`。
+- 采样率失败路径由 CoreAudio 直接兜底；DoP 仍要求精确载波率，不会静默降级。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
 
 ## s1.3.3 — 2026-10-28
 
