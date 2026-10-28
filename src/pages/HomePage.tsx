@@ -175,7 +175,7 @@ export function HomePage() {
                   : tr("Looking for audio files", "正在查找音频文件")}
               </p>
               <div className="big-progress">
-                <span style={{ width: `${scanPct}%` }} />
+                <span style={{ transform: `scaleX(${Math.max(0, Math.min(100, scanPct)) / 100})` }} />
               </div>
             </>
           ) : (

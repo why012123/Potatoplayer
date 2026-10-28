@@ -1,5 +1,5 @@
 import { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import clsx from "clsx";
 import { AlertTriangle, Disc3, RefreshCw } from "lucide-react";
 import { useAppStore, viewKey } from "@/store";
@@ -330,7 +330,8 @@ export default function App() {
   })();
 
   return (
-    <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", !windowActive && "is-window-blurred")}>
+    <MotionConfig reducedMotion={reducedMotion ? "always" : "user"}>
+      <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", !windowActive && "is-window-blurred")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
           {activeCover && (
@@ -395,6 +396,7 @@ export default function App() {
       <DownloadTray />
       <DownloadTasks />
       <Toasts />
-    </div>
+      </div>
+    </MotionConfig>
   );
 }

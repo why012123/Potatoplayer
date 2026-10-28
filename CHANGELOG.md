@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.2`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.3`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,25 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.3 — 2026-10-28
+
+### Changed
+
+- **Motion 全局降级**：应用根节点使用 `MotionConfig`，跟随系统的“减少动态效果”，也跟随设置里的
+  “减少动态效果”开关；开启时保留透明度变化，去掉位移/缩放类动画。
+- **空间声像点**：从 `left/top` 过渡改为 `translate3d`，拖动时不再触发布局。
+- **进度条**：Mini Player、扫描进度、设置页扫描进度、下载进度从 `width` 过渡改为
+  `scaleX` + `transform-origin: left`，更新时只走合成器。
+- **命令面板**：`Cmd+K` 这类高频键盘动作从 240ms 位移+缩放改为 80ms 透明度淡入，
+  不再有空间位移动画。
+- 这些改动参考 Emil Kowalski 的 animation-performance / review-animations 规范，不改变音频、
+  3D 舞台或播放引擎。
+
+### Verification
+
+- `npm run typecheck`、后端 63 项自检、Playwright UI smoke、静音 VLC smoke 全部通过。
+- 播放、沉浸页、均衡器、设置、资料库操作均未受影响。
 
 ## s1.3.2 — 2026-10-28
 

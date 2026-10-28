@@ -62,8 +62,6 @@ export function SpatialPad({
     };
   }, [endDrag]);
 
-  const dotLeft = 50 + local.x * 44;
-  const dotTop = 50 - local.y * 44;
   const radius = Math.hypot(local.x, local.y);
   const azimuth = (Math.atan2(local.x, local.y) * 180) / Math.PI;
 
@@ -124,7 +122,7 @@ export function SpatialPad({
         <span className="spatial-pad__label spatial-pad__label--right">{tr("R", "右")}</span>
         <div
           className="spatial-pad__dot"
-          style={{ left: `${dotLeft}%`, top: `${dotTop}%` }}
+          style={{ transform: `translate3d(${local.x * size * 0.44}px, ${-local.y * size * 0.44}px, 0)` }}
           aria-hidden="true"
         />
       </div>

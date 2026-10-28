@@ -2963,10 +2963,12 @@ img {
 
 .mini-player__progress i {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 2px;
   background: var(--text);
-  transition: width 0.4s linear;
+  transform-origin: left center;
+  transition: transform 0.4s linear;
 }
 
 .mini-player__play,
@@ -3090,10 +3092,12 @@ img {
 
 .empty-stage .big-progress span {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 4px;
   background: var(--accent);
-  transition: width 0.4s var(--ease);
+  transform-origin: left center;
+  transition: transform 0.4s var(--ease);
 }
 
 .empty-stage__actions {
@@ -3439,10 +3443,12 @@ img {
 
 .settings-progress span {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 3px;
   background: var(--accent);
-  transition: width 0.3s ease;
+  transform-origin: left center;
+  transition: transform 0.3s ease;
 }
 
 .settings-toggle-row {
@@ -5773,10 +5779,12 @@ img {
 
 .download-item__bar i {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 2px;
   background: var(--accent);
-  transition: width 0.25s linear;
+  transform-origin: left center;
+  transition: transform 0.25s linear;
 }
 
 .download-item__close {
@@ -9411,10 +9419,11 @@ img {
 .spatial-pad__label--left { left: 8px; top: 50%; transform: translateY(-50%); }
 .spatial-pad__label--right { right: 8px; top: 50%; transform: translateY(-50%); }
 .spatial-pad__dot {
-  position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff, #c98d6b);
   box-shadow: 0 2px 8px rgba(120, 70, 40, 0.45), 0 0 0 4px rgba(201, 141, 107, 0.18);
-  pointer-events: none; transition: left 40ms linear, top 40ms linear;
+  pointer-events: none; will-change: transform;
 }
 .spatial-pad__readout {
   display: flex; justify-content: space-between; font-size: 11px; opacity: 0.65;

@@ -37,7 +37,7 @@ export function MiniPlayer() {
         <strong>{track.title}</strong>
         <span>{track.artist}</span>
         <div className="mini-player__progress">
-          <i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+          <i style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress)) / 100})` }} />
         </div>
       </div>
       <button

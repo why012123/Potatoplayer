@@ -713,7 +713,7 @@ export function SettingsDialog() {
               </div>
               {scanning && (
                 <div className="settings-progress">
-                  <span style={{ width: `${Math.max(4, pct)}%` }} />
+                  <span style={{ transform: `scaleX(${Math.max(0.04, Math.min(1, pct / 100))})` }} />
                 </div>
               )}
             </Section>

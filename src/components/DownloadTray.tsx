@@ -52,7 +52,7 @@ export function DownloadTray() {
                         : tr("{pct}% downloaded", "已下载 {pct}%", { pct })}
                 </span>
                 <div className="download-item__bar">
-                  <i style={{ width: `${Math.max(4, pct)}%` }} />
+                  <i style={{ transform: `scaleX(${Math.max(0.04, Math.min(1, pct / 100))})` }} />
                 </div>
               </div>
               <button type="button" className="download-item__close" aria-label={tr("Dismiss", "忽略")} onClick={() => dismiss(job.jobId)}>
