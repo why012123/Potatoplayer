@@ -216,6 +216,24 @@ export interface NeteaseSong {
   alias?: string;
 }
 
+export interface NeteaseComment {
+  id: string;
+  user: string;
+  avatarUrl: string;
+  content: string;
+  time: number;
+  liked: number;
+  location?: string;
+  replyTo?: string;
+}
+
+export interface NeteaseCommentPage {
+  total: number;
+  more: boolean;
+  hot: NeteaseComment[];
+  comments: NeteaseComment[];
+}
+
 export interface NeteasePlaylist {
   id: string;
   name: string;

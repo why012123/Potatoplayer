@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.4`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.5`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,21 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.5 — 2026-10-28
+
+### Added
+
+- **NetEase 评论**：Discover 搜索、每日推荐和歌单里的网易云歌曲现在有评论入口。
+  - 后端新增 `netease.comments`，读取热门评论与最新评论，支持分页
+  - 评论区沿用现有玻璃/留白样式，显示头像、昵称、时间、IP 属地、点赞数、回复引用
+  - 头像加载失败自动回退为首字母，不留下破图
+  - QQ Music 模式下不显示网易云评论入口
+
+### Verification
+
+- 真实 NetEase 搜索 + 打开 `world.execute (me) ;` 评论：45 条首屏评论、热门评论、加载更多均正常。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
 
 ## s1.3.4 — 2026-10-28
 

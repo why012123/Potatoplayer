@@ -1,6 +1,6 @@
 {
   "name": "potatoplayer-super",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "private": true,
   "description": "Potatoplayer Super — an Electron glass music player with blocks, genres and NetEase, powered by a Java/VLC backend",
   "type": "module",

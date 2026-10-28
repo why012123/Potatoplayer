@@ -301,6 +301,60 @@ public final class NeteaseService {
         return result;
     }
 
+    public Map<String, Object> comments(String neteaseId, int limit, int offset) {
+        requireService();
+        if (neteaseId == null || neteaseId.isBlank()) {
+            throw new IllegalArgumentException("Missing song id.");
+        }
+        int safeLimit = Math.max(1, Math.min(50, limit));
+        int safeOffset = Math.max(0, offset);
+        JsonNode data = get("/comment/music?id=" + encode(neteaseId)
+                + "&limit=" + safeLimit + "&offset=" + safeOffset, 18);
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (data == null) {
+            result.put("total", 0);
+            result.put("more", false);
+            result.put("hot", List.of());
+            result.put("comments", List.of());
+            return result;
+        }
+        int total = data.path("total").asInt(0);
+        List<Map<String, Object>> comments = parseComments(data.path("comments"));
+        result.put("total", total);
+        result.put("more", data.path("more").asBoolean(safeOffset + comments.size() < total));
+        result.put("hot", parseComments(data.path("hotComments")));
+        result.put("comments", comments);
+        return result;
+    }
+
+    private List<Map<String, Object>> parseComments(JsonNode array) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (array == null || !array.isArray()) return result;
+        for (JsonNode node : array) {
+            if (node == null || node.isMissingNode()) continue;
+            JsonNode user = node.path("user");
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", node.path("commentId").asText(""));
+            item.put("user", user.path("nickname").asText(""));
+            item.put("avatarUrl", user.path("avatarUrl").asText(""));
+            item.put("content", node.path("content").asText(""));
+            item.put("time", node.path("time").asLong(0));
+            item.put("liked", node.path("likedCount").asInt(0));
+            item.put("location", node.path("ipLocation").asText(""));
+            JsonNode replied = node.path("beReplied");
+            if (replied.isArray() && replied.size() > 0) {
+                JsonNode first = replied.path(0);
+                String name = first.path("user").path("nickname").asText("");
+                String content = first.path("content").asText("");
+                if (!content.isBlank()) {
+                    item.put("replyTo", (name.isBlank() ? "" : name + "：") + content);
+                }
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
     public Map<String, Object> download(String neteaseId, String quality) {
         requireService();
         if (neteaseId == null || neteaseId.isBlank()) {

@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`s1.3.4` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`s1.3.5` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 > 完整更新记录（含旧 Java 2.1.19 / Python 1.x 历史）见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
