@@ -1828,10 +1828,13 @@ img {
 
 .eq-bars i {
   width: 2px;
-  height: 4px;
+  height: 12px;
   border-radius: 2px;
   background: var(--eq-color);
   opacity: 0.85;
+  transform: scaleY(0.33);
+  transform-origin: bottom;
+  will-change: transform;
 }
 
 .eq-bars.is-playing i:nth-child(1) {
@@ -1852,10 +1855,10 @@ img {
 
 @keyframes eq {
   from {
-    height: 3px;
+    transform: scaleY(0.25);
   }
   to {
-    height: 12px;
+    transform: scaleY(1);
   }
 }
 
@@ -9424,18 +9427,19 @@ img {
   vertical-align: middle; margin-right: 10px;
 }
 .spectrum-bars i {
-  flex: 1 1 auto; min-width: 2px; border-radius: 1px 1px 0 0;
+  flex: 1 1 auto; min-width: 2px; height: 100%; border-radius: 1px 1px 0 0;
   background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 40%, transparent));
-  transition: height 90ms linear; opacity: 0.9;
+  transform-origin: bottom;
+  transition: transform 90ms linear; opacity: 0.9;
 }
 
 .now-playing__spectrum {
   display: flex; align-items: flex-end; gap: 2px; width: 100%; height: 26px;
   margin: 2px 0 10px; opacity: 0.55;
 }
-.now-playing__spectrum i { flex: 1 1 auto; min-width: 2px; border-radius: 1px 1px 0 0;
+.now-playing__spectrum i { flex: 1 1 auto; min-width: 2px; height: 100%; border-radius: 1px 1px 0 0;
   background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 30%, transparent));
-  transition: height 90ms linear; }
+  transform-origin: bottom; transition: transform 90ms linear; }
 
 .spatial-slider { display: flex; align-items: center; gap: 10px; padding: 4px 2px; font-size: 12px; opacity: 0.9; }
 .spatial-slider input { flex: 1; accent-color: currentColor; }

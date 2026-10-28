@@ -15,6 +15,7 @@ export interface Palette {
 export interface PotatoAPI {
   invoke<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   onEvent(listener: (event: BackendEvent) => void): () => void;
+  onWindowFocus(listener: (active: boolean) => void): () => void;
   pickFolder(): Promise<string | null>;
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<boolean>;

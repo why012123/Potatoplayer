@@ -127,8 +127,18 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       spellcheck: false,
-      backgroundThrottling: false,
+      backgroundThrottling: true,
     },
+  });
+
+  // DOM focus/blur is unreliable on some macOS Spaces. Forward the real
+  // BrowserWindow focus so the renderer can stop compositor-heavy animations
+  // and 20 Hz spectrum re-renders while another app is in front.
+  mainWindow.on("focus", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("window:focus", true);
+  });
+  mainWindow.on("blur", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("window:focus", false);
   });
 
   mainWindow.on("page-title-updated", (event) => {

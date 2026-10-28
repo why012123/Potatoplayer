@@ -400,3 +400,9 @@ select {
 [data-theme="dark"] .detail-more__menu button:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* Backgrounded Electron windows should not burn a compositor core on blinking
+   meters and ambient keyframes. JS state is frozen separately in the store. */
+.app.is-window-blurred * {
+  animation-play-state: paused !important;
+}

@@ -271,6 +271,28 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const [windowActive, setWindowActive] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden",
+  );
+  useEffect(() => {
+    const focus = () => setWindowActive(true);
+    const blur = () => setWindowActive(false);
+    const visibility = () => setWindowActive(document.visibilityState !== "hidden");
+    const unsubscribe = window.potato.onWindowFocus((active) => {
+      setWindowActive(active);
+      window.dispatchEvent(new CustomEvent("potato:window-focus", { detail: active }));
+    });
+    window.addEventListener("focus", focus);
+    window.addEventListener("blur", blur);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.removeEventListener("focus", focus);
+      window.removeEventListener("blur", blur);
+      document.removeEventListener("visibilitychange", visibility);
+      unsubscribe();
+    };
+  }, []);
+
   if (loading) return <LoadingScreen />;
   if (fatalError) return <FatalScreen message={fatalError} />;
 
@@ -308,7 +330,7 @@ export default function App() {
   })();
 
   return (
-    <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion")}>
+    <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", !windowActive && "is-window-blurred")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
           {activeCover && (

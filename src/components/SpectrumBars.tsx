@@ -15,7 +15,10 @@ export const SpectrumBars = memo(function SpectrumBars({
   return (
     <span className={clsx("spectrum-bars", className)} aria-hidden="true">
       {bars.map((value, index) => (
-        <i key={index} style={{ height: `${Math.round(Math.max(0.06, Math.min(1, value)) * 100)}%` }} />
+        <i
+          key={index}
+          style={{ transform: `scaleY(${Math.max(0.06, Math.min(1, value))})` }}
+        />
       ))}
     </span>
   );

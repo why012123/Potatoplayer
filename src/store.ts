@@ -196,6 +196,22 @@ function lx(en: string, zh: string, vars?: TextVars): string {
 
 let subscribed = false;
 let initializing = false;
+let windowActive =
+  typeof document === "undefined" ? true : document.visibilityState !== "hidden";
+if (typeof window !== "undefined") {
+  window.addEventListener("focus", () => {
+    windowActive = true;
+  });
+  window.addEventListener("blur", () => {
+    windowActive = false;
+  });
+  document.addEventListener("visibilitychange", () => {
+    windowActive = document.visibilityState !== "hidden";
+  });
+  window.addEventListener("potato:window-focus", (event) => {
+    windowActive = Boolean((event as CustomEvent<boolean>).detail);
+  });
+}
 let toastSequence = 0;
 let lyricsSequence = 0;
 let volumeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -317,7 +333,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.3.1",
+  version: "s1.3.2",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -479,6 +495,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "engine.spectrum": {
+        // A hidden player still receives 20 Hz spectrum packets. Drop them
+        // instead of re-rendering the panel behind another app; the next
+        // packet after focus restores the bars.
+        if (!windowActive) break;
         const bars = (data as { bars?: number[] })?.bars;
         if (Array.isArray(bars)) set({ vizBars: bars });
         break;

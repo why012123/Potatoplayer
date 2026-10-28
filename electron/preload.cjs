@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld("potato", {
     ipcRenderer.on("backend:event", handler);
     return () => ipcRenderer.removeListener("backend:event", handler);
   },
+  onWindowFocus: (listener) => {
+    const handler = (_event, active) => listener(Boolean(active));
+    ipcRenderer.on("window:focus", handler);
+    return () => ipcRenderer.removeListener("window:focus", handler);
+  },
   pickFolder: () => ipcRenderer.invoke("dialog:pick-folder"),
   openPath: (target) => ipcRenderer.invoke("app:open-path", target),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),

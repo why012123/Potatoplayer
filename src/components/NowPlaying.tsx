@@ -30,11 +30,16 @@ import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { formatTime } from "@/lib/format";
 
+function NowPlayingSpectrum() {
+  const vizBars = useAppStore((state) => state.vizBars);
+  const capabilities = useAppStore((state) => state.engineCapabilities);
+  if (!capabilities?.visualizer || vizBars.length === 0) return null;
+  return <SpectrumBars bars={vizBars} className="now-playing__spectrum" />;
+}
+
 export function NowPlaying() {
   const tr = useTr();
   const playback = useAppStore((state) => state.playback);
-  const vizBars = useAppStore((state) => state.vizBars);
-  const capabilities = useAppStore((state) => state.engineCapabilities);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
@@ -219,9 +224,7 @@ export function NowPlaying() {
               </button>
             </motion.div>
 
-            {capabilities?.visualizer && vizBars.length > 0 ? (
-              <SpectrumBars bars={vizBars} className="now-playing__spectrum" />
-            ) : null}
+            <NowPlayingSpectrum />
 
             <div className="now-playing__meta">
               <div className="now-playing__title-line">

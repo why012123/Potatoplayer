@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.3.1`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.3.2`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,30 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.3.2 — 2026-10-28
+
+### Fixed
+
+- **播放时 CPU 异常高**：根因不是 3D 舞台，而是正在播放的 `EqualizerBars` 用 CSS 动画修改 `height`。
+  在带有大面积 `backdrop-filter` 的歌曲页上，这会每帧触发布局与重绘；M2 实测 renderer 100%–145%、
+  GPU helper 53%–62%。改为固定高度 + `transform: scaleY()` 的合成器动画后，播放中 renderer 降到
+  约 2%–15%、GPU 约 7%–17%（不同采样点），暂停后进一步降低。
+- **频谱条也避免触发布局**：48 段频谱从逐条修改 `height` 改为 `transform: scaleY()`。
+- **播放面板 20 Hz 重渲染**：把频谱拆成独立的 `NowPlayingSpectrum` 子组件，父级播放面板不再随
+  频谱刷新；20 Hz 更新被隔离到 48 个 `i`。
+- **后台窗口不再全速重绘**：`backgroundThrottling` 恢复为开启；Electron 主进程通过 IPC 转发真实
+  窗口 focus/blur，renderer 在失焦时暂停 CSS 动画，并丢弃频谱事件，避免窗口被别的应用挡住时仍以
+  60 fps 渲染。
+
+### Verification
+
+- 隔离 profile 实测（Songs 页、播放中、potatoHQ、音量 0）：
+  - 修复前：renderer **136%**，GPU helper **62%**。
+  - 修复后：前台 renderer 约 **2%–15%**，GPU 约 **7%–17%**。
+  - 失焦到 Finder 后：renderer 约 **2%**，GPU 约 **7%–9%**。
+- 内存仍有约 0.9–1 GB 总 RSS（Chromium 页面、封面与玻璃层缓存），但不再是 CPU 热点。
+- `npm run typecheck`、后端 63 项自检、Playwright UI smoke、静音 VLC 后端 smoke 全部通过。
 
 ## s1.3.1 — 2026-10-28
 
