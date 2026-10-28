@@ -222,7 +222,7 @@ function delay(ms) {
   const heart = page.locator(".page--songs .track-row .row-heart").first();
   await heart.click({ force: true });
   await delay(350);
-  await page.locator(".side-tile").filter({ hasText: "Favorites" }).click();
+  await page.locator(".side-nav .nav-item").filter({ hasText: "Favorites" }).click();
   await page.waitForSelector(".page--favorites", { timeout: 5_000 });
   await delay(450);
   const favoriteRows = await page.locator(".track-row").count();
@@ -404,6 +404,10 @@ function delay(ms) {
   assert.ok(statsData.days.length >= 1, "playing a track should create a stats day");
   assert.ok(statsData.tracks.length >= 1, "playing a track should create a track stat");
   assert.ok(statsData.totalSeconds > 0, "the playback ticker should record listening time");
+  if ((await page.locator(".nav-item--sub").count()) === 0) {
+    await page.locator(".nav-item--more").click();
+    await page.waitForTimeout(250);
+  }
   await page.getByRole("button", { name: "Stats", exact: true }).click();
   await page.waitForSelector(".page--stats");
   await page.waitForTimeout(500);
@@ -440,7 +444,7 @@ function delay(ms) {
   assert.ok(await page.locator(".page--comments").isVisible(), "brief mode should keep the page visible");
   console.log("[ui] brief mode toggled");
   await page.screenshot({ path: path.join(root, "dist", "test-brief.png") });
-  await page.locator(".brand--toggle").click();
+  await page.locator(".brief-brand").click();
   await page.waitForSelector(".app.brief", { state: "detached", timeout: 5_000 });
 
   // Home customization persists visibility and supports reset.

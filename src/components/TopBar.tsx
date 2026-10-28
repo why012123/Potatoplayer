@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CloudDownload,
+  Disc3,
   Moon,
   Search,
   Sun,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import clsx from "clsx";
 import { IconButton } from "@/components/IconButton";
 
 export function TopBar() {
@@ -26,6 +28,8 @@ export function TopBar() {
   const downloads = useAppStore((state) => state.downloads);
   const setDownloadPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
   const theme = useAppStore((state) => state.theme);
+  const brief = useAppStore((state) => state.brief);
+  const toggleBrief = useAppStore((state) => state.toggleBrief);
   const setTheme = useAppStore((state) => state.setTheme);
   const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,35 +96,51 @@ export function TopBar() {
 
   return (
     <header className="topbar window-drag">
-      <div className="topbar__left no-drag">
-        <div className="topbar__nav">
-          <IconButton
-            label={tr("Back", "后退")}
-            variant="ghost"
-            size="sm"
-            disabled={!canGoBack}
-            onClick={goBack}
+      <div className={clsx("topbar__left no-drag", brief && "topbar__left--brief")}>
+        {brief ? (
+          <button
+            type="button"
+            className="brief-brand"
+            onClick={toggleBrief}
+            title={tr("Switch to super", "切换回 super")}
+            aria-label={tr("Switch to super", "切换回 super")}
           >
-            <ChevronLeft size={18} />
-          </IconButton>
-          <IconButton
-            label={tr("Forward", "前进")}
-            variant="ghost"
-            size="sm"
-            disabled={!canGoForward}
-            onClick={goForward}
-          >
-            <ChevronRight size={18} />
-          </IconButton>
-        </div>
-        <div
-          className="topbar__context"
-          aria-label={tr("Current section: {section}", "当前位置：{section}", { section: viewLabel })}
-        >
-          <span>{tr("Library", "资料库")}</span>
-          <i aria-hidden="true">/</i>
-          <strong>{viewLabel}</strong>
-        </div>
+            <span className="brief-brand__mark"><Disc3 size={16} strokeWidth={2.1} /></span>
+            <span className="brief-brand__word">potato</span>
+            <em>brief</em>
+          </button>
+        ) : (
+          <>
+            <div className="topbar__nav">
+              <IconButton
+                label={tr("Back", "后退")}
+                variant="ghost"
+                size="sm"
+                disabled={!canGoBack}
+                onClick={goBack}
+              >
+                <ChevronLeft size={18} />
+              </IconButton>
+              <IconButton
+                label={tr("Forward", "前进")}
+                variant="ghost"
+                size="sm"
+                disabled={!canGoForward}
+                onClick={goForward}
+              >
+                <ChevronRight size={18} />
+              </IconButton>
+            </div>
+            <div
+              className="topbar__context"
+              aria-label={tr("Current section: {section}", "当前位置：{section}", { section: viewLabel })}
+            >
+              <span>{tr("Library", "资料库")}</span>
+              <i aria-hidden="true">/</i>
+              <strong>{viewLabel}</strong>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="topbar__search no-drag">

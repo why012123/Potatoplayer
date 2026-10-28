@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.2`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.3`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,36 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.3 — 2026-10-29
+
+### Fixed
+
+- **右侧播放栏收起时中间栏下半部分闪一下**：根因是 `NowPlaying` 带 350ms 退出动画，仍留在
+  已经变成单列的 grid 里，于是被挤到页面下方。现在收起时直接卸载，不再参与单列布局；
+  连续截图验证不再出现整块面板闪出。
+- **左侧栏整栏滚动**：品牌和底部署名、设置固定；只有中间导航区域在展开 More 后才可能滚动。
+  默认布局下 `.sidebar__body` 不需要滚动，More 始终可见。
+- **左侧栏恢复原有设计语言**：取消卡片式 2×2 图标格和底部工具格，回到原有的整行导航；
+  只新增一个与导航同风格的 **More** 折叠行，收纳 Daily Mix / Dive / Stats / Editor，避免拥挤。
+
+### Changed
+
+- **Brief 完全重做成平面设计**，不再只是窄侧栏：
+  - 无侧栏；左上角改为 `potato brief` 品牌按钮，点击切回 super
+  - 顶部是细线分隔的平面顶栏，页面全宽
+  - 取消环境渐变和所有 `backdrop-filter` / 玻璃阴影
+  - 使用实色纸张底、黑色 Hero、大字号排版、直角/2px 圆角
+  - 底部新增平面导航 Dock：Home / Songs / Daily / Dive / Comments，以及命令面板和设置
+  - Mini Player、按钮、标签、封面全部改为平面样式；暗色主题有对应的平面配色
+  - 不像普通模式那样保留悬浮卡片，brief 变成另一套完整的阅读/浏览界面
+
+### Verification
+
+- 连续截图检查右侧栏收起：无下半屏闪烁。
+- 1200×700 窗口检查侧栏：brand / More / footer 全部可见，默认无需滚动。
+- UI smoke 覆盖 Comments、More、Daily Mix、Dive、brief 切换。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
 
 ## s1.4.2 — 2026-10-29
 

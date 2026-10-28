@@ -10107,3 +10107,638 @@ img {
     padding-bottom: 12px;
   }
 }
+
+.nav-item--more {
+  color: var(--muted);
+}
+
+.nav-item--more.is-active {
+  color: var(--text);
+}
+
+.nav-item--sub {
+  height: 34px;
+  padding-left: 22px;
+  font-size: 12px;
+}
+
+.side-nav .nav-item--sub > svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Brief is a different room, not a narrower sidebar. */
+
+.app.brief .app-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.brief .sidebar {
+  display: none;
+}
+
+.app.brief .workspace-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.brief .now-playing {
+  display: none;
+}
+
+.app.brief .topbar {
+  padding-inline: 30px;
+}
+
+.app.brief .topbar__nav,
+.app.brief .topbar__context {
+  display: none;
+}
+
+.app.brief .topbar__left--brief {
+  min-width: 180px;
+}
+
+.app.brief .topbar__search {
+  width: min(560px, 52vw);
+}
+
+.app.brief .page-shell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app.brief .page-scroll {
+  padding: 26px clamp(24px, 4vw, 58px) 132px;
+}
+
+.app.brief .page-header h1 {
+  font-family: var(--font-display, var(--font));
+  font-size: clamp(46px, 6.6vw, 82px);
+  font-weight: 620;
+  line-height: 0.92;
+  letter-spacing: -0.06em;
+}
+
+.app.brief .page-header {
+  margin-bottom: 24px;
+}
+
+.app.brief .page-header p {
+  max-width: 620px;
+  font-size: 12.5px;
+}
+
+.app.brief .hero {
+  min-height: 390px;
+  border-radius: 30px;
+}
+
+.app.brief .mini-player {
+  right: 26px;
+  bottom: 102px;
+}
+
+.brief-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.brief-brand__mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(145deg, #2b2b2f, #131315);
+  box-shadow: 0 5px 14px rgba(22, 21, 24, 0.22);
+}
+
+.brief-brand__word {
+  font-size: 15px;
+  font-weight: 730;
+  letter-spacing: -0.055em;
+}
+
+.brief-brand em {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 5px;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 86%, #48200f);
+  background: color-mix(in srgb, var(--accent) 13%, rgba(255, 255, 255, 0.5));
+}
+
+.brief-brand:hover .brief-brand__mark {
+  background: linear-gradient(145deg, #3a3a3f, #1a1a1d);
+}
+
+.brief-dock {
+  position: fixed;
+  z-index: 90;
+  left: 50%;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(252, 249, 244, 0.82);
+  box-shadow: 0 20px 60px rgba(30, 24, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+}
+
+.brief-dock__label {
+  padding-right: 3px;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.16em;
+  color: var(--faint);
+}
+
+.brief-dock__items {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.brief-dock__item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 560;
+  color: var(--muted);
+  background: transparent;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.brief-dock__item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.brief-dock__item.is-active {
+  color: #fffaf2;
+  background: #1d1b19;
+  box-shadow: 0 3px 10px rgba(20, 18, 16, 0.18);
+}
+
+.brief-dock__rule {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--line);
+}
+
+.brief-dock__tools {
+  display: flex;
+  gap: 1px;
+}
+
+.brief-dock__tool {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: transparent;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.brief-dock__tool:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.app.brief .page--songs .track-table {
+  max-width: 1120px;
+}
+
+@media (max-width: 760px) {
+  .app.brief .page-scroll {
+    padding-inline: 18px;
+  }
+
+  .app.brief .topbar {
+    padding-inline: 16px;
+  }
+
+  .app.brief .topbar__search {
+    width: min(320px, 44vw);
+  }
+
+  .brief-dock {
+    bottom: 12px;
+    max-width: calc(100vw - 24px);
+    gap: 4px;
+    padding-left: 8px;
+  }
+
+  .brief-dock__label {
+    display: none;
+  }
+
+  .brief-dock__item {
+    padding: 0 8px;
+  }
+
+  .brief-dock__item span {
+    display: none;
+  }
+
+  .app.brief .mini-player {
+    right: 14px;
+    bottom: 80px;
+  }
+}
+
+/* The brand and footer stay put; only the navigation body scrolls if a user
+   expands every section. */
+.sidebar {
+  overflow: hidden;
+}
+
+.sidebar__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.sidebar__body::-webkit-scrollbar {
+  display: none;
+}
+
+.app.brief .sidebar__body {
+  overflow: hidden;
+}
+
+/* ── Brief: flat paper, no glass ─────────────────────────────────────────── */
+
+.app.brief {
+  --brief-paper: #f1ece3;
+  --brief-ink: #17130f;
+  --brief-muted: #6b6258;
+  --brief-line: #29231d;
+  --text: var(--brief-ink);
+  --muted: var(--brief-muted);
+  --faint: #8a8074;
+  --line: rgba(41, 35, 29, 0.18);
+  color: var(--brief-ink);
+  background: var(--brief-paper);
+  padding: 14px;
+}
+
+.app.brief.theme-dark {
+  --brief-paper: #151311;
+  --brief-ink: #f2ece1;
+  --brief-muted: #b9ad9e;
+  --brief-line: #e6dccd;
+  --faint: #8f8375;
+  --line: rgba(242, 236, 225, 0.18);
+}
+
+.app.brief .ambient {
+  display: none;
+}
+
+.app.brief * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.brief .app-grid,
+.app.brief .workspace,
+.app.brief .workspace-body {
+  gap: 0;
+}
+
+.app.brief .topbar {
+  border-bottom: 1px solid var(--brief-line);
+  padding: 8px 30px 14px;
+}
+
+.app.brief .topbar__search {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app.brief .topbar__search:focus-within {
+  background: transparent;
+  border-color: var(--brief-ink);
+  box-shadow: none;
+}
+
+.app.brief .icon-button,
+.app.brief .topbar-avatar {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.app.brief .page-shell {
+  border: 0;
+  border-radius: 0;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .page-scroll {
+  padding: 28px clamp(24px, 5vw, 72px) 138px;
+}
+
+.app.brief .page-header {
+  padding-top: 10px;
+  margin-bottom: 28px;
+  border-top: 1px solid var(--brief-line);
+}
+
+.app.brief .page-header h1 {
+  font-size: clamp(48px, 7vw, 88px);
+  line-height: 0.9;
+}
+
+.app.brief .page-header p {
+  max-width: 680px;
+  color: var(--brief-muted);
+}
+
+.app.brief .eyebrow,
+.app.brief .section-header h2,
+.app.brief .nav-label {
+  color: var(--brief-muted);
+}
+
+.app.brief .section-header {
+  border-top: 1px solid var(--brief-line);
+  padding-top: 12px;
+}
+
+.app.brief .glass,
+.app.brief .glass-strong {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .hero {
+  border: 0;
+  border-radius: 2px;
+  background: var(--brief-ink);
+  color: var(--brief-paper);
+  box-shadow: none;
+  min-height: 400px;
+}
+
+.app.brief .hero__backdrop {
+  inset: 0 0 0 auto;
+  width: 43%;
+  opacity: 1;
+  filter: none;
+  transform: none;
+  background-size: cover;
+  border-left: 1px solid var(--brief-line);
+}
+
+.app.brief .hero__shade,
+.app.brief .hero__rings {
+  display: none;
+}
+
+.app.brief .hero__copy {
+  width: 55%;
+}
+
+.app.brief .hero__eyebrow,
+.app.brief .hero__artist,
+.app.brief .hero__copy > p {
+  color: color-mix(in srgb, var(--brief-paper) 72%, transparent);
+}
+
+.app.brief .hero h1 {
+  color: var(--brief-paper);
+  text-shadow: none;
+  font-size: clamp(38px, 5vw, 66px);
+  line-height: 0.92;
+}
+
+.app.brief .hero__artist:hover {
+  color: var(--brief-paper);
+}
+
+.app.brief .button {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.app.brief .button--glass {
+  border: 1px solid var(--brief-line);
+  background: transparent;
+  color: var(--brief-ink);
+}
+
+.app.brief .button--dark {
+  border: 1px solid var(--brief-ink);
+  background: var(--brief-ink);
+  color: var(--brief-paper);
+}
+
+.app.brief .hero .button--dark {
+  border-color: var(--brief-paper);
+  background: var(--brief-paper);
+  color: var(--brief-ink);
+}
+
+.app.brief .hero .button--glass {
+  border-color: color-mix(in srgb, var(--brief-paper) 45%, transparent);
+  color: var(--brief-paper);
+}
+
+.app.brief .hero__heart {
+  color: var(--brief-paper);
+  border: 1px solid color-mix(in srgb, var(--brief-paper) 35%, transparent);
+  border-radius: 2px;
+  background: transparent;
+}
+
+.app.brief .stat-strip,
+.app.brief .taxonomy-overview,
+.app.brief .track-table,
+.app.brief .hero,
+.app.brief .home-empty,
+.app.brief .empty-stage {
+  border-radius: 2px;
+}
+
+.app.brief .stat-strip,
+.app.brief .taxonomy-overview {
+  border: 1px solid var(--brief-line);
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .track-table__head,
+.app.brief .track-table__row-wrap,
+.app.brief .track-row {
+  border-radius: 0;
+}
+
+.app.brief .track-table__head {
+  border-top: 1px solid var(--brief-line);
+  border-bottom: 1px solid var(--brief-line);
+  background: transparent;
+}
+
+.app.brief .tag-chip,
+.app.brief .tag-pill,
+.app.brief .online-fee {
+  border-radius: 2px;
+  background: transparent;
+  border: 1px solid var(--brief-line);
+  box-shadow: none;
+}
+
+.app.brief .media-card,
+.app.brief .track-card {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.app.brief .cover {
+  border-radius: 2px !important;
+}
+
+.app.brief .cover__sheen {
+  display: none;
+}
+
+.app.brief .mini-player {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.app.brief .brief-brand__mark {
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--brief-ink);
+  color: var(--brief-paper);
+}
+
+.app.brief .brief-brand em {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-ink);
+  color: var(--brief-paper);
+}
+
+.app.brief .brief-dock {
+  gap: 5px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .brief-dock__label {
+  color: var(--brief-muted);
+}
+
+.app.brief .brief-dock__item {
+  border-radius: 2px;
+}
+
+.app.brief .brief-dock__item:hover {
+  background: color-mix(in srgb, var(--brief-ink) 8%, transparent);
+}
+
+.app.brief .brief-dock__item.is-active {
+  border-radius: 2px;
+  background: var(--brief-ink);
+  color: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .brief-dock__tool {
+  border-radius: 2px;
+}
+
+.app.brief .brief-dock__rule {
+  background: var(--brief-line);
+}
+
+.app.brief .modal,
+.app.brief .settings-dialog,
+.app.brief .eq-dialog,
+.app.brief .prompt-dialog,
+.app.brief .command-palette {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+.app.brief .modal-backdrop {
+  background: rgba(20, 16, 13, 0.55);
+  backdrop-filter: none;
+}
+
+.app.brief .side-nav,
+.app.brief .sidebar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .app.brief .page-scroll {
+    padding-inline: 18px;
+    padding-bottom: 130px;
+  }
+
+  .app.brief .hero__backdrop {
+    display: none;
+  }
+
+  .app.brief .hero__copy {
+    width: 100%;
+  }
+
+  .app.brief .brief-dock__item span {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) {
+  .side-playlists__list {
+    max-height: 80px;
+  }
+}

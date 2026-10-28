@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { NowPlaying } from "@/components/NowPlaying";
 import { MiniPlayer } from "@/components/MiniPlayer";
+import { BriefDock } from "@/components/BriefDock";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { PromptDialog } from "@/components/PromptDialog";
@@ -397,14 +398,16 @@ export default function App() {
                 </AnimatePresence>
               </div>
             </main>
-            <AnimatePresence initial={false}>
-              {rightPanelOpen && <NowPlaying key="now-playing" />}
-            </AnimatePresence>
+            {/* Do not keep NowPlaying mounted for an exit animation: during the
+                one-column grid transition it would wrap below the page and flash
+                across the lower half of the centre column. */}
+            {rightPanelOpen && <NowPlaying key="now-playing" />}
           </div>
         </div>
       </div>
 
       <AnimatePresence>{!rightPanelOpen && <MiniPlayer key="mini-player" />}</AnimatePresence>
+      <BriefDock />
 
       <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>
 

@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
   Album,
+  ChevronDown,
+  ChevronUp,
   Cloud,
   Disc3,
   FolderOpen,
@@ -38,9 +41,21 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "11" },
 ];
 
-const primaryItems = items.slice(0, 5);
-const roomItems = items.slice(5, 9);
-const utilityItems = items.slice(9);
+const mainItems = [
+  items[0], // Home
+  items[1], // Songs
+  items[2], // Albums
+  items[3], // Artists
+  items[4], // Collections
+  items[5], // Favorites
+  items[8], // Comments
+];
+const moreItems = [
+  items[6], // Daily Mix
+  items[7], // Dive
+  items[9], // Stats
+  items[10], // Editor
+];
 
 export function Sidebar() {
   const viewHistory = useAppStore((state) => state.viewHistory);
@@ -61,6 +76,7 @@ export function Sidebar() {
   const onlineSource = useAppStore((state) => state.onlineSource);
   const setOnlineSource = useAppStore((state) => state.setOnlineSource);
   const tr = useTr();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const current = viewHistory[viewIndex] ?? { kind: "home" };
   const activeKind =
@@ -71,6 +87,11 @@ export function Sidebar() {
         : current.kind === "block" || current.kind === "genre"
           ? "collections"
           : current.kind;
+  const activeMore = moreItems.some((item) => activeKind === item.view.kind);
+  const showMore = moreOpen || brief;
+  useEffect(() => {
+    if (activeMore) setMoreOpen(true);
+  }, [activeMore]);
   const totalDuration = tracks.reduce((sum, track) => sum + (track.duration || 0), 0);
   const sourceName = onlineSource === "qq" ? "QQ Music" : "NetEase";
 
@@ -111,9 +132,10 @@ export function Sidebar() {
         </span>
       </button>
 
+      <div className="sidebar__body">
       <nav className="side-nav" aria-label={tr("Library", "资料库")}>
         <div className="nav-label">{tr("Library", "资料库")}</div>
-        {primaryItems.map((item) => {
+        {mainItems.map((item) => {
           const Icon = item.icon;
           const active = activeKind === item.view.kind;
           return (
@@ -139,6 +161,42 @@ export function Sidebar() {
               {item.view.kind === "favorites" && favorites.length > 0 && (
                 <span className="nav-item__count">{favorites.length}</span>
               )}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className={clsx("nav-item nav-item--more", activeMore && "is-active")}
+          onClick={() => setMoreOpen((value) => !value)}
+          aria-expanded={showMore}
+          title={showMore ? tr("Hide tools", "收起工具") : tr("More tools", "更多工具")}
+        >
+          {showMore ? <ChevronUp size={16} strokeWidth={1.9} /> : <ChevronDown size={16} strokeWidth={1.9} />}
+          <span>{tr("More", "更多")}</span>
+        </button>
+        {showMore && moreItems.map((item) => {
+          const Icon = item.icon;
+          const active = activeKind === item.view.kind;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              className={clsx("nav-item nav-item--sub", active && "is-active")}
+              title={tr(item.label, item.labelZh)}
+              aria-label={tr(item.label, item.labelZh)}
+              onClick={() => {
+                if (!active) navigate(item.view);
+              }}
+            >
+              {active && (
+                <motion.span
+                  className="nav-item__pill"
+                  layoutId="nav-active-pill"
+                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                />
+              )}
+              <Icon size={15} strokeWidth={1.9} />
+              <span>{tr(item.label, item.labelZh)}</span>
               {item.view.kind === "daily" && dailyMix?.trackIds.length ? (
                 <span className="nav-item__count">{dailyMix.trackIds.length}</span>
               ) : null}
@@ -146,37 +204,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="side-room">
-        <div className="nav-label">{tr("Your room", "你的房间")}</div>
-        <div className="side-tiles">
-          {roomItems.map((item) => {
-            const Icon = item.icon;
-            const active = activeKind === item.view.kind;
-            return (
-              <button
-                key={item.label}
-                type="button"
-                className={clsx("side-tile", active && "is-active")}
-                onClick={() => {
-                  if (!active) navigate(item.view);
-                }}
-                title={tr(item.label, item.labelZh)}
-                aria-label={tr(item.label, item.labelZh)}
-              >
-                <Icon size={15} strokeWidth={1.9} />
-                <span>{tr(item.label, item.labelZh)}</span>
-                {item.view.kind === "favorites" && favorites.length > 0 ? (
-                  <em className="side-tile__count">{favorites.length}</em>
-                ) : null}
-                {item.view.kind === "daily" && dailyMix?.trackIds.length ? (
-                  <em className="side-tile__count">{dailyMix.trackIds.length}</em>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       <div className="online-nav">
         <div className="nav-label">{tr("Online", "在线")}</div>
@@ -258,8 +285,7 @@ export function Sidebar() {
           })}
         </div>
       </div>
-
-      <div className="sidebar__spacer" />
+      </div>
 
       <div className="library-card">
         <div className="library-card__top">
@@ -291,28 +317,6 @@ export function Sidebar() {
           <FolderOpen size={13} />
           {tr("Change folder", "更换文件夹")}
         </button>
-      </div>
-
-      <div className="side-utilities">
-        {utilityItems.map((item) => {
-          const Icon = item.icon;
-          const active = activeKind === item.view.kind;
-          return (
-            <button
-              key={item.label}
-              type="button"
-              className={clsx("side-utility", active && "is-active")}
-              onClick={() => {
-                if (!active) navigate(item.view);
-              }}
-              title={tr(item.label, item.labelZh)}
-              aria-label={tr(item.label, item.labelZh)}
-            >
-              <Icon size={15} strokeWidth={1.9} />
-              <span>{tr(item.label, item.labelZh)}</span>
-            </button>
-          );
-        })}
       </div>
 
       <div className="sidebar-footer">
