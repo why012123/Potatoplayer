@@ -16,6 +16,8 @@ export interface Track {
   trackNo: number;
   playCount: number;
   rating: number;
+  neteaseId?: string;
+  qqId?: string;
   addedAt: number;
   fileSize: number;
 }
@@ -155,6 +157,7 @@ export type View =
   | { kind: "favorites" }
   | { kind: "daily" }
   | { kind: "dive" }
+  | { kind: "comments" }
   | { kind: "stats" }
   | { kind: "collections" }
   | { kind: "editor"; trackId?: string }
@@ -241,6 +244,12 @@ export interface NeteaseCommentPage {
   more: boolean;
   hot: NeteaseComment[];
   comments: NeteaseComment[];
+}
+
+export interface TrackCommentsPage extends NeteaseCommentPage {
+  source: "netease" | "qq" | "";
+  bound: boolean;
+  sourceId?: string;
 }
 
 export interface NeteasePlaylist {

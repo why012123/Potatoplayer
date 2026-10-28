@@ -53,6 +53,11 @@ public final class NeteaseBindings {
         return null;
     }
 
+    public synchronized void remove(String path) {
+        if (path == null) return;
+        if (byPath.remove(normalize(path)) != null) save();
+    }
+
     public synchronized void put(Binding binding) {
         if (binding == null || binding.path == null) return;
         byPath.put(normalize(binding.path), binding);

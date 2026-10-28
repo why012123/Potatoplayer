@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.1`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.2`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,41 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.2 — 2026-10-29
+
+### Added
+
+- **本地歌曲在线身份绑定**：歌曲编辑页新增 NetEase ID 与 QQ Music MID 两个字段，绑定结果持久化到
+  `netease_bindings.json`，不会改动音频文件；一首歌绑定一个来源，输入其中一个会清空另一个。
+- **独立 Comments 页**：侧边栏新增评论入口，展示当前播放（或预览）歌曲的在线评论。
+  - 支持网易云与 QQ Music 两套评论接口
+  - 热门评论、最新评论、加载更多、刷新、评论总数、IP 属地、点赞数
+  - 未绑定 ID 时显示明确空状态，并提供“打开歌曲编辑”入口
+  - 不再在 Discover 曲目行里塞评论按钮，主页面更干净
+
+### Changed
+
+- **侧边栏重新分组**：主导航保留 5 个完整入口；收藏、每日推荐、Dive、评论收进 2×2 的
+  “Your Room” 卡片；统计与编辑器移到侧栏底部的小工具行；侧栏可滚动，避免窗口较矮时被裁切。
+- **新增 brief 模式**：点击左上角 potato 图标切换，`SUPER` 标签变成 `BRIEF`。
+  - 侧栏收成 78px 图标轨道，隐藏歌单、资料库卡片和文字标签
+  - 右侧播放面板收起，页面获得完整宽度，底部改为 Mini Player
+  - 适合专注浏览/沉浸；再次点击图标恢复 super
+  - 模式偏好记在本地 localStorage
+
+### Verification
+
+- 编辑页绑定网易云 ID 后，Comments 页成功读取 5,081 条评论；未绑定状态提示和跳转正常。
+- QQ Music 匿名评论接口实测：608 条评论，热门/最新均正常。
+- UI smoke 新增 Comments 页与 brief 切换断言。
+- `npm run typecheck`、后端自检、UI smoke、静音 VLC smoke 通过。
+
+### Known limits
+
+- 评论页只读，不支持点赞、回复或发布。
+- QQ Music 评论依赖 qq-music-api 服务和 numeric song id 解析；服务未启动时会显示错误。
+- brief 模式暂时隐藏歌单列表，可通过命令面板访问歌单。
 
 ## s1.4.1 — 2026-10-29
 

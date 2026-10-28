@@ -9668,3 +9668,442 @@ img {
     max-height: calc(100vh - 36px);
   }
 }
+
+/* ── Comments page ───────────────────────────────────────────────────────── */
+
+.page--comments {
+  gap: 14px;
+}
+
+.comments-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.comments-hero__cover {
+  width: 82px;
+  height: 82px;
+  flex: none;
+  filter: drop-shadow(0 10px 18px rgba(25, 22, 20, 0.16));
+}
+
+.comments-hero__cover .cover {
+  width: 100%;
+  height: 100%;
+}
+
+.comments-hero__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.comments-hero__copy .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.comments-hero__copy h1 {
+  margin: 5px 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display, var(--font));
+  font-size: clamp(23px, 3vw, 34px);
+  font-weight: 640;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+}
+
+.comments-hero__copy > p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.comments-hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 9px;
+  color: var(--faint);
+}
+
+.comments-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+}
+
+.comments-source--empty {
+  color: var(--faint);
+}
+
+.comments-hero__actions {
+  flex: none;
+}
+
+.comments-page {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2px 24px 18px;
+}
+
+.comments-page .comments-section h3 {
+  margin-top: 18px;
+}
+
+.comments-page .comments-state {
+  min-height: 190px;
+}
+
+.page--comments .empty-stage {
+  width: min(620px, 100%);
+  margin: 6vh auto 0;
+}
+
+/* ── Editor online identity ──────────────────────────────────────────────── */
+
+.editor-source {
+  gap: 7px;
+}
+
+.editor-source > span em {
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  opacity: 0.55;
+}
+
+.editor-source__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.editor-source__grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.editor-source__grid label > span {
+  font-size: 8.5px;
+  color: var(--muted);
+}
+
+.editor-source__grid .text-field {
+  height: 32px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.editor-source__hint {
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+@media (max-width: 760px) {
+  .comments-hero {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .comments-hero__actions {
+    width: 100%;
+    padding-left: 98px;
+  }
+
+  .comments-page {
+    padding-inline: 16px;
+  }
+
+  .editor-source__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Sidebar groups and brief mode ──────────────────────────────────────── */
+
+.brand--toggle {
+  width: 100%;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.brand--toggle:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.brand--toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline-offset: 2px;
+}
+
+.side-room {
+  margin-top: 2px;
+}
+
+.side-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.side-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 520;
+  color: rgba(29, 29, 33, 0.64);
+  background: rgba(255, 255, 255, 0.2);
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.side-tile > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-tile:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.side-tile.is-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 8px rgba(30, 26, 23, 0.05);
+}
+
+.side-tile__count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-style: normal;
+  color: var(--faint);
+}
+
+.side-tile.is-active .side-tile__count {
+  color: var(--muted);
+}
+
+.side-utilities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 2px 2px 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.side-utility {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 9px;
+  color: var(--muted);
+  background: transparent;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.side-utility:hover,
+.side-utility.is-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.sidebar {
+  scrollbar-width: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Brief mode: a quiet icon rail, no playlists, no library card, more room for
+   the page. The brand mark stays clickable and turns “super” into “brief”. */
+
+.app.brief .app-grid {
+  grid-template-columns: 78px minmax(0, 1fr);
+}
+
+.app.brief .sidebar {
+  padding: 0 9px 8px;
+}
+
+.app.brief .brand {
+  flex-direction: column;
+  gap: 7px;
+  padding: 39px 0 15px;
+}
+
+.app.brief .brand__type {
+  justify-content: center;
+  gap: 0;
+}
+
+.app.brief .brand__type strong {
+  display: none;
+}
+
+.app.brief .brand__type em {
+  padding: 2px 5px;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+}
+
+.app.brief .nav-label,
+.app.brief .side-playlists,
+.app.brief .library-card,
+.app.brief .nav-item__source,
+.app.brief .nav-item__count,
+.app.brief .side-tile__count,
+.app.brief .sidebar-settings span {
+  display: none !important;
+}
+
+.app.brief .side-nav {
+  padding: 0;
+}
+
+.app.brief .nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 9px 0;
+}
+
+.app.brief .nav-item > span:not(.nav-item__pill) {
+  display: none;
+}
+
+.app.brief .side-tiles {
+  grid-template-columns: 1fr;
+  gap: 3px;
+  padding: 0;
+}
+
+.app.brief .side-tile {
+  justify-content: center;
+  gap: 0;
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.app.brief .side-tile > span {
+  display: none;
+}
+
+.app.brief .online-nav {
+  margin-top: 2px;
+}
+
+.app.brief .side-utilities {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin: 2px 0 6px;
+  padding-top: 7px;
+}
+
+.app.brief .side-utility {
+  height: 30px;
+}
+
+.app.brief .side-utility span {
+  display: none;
+}
+
+.app.brief .sidebar-footer {
+  justify-content: center;
+}
+
+.app.brief .sidebar-settings {
+  justify-content: center;
+  padding: 0;
+  width: 34px;
+  height: 34px;
+}
+
+.app.brief .sidebar-avatar {
+  display: none;
+}
+
+.app.brief .sidebar__spacer {
+  min-height: 8px;
+}
+
+.app.brief .topbar__context {
+  display: none;
+}
+
+.app.brief .topbar__search {
+  width: min(430px, 48vw);
+}
+
+.app.brief .workspace-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.brief .now-playing {
+  display: none;
+}
+
+.app.brief .page-scroll {
+  padding: 22px 26px 112px;
+}
+
+.app.brief .page-shell {
+  background: color-mix(in srgb, var(--surface, #fff) 78%, transparent);
+}
+
+@media (max-height: 760px) {
+  .sidebar .library-card {
+    display: none;
+  }
+
+  .side-playlists__list {
+    max-height: 92px;
+  }
+
+  .brand {
+    padding-top: 38px;
+    padding-bottom: 12px;
+  }
+}

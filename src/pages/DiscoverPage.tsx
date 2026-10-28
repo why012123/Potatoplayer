@@ -11,7 +11,6 @@ import {
   ListMusic,
   ListPlus,
   LoaderCircle,
-  MessageCircle,
   LogOut,
   RefreshCw,
   ScanLine,
@@ -24,7 +23,6 @@ import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
 import { PageHeader } from "@/components/Headers";
-import { NeteaseCommentsDialog } from "@/components/NeteaseCommentsDialog";
 import { coverGradient, onlineImageUrl } from "@/lib/covers";
 import { formatTime, initials } from "@/lib/format";
 
@@ -61,12 +59,10 @@ function Artwork({
 function SongRow({
   song,
   onDownload,
-  onComments,
   downloading,
 }: {
   song: NeteaseSong;
   onDownload: () => void;
-  onComments?: () => void;
   downloading?: boolean;
 }) {
   const tr = useTr();
@@ -96,17 +92,6 @@ function SongRow({
         {song.fee > 0 && <span className="online-fee">{song.fee === 1 ? "VIP" : "HQ"}</span>}
         <em>{formatTime(song.durationMs / 1000)}</em>
       </div>
-      {onComments ? (
-        <button
-          type="button"
-          className="icon-button icon-button--ghost icon-button--sm online-comments"
-          title={tr("NetEase comments", "网易云评论")}
-          aria-label={tr("Open comments for {name}", "打开《{name}》的评论", { name: song.name })}
-          onClick={onComments}
-        >
-          <MessageCircle size={14} />
-        </button>
-      ) : null}
       <button
         type="button"
         className="button button--glass button--small online-download"
@@ -154,7 +139,6 @@ export function DiscoverPage() {
   const [cookie, setCookie] = useState("");
   const [cookieBusy, setCookieBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [commentsSong, setCommentsSong] = useState<NeteaseSong | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autoStartAttempted = useRef(false);
   const sourceName = onlineSource === "qq" ? "QQ Music" : "NetEase Cloud Music";
@@ -204,7 +188,6 @@ export function DiscoverPage() {
     setError(null);
     setQr(null);
     setQrMessage("");
-    setCommentsSong(null);
     setLoading(true);
     void refresh();
   }, [onlineSource, refresh]);
@@ -767,7 +750,6 @@ export function DiscoverPage() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  onComments={onlineSource === "netease" ? () => setCommentsSong(song) : undefined}
                   downloading={isDownloading(song.id)}
                 />
               ))}
@@ -804,7 +786,6 @@ export function DiscoverPage() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  onComments={onlineSource === "netease" ? () => setCommentsSong(song) : undefined}
                   downloading={isDownloading(song.id)}
                 />
               ))}
@@ -865,7 +846,6 @@ export function DiscoverPage() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  onComments={onlineSource === "netease" ? () => setCommentsSong(song) : undefined}
                   downloading={isDownloading(song.id)}
                 />
                 ))}
@@ -915,10 +895,6 @@ export function DiscoverPage() {
           )}
         </section>
       )}
-
-      <AnimatePresence>
-        {commentsSong ? <NeteaseCommentsDialog song={commentsSong} onClose={() => setCommentsSong(null)} /> : null}
-      </AnimatePresence>
 
       <div className="online-footnote">
         <Cloud size={13} />

@@ -9,6 +9,7 @@ import {
   Disc3,
   Heart,
   Layers3,
+  Link2,
   LoaderCircle,
   Pause,
   Pencil,
@@ -34,6 +35,8 @@ type Draft = {
   genre: string;
   rating: number;
   note: string;
+  neteaseId: string;
+  qqId: string;
 };
 
 function draftFor(track: Track | undefined): Draft {
@@ -42,6 +45,8 @@ function draftFor(track: Track | undefined): Draft {
     genre: track?.genre ?? "",
     rating: track?.rating ?? 0,
     note: track?.note ?? "",
+    neteaseId: track?.neteaseId ?? "",
+    qqId: track?.qqId ?? "",
   };
 }
 
@@ -96,7 +101,7 @@ export function SongEditorPage() {
   useEffect(() => {
     setDraft(draftFor(selected));
     setSaved(false);
-  }, [selected?.id, selected?.block, selected?.genre, selected?.rating, selected?.note]);
+  }, [selected?.id, selected?.block, selected?.genre, selected?.rating, selected?.note, selected?.neteaseId, selected?.qqId]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -115,7 +120,9 @@ export function SongEditorPage() {
     (draft.block !== (selected?.block ?? "") ||
       draft.genre !== (selected?.genre ?? "") ||
       Math.abs(draft.rating - (selected?.rating ?? 0)) > 0.0001 ||
-      draft.note !== (selected?.note ?? ""));
+      draft.note !== (selected?.note ?? "") ||
+      draft.neteaseId.trim() !== (selected?.neteaseId ?? "") ||
+      draft.qqId.trim() !== (selected?.qqId ?? ""));
 
   const blockColor = blocks.find((tag) => tag.name === draft.block)?.color ?? "#b8aa97";
   const genreColor = genres.find((tag) => tag.name === draft.genre)?.color ?? "#b8aa97";
@@ -149,6 +156,8 @@ export function SongEditorPage() {
       genre: draft.genre,
       rating: draft.rating,
       note: draft.note,
+      neteaseId: draft.neteaseId,
+      qqId: draft.qqId,
     });
     setSaving(false);
     if (ok) setSaved(true);
@@ -461,6 +470,48 @@ export function SongEditorPage() {
                     </button>
                   </div>
                 </label>
+
+                <div className="editor-field editor-field--wide editor-source">
+                  <span>
+                    <Link2 size={12} /> {tr("Online identity", "在线身份")}
+                    <em>{tr("Used by Comments", "用于评论页")}</em>
+                  </span>
+                  <div className="editor-source__grid">
+                    <label>
+                      <span>{tr("NetEase ID", "网易云 ID")}</span>
+                      <input
+                        className="text-field"
+                        value={draft.neteaseId}
+                        inputMode="numeric"
+                        placeholder={tr("Numeric song id", "数字歌曲 ID")}
+                        onChange={(event) => setDraft({
+                          ...draft,
+                          neteaseId: event.target.value,
+                          qqId: event.target.value ? "" : draft.qqId,
+                        })}
+                      />
+                    </label>
+                    <label>
+                      <span>{tr("QQ Music MID", "QQ 音乐 MID")}</span>
+                      <input
+                        className="text-field"
+                        value={draft.qqId}
+                        placeholder={tr("Song MID", "歌曲 MID")}
+                        onChange={(event) => setDraft({
+                          ...draft,
+                          qqId: event.target.value,
+                          neteaseId: event.target.value ? "" : draft.neteaseId,
+                        })}
+                      />
+                    </label>
+                  </div>
+                  <em className="editor-source__hint">
+                    {tr(
+                      "Bind one source per song. This only identifies the online comments; your audio file is untouched.",
+                      "一首歌绑定一个来源即可，只用于读取在线评论，不会改动音频文件。",
+                    )}
+                  </em>
+                </div>
 
                 <div className="editor-field editor-field--wide">
                   <span className="editor-field__label-row">

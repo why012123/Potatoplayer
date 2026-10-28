@@ -83,6 +83,7 @@ interface AppStore {
   lyricsLoading: boolean;
   lyricsTrackId: string | null;
   rightPanelOpen: boolean;
+  brief: boolean;
   immersive: boolean;
   eqOpen: boolean;
   mvTrackId: string | null;
@@ -133,6 +134,7 @@ interface AppStore {
   enqueue: (trackId: string, next: boolean) => Promise<void>;
   enqueueMany: (trackIds: string[], next: boolean) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
+  toggleBrief: () => void;
   setImmersive: (open: boolean) => void;
   setEqOpen: (open: boolean) => void;
   setMvTrackId: (id: string | null) => void;
@@ -159,7 +161,14 @@ interface AppStore {
   setTagColor: (kind: TagKind, name: string, color: string) => Promise<void>;
   updateTrack: (
     trackId: string,
-    patch: { block: string; genre: string; rating: number; note: string },
+    patch: {
+      block: string;
+      genre: string;
+      rating: number;
+      note: string;
+      neteaseId: string;
+      qqId: string;
+    },
   ) => Promise<boolean>;
   deleteTrack: (trackId: string) => Promise<boolean>;
   bulkUpdate: (trackIds: string[], field: TagKind, value: string) => Promise<void>;
@@ -298,6 +307,14 @@ function readReducedMotion(): boolean {
   }
 }
 
+function readBrief(): boolean {
+  try {
+    return localStorage.getItem("potato:brief") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function readRightPanel(): boolean {
   try {
     return localStorage.getItem("potato:right-panel") !== "0";
@@ -336,7 +353,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.4.1",
+  version: "s1.4.2",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -370,6 +387,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lyricsLoading: false,
   lyricsTrackId: null,
   rightPanelOpen: readRightPanel(),
+  brief: readBrief(),
   immersive: false,
   eqOpen: false,
   mvTrackId: null,
@@ -962,6 +980,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().pushToast(next ? lx("Playing next", "接下来播放") : lx("Added to queue", "已加入队列"), undefined, "success");
     } catch (error) {
       get().pushToast(lx("Could not update queue", "无法更新播放队列"), friendlyError(error), "error");
+    }
+  },
+
+  toggleBrief: () => {
+    const next = !get().brief;
+    set({ brief: next });
+    try {
+      localStorage.setItem("potato:brief", next ? "1" : "0");
+    } catch {
+      // Storage is optional.
     }
   },
 

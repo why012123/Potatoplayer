@@ -10,6 +10,7 @@ import {
   BarChart3,
   Layers3,
   ListMusic,
+  MessageCircle,
   Music2,
   Plus,
   Settings2,
@@ -32,9 +33,14 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Favorites", labelZh: "收藏", view: { kind: "favorites" }, icon: Heart, shortcut: "6" },
   { label: "Daily Mix", labelZh: "每日推荐", view: { kind: "daily" }, icon: Sparkles, shortcut: "7" },
   { label: "Dive", labelZh: "Dive", view: { kind: "dive" }, icon: Gamepad2, shortcut: "8" },
-  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "9" },
-  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "0" },
+  { label: "Comments", labelZh: "评论", view: { kind: "comments" }, icon: MessageCircle, shortcut: "9" },
+  { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "10" },
+  { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "11" },
 ];
+
+const primaryItems = items.slice(0, 5);
+const roomItems = items.slice(5, 9);
+const utilityItems = items.slice(9);
 
 export function Sidebar() {
   const viewHistory = useAppStore((state) => state.viewHistory);
@@ -44,6 +50,8 @@ export function Sidebar() {
   const tracks = useAppStore((state) => state.tracks);
   const favorites = useAppStore((state) => state.favorites);
   const dailyMix = useAppStore((state) => state.dailyMix);
+  const brief = useAppStore((state) => state.brief);
+  const toggleBrief = useAppStore((state) => state.toggleBrief);
   const scanning = useAppStore((state) => state.scanning);
   const scanProgress = useAppStore((state) => state.scanProgress);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
@@ -86,20 +94,26 @@ export function Sidebar() {
     <aside className="sidebar glass">
       <div className="window-drag sidebar__drag" aria-hidden="true" />
 
-      <div className="brand">
-        <div className="brand__mark">
+      <button
+        type="button"
+        className="brand brand--toggle no-drag"
+        onClick={toggleBrief}
+        aria-pressed={brief}
+        title={brief ? tr("Switch to super", "切换回 super") : tr("Switch to brief", "切换到 brief")}
+      >
+        <span className="brand__mark">
           <Disc3 size={19} strokeWidth={2.1} />
           <span />
-        </div>
-        <div className="brand__type">
+        </span>
+        <span className="brand__type">
           <strong>potato</strong>
-          <em>super</em>
-        </div>
-      </div>
+          <em>{brief ? "brief" : "super"}</em>
+        </span>
+      </button>
 
       <nav className="side-nav" aria-label={tr("Library", "资料库")}>
         <div className="nav-label">{tr("Library", "资料库")}</div>
-        {items.map((item) => {
+        {primaryItems.map((item) => {
           const Icon = item.icon;
           const active = activeKind === item.view.kind;
           return (
@@ -107,6 +121,8 @@ export function Sidebar() {
               key={item.label}
               type="button"
               className={clsx("nav-item", active && "is-active")}
+              title={tr(item.label, item.labelZh)}
+              aria-label={tr(item.label, item.labelZh)}
               onClick={() => {
                 if (!active) navigate(item.view);
               }}
@@ -131,10 +147,43 @@ export function Sidebar() {
         })}
       </nav>
 
+      <div className="side-room">
+        <div className="nav-label">{tr("Your room", "你的房间")}</div>
+        <div className="side-tiles">
+          {roomItems.map((item) => {
+            const Icon = item.icon;
+            const active = activeKind === item.view.kind;
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={clsx("side-tile", active && "is-active")}
+                onClick={() => {
+                  if (!active) navigate(item.view);
+                }}
+                title={tr(item.label, item.labelZh)}
+                aria-label={tr(item.label, item.labelZh)}
+              >
+                <Icon size={15} strokeWidth={1.9} />
+                <span>{tr(item.label, item.labelZh)}</span>
+                {item.view.kind === "favorites" && favorites.length > 0 ? (
+                  <em className="side-tile__count">{favorites.length}</em>
+                ) : null}
+                {item.view.kind === "daily" && dailyMix?.trackIds.length ? (
+                  <em className="side-tile__count">{dailyMix.trackIds.length}</em>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="online-nav">
         <div className="nav-label">{tr("Online", "在线")}</div>
         <div
           className={clsx("nav-item nav-item--online", current.kind === "discover" && "is-active")}
+          title={tr("Discover", "发现")}
+          aria-label={tr("Discover", "发现")}
           role="button"
           tabIndex={0}
           onClick={() => navigate({ kind: "discover" })}
@@ -242,6 +291,28 @@ export function Sidebar() {
           <FolderOpen size={13} />
           {tr("Change folder", "更换文件夹")}
         </button>
+      </div>
+
+      <div className="side-utilities">
+        {utilityItems.map((item) => {
+          const Icon = item.icon;
+          const active = activeKind === item.view.kind;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              className={clsx("side-utility", active && "is-active")}
+              onClick={() => {
+                if (!active) navigate(item.view);
+              }}
+              title={tr(item.label, item.labelZh)}
+              aria-label={tr(item.label, item.labelZh)}
+            >
+              <Icon size={15} strokeWidth={1.9} />
+              <span>{tr(item.label, item.labelZh)}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="sidebar-footer">

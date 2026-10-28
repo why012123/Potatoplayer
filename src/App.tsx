@@ -29,6 +29,7 @@ import { DiscoverPage } from "@/pages/DiscoverPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
 import { DivePage } from "@/pages/DivePage";
+import { CommentsPage } from "@/pages/CommentsPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 import { DownloadTasks } from "@/components/DownloadTasks";
@@ -132,6 +133,8 @@ export default function App() {
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
+  const brief = useAppStore((state) => state.brief);
+  const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
   const immersive = useAppStore((state) => state.immersive);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
   const theme = useAppStore((state) => state.theme);
@@ -273,6 +276,19 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const previousPanel = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (brief) {
+      if (previousPanel.current === null) previousPanel.current = rightPanelOpen;
+      setRightPanelOpen(false);
+    } else if (previousPanel.current !== null) {
+      setRightPanelOpen(previousPanel.current);
+      previousPanel.current = null;
+    }
+    // Only react to mode changes; panel changes inside a mode are user actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brief]);
+
   const [windowActive, setWindowActive] = useState(
     () => typeof document === "undefined" || document.visibilityState !== "hidden",
   );
@@ -313,6 +329,8 @@ export default function App() {
         return <DailyMixPage />;
       case "dive":
         return <DivePage />;
+      case "comments":
+        return <CommentsPage />;
       case "stats":
         return <StatsPage />;
       case "editor":
@@ -337,7 +355,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion={reducedMotion ? "always" : "user"}>
-      <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", !windowActive && "is-window-blurred")}>
+      <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", brief && "brief", !windowActive && "is-window-blurred")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
           {activeCover && (

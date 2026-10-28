@@ -273,6 +273,56 @@ public final class QQMusicService {
         return result;
     }
 
+    public Map<String, Object> comments(String mid, int limit, int offset) {
+        requireService();
+        if (mid == null || mid.isBlank()) throw new IllegalArgumentException("Missing QQ Music song MID.");
+        JsonNode song = songDetail(mid);
+        String id = song == null ? "" : song.path("id").asText(song.path("songid").asText(""));
+        if (id.isBlank() || !id.matches("\\d+")) {
+            throw new IllegalStateException("QQ Music did not return a numeric song id for this MID.");
+        }
+        int safeLimit = Math.max(1, Math.min(50, limit));
+        int safeOffset = Math.max(0, offset);
+        JsonNode hot = get("/comment/hot?id=" + encode(id) + "&offset=0&limit=" + safeLimit, 18);
+        JsonNode fresh = get("/comment/new?id=" + encode(id) + "&offset=" + safeOffset + "&limit=" + safeLimit, 18);
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<Map<String, Object>> comments = parseQqComments(commentsNode(fresh));
+        int total = fresh == null ? 0 : fresh.path("total").asInt(0);
+        boolean more = fresh != null && (fresh.path("more").asBoolean(false) || fresh.path("data").path("more").asBoolean(false));
+        result.put("total", total);
+        result.put("more", more);
+        result.put("hot", parseQqComments(commentsNode(hot)));
+        result.put("comments", comments);
+        return result;
+    }
+
+    private static JsonNode commentsNode(JsonNode data) {
+        if (data == null) return null;
+        JsonNode direct = data.path("comments");
+        if (direct.isArray()) return direct;
+        JsonNode nested = data.path("data").path("comments");
+        return nested.isArray() ? nested : null;
+    }
+
+    private List<Map<String, Object>> parseQqComments(JsonNode array) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (array == null || !array.isArray()) return result;
+        for (JsonNode node : array) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", node.path("CmId").asText(node.path("id").asText("")));
+            item.put("user", node.path("Nick").asText(node.path("nick").asText("")));
+            item.put("avatarUrl", node.path("Avatar").asText(node.path("avatar").asText("")));
+            item.put("content", node.path("Content").asText(node.path("content").asText("")));
+            long time = node.path("PubTime").asLong(node.path("time").asLong(0));
+            if (time > 0 && time < 1_000_000_000_000L) time *= 1000L;
+            item.put("time", time);
+            item.put("liked", node.path("PraiseNum").asInt(node.path("praiseCount").asInt(0)));
+            item.put("location", node.path("Location").asText(node.path("location").asText("")));
+            result.add(item);
+        }
+        return result;
+    }
+
     public Map<String, Object> download(String mid, String quality) {
         requireService();
         if (mid == null || mid.isBlank()) throw new IllegalArgumentException("Missing QQ Music song mid.");

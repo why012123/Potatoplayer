@@ -222,7 +222,7 @@ function delay(ms) {
   const heart = page.locator(".page--songs .track-row .row-heart").first();
   await heart.click({ force: true });
   await delay(350);
-  await page.locator(".side-nav .nav-item").filter({ hasText: "Favorites" }).click();
+  await page.locator(".side-tile").filter({ hasText: "Favorites" }).click();
   await page.waitForSelector(".page--favorites", { timeout: 5_000 });
   await delay(450);
   const favoriteRows = await page.locator(".track-row").count();
@@ -427,6 +427,21 @@ function delay(ms) {
   assert.ok(await page.locator(".dive-setup").isVisible(), "Dive setup should render");
   console.log("[ui] Dive setup rendered");
   await page.screenshot({ path: path.join(root, "dist", "test-dive.png") });
+
+  // Comments is a standalone page for the current track; brief mode is a
+  // compact icon rail toggled from the brand mark.
+  await page.getByRole("button", { name: "Comments", exact: true }).click();
+  await page.waitForSelector(".page--comments", { timeout: 10_000 });
+  assert.ok(await page.locator(".comments-hero").isVisible(), "comments page should show the current track");
+  console.log("[ui] comments page rendered");
+  await page.screenshot({ path: path.join(root, "dist", "test-comments.png") });
+  await page.locator(".brand--toggle").click();
+  await page.waitForSelector(".app.brief", { timeout: 5_000 });
+  assert.ok(await page.locator(".page--comments").isVisible(), "brief mode should keep the page visible");
+  console.log("[ui] brief mode toggled");
+  await page.screenshot({ path: path.join(root, "dist", "test-brief.png") });
+  await page.locator(".brand--toggle").click();
+  await page.waitForSelector(".app.brief", { state: "detached", timeout: 5_000 });
 
   // Home customization persists visibility and supports reset.
   await page.getByRole("button", { name: "Home", exact: true }).click();

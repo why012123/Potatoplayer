@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s1.4.1";
+    public static final String VERSION = "s1.4.2";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -417,7 +417,8 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("blocks", copies(state.blocks), "genres", copies(state.genres));
     }
 
-    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note) {
+    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
+                                           String neteaseId, String qqId) {
         Track track = findTrack(trackId);
         if (track == null) {
             throw new IllegalArgumentException("Unknown track.");
@@ -430,10 +431,47 @@ public final class Backend implements PlaybackController.Host {
             track.note = cleanNote.length() > 2000 ? cleanNote.substring(0, 2000) : cleanNote;
             ensureTagForValueLocked(state.blocks, track.block);
             ensureTagForValueLocked(state.genres, track.genre);
+            updateBindingLocked(track, neteaseId, qqId);
         }
         saveNow();
         emitter.accept("track.updated", track);
         return Map.of("track", track, "blocks", copies(state.blocks), "genres", copies(state.genres));
+    }
+
+    private void updateBindingLocked(Track track, String neteaseId, String qqId) {
+        String netease = neteaseId == null ? "" : neteaseId.trim();
+        String qq = qqId == null ? "" : qqId.trim();
+        if (!netease.isBlank() && !netease.matches("\\d{1,20}")) {
+            throw new IllegalArgumentException("NetEase ID must be numeric.");
+        }
+        if (!netease.isBlank()) qq = "";
+        if (netease.isBlank() && !qq.isBlank() && !qq.matches("[A-Za-z0-9]+")) {
+            throw new IllegalArgumentException("QQ Music MID must be letters and digits.");
+        }
+        if (netease.isBlank() && qq.isBlank()) {
+            neteaseBindings.remove(track.path);
+            track.neteaseId = "";
+            track.qqId = "";
+            return;
+        }
+        NeteaseBindings.Binding binding = neteaseBindings.find(track.path);
+        if (binding == null) binding = new NeteaseBindings.Binding();
+        binding.path = track.path;
+        binding.title = track.title;
+        binding.artist = track.artist;
+        binding.album = track.album;
+        if (binding.coverPath == null) binding.coverPath = track.coverPath;
+        binding.downloadedAt = System.currentTimeMillis();
+        if (!netease.isBlank()) {
+            binding.neteaseId = netease;
+            track.neteaseId = netease;
+            track.qqId = "";
+        } else {
+            binding.neteaseId = "qq:" + qq;
+            track.neteaseId = "";
+            track.qqId = qq;
+        }
+        neteaseBindings.put(binding);
     }
 
     public Map<String, Object> deleteTrack(String trackId) {
@@ -1066,6 +1104,17 @@ public final class Backend implements PlaybackController.Host {
                 if (track.block == null) track.block = "";
                 if (track.genre == null) track.genre = "";
                 if (track.note == null) track.note = "";
+                NeteaseBindings.Binding binding = track.path == null ? null : neteaseBindings.find(track.path);
+                if (binding == null || binding.neteaseId == null || binding.neteaseId.isBlank()) {
+                    track.neteaseId = "";
+                    track.qqId = "";
+                } else if (binding.neteaseId.startsWith("qq:")) {
+                    track.neteaseId = "";
+                    track.qqId = binding.neteaseId.substring(3);
+                } else {
+                    track.neteaseId = binding.neteaseId;
+                    track.qqId = "";
+                }
                 trackIndex.put(track.id, track);
             }
         }
@@ -1099,6 +1148,35 @@ public final class Backend implements PlaybackController.Host {
         return clean.length() > 60 ? clean.substring(0, 60) : clean;
     }
 
+    public Map<String, Object> commentsForTrack(String trackId, int limit, int offset) {
+        Track track = findTrack(trackId);
+        if (track == null) throw new IllegalArgumentException("Unknown track.");
+        String neteaseId = track.neteaseId == null ? "" : track.neteaseId.trim();
+        String qqId = track.qqId == null ? "" : track.qqId.trim();
+        if (!neteaseId.isBlank()) {
+            Map<String, Object> result = new LinkedHashMap<>(netease.comments(neteaseId, limit, offset));
+            result.put("source", "netease");
+            result.put("bound", true);
+            result.put("sourceId", neteaseId);
+            return result;
+        }
+        if (!qqId.isBlank()) {
+            Map<String, Object> result = new LinkedHashMap<>(qq.comments(qqId, limit, offset));
+            result.put("source", "qq");
+            result.put("bound", true);
+            result.put("sourceId", qqId);
+            return result;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("source", "");
+        result.put("bound", false);
+        result.put("total", 0);
+        result.put("more", false);
+        result.put("hot", List.of());
+        result.put("comments", List.of());
+        return result;
+    }
+
     // ─── RPC dispatch ──────────────────────────────────────────────────────
 
     public Object handle(String method, JsonNode params) {
@@ -1121,7 +1199,9 @@ public final class Backend implements PlaybackController.Host {
                     text(p, "block", ""),
                     text(p, "genre", ""),
                     number(p, "rating", 0),
-                    text(p, "note", ""));
+                    text(p, "note", ""),
+                    text(p, "neteaseId", ""),
+                    text(p, "qqId", ""));
             case "library.bulkUpdate" -> bulkUpdate(
                     stringList(p.path("trackIds")),
                     text(p, "field", "block"),
@@ -1185,6 +1265,14 @@ public final class Backend implements PlaybackController.Host {
             case "netease.playlists" -> netease.playlists();
             case "netease.playlistDetail" -> netease.playlistDetail(text(p, "playlistId", ""));
             case "netease.daily" -> netease.daily();
+            case "comments.forTrack" -> commentsForTrack(
+                    text(p, "trackId", ""),
+                    (int) number(p, "limit", 30),
+                    (int) number(p, "offset", 0));
+            case "qq.comments" -> qq.comments(
+                    text(p, "id", ""),
+                    (int) number(p, "limit", 30),
+                    (int) number(p, "offset", 0));
             case "netease.comments" -> netease.comments(
                     text(p, "id", ""),
                     (int) number(p, "limit", 30),

@@ -166,6 +166,14 @@ public final class LibraryScanner {
                 if (notBlank(binding.coverPath) && Files.isRegularFile(Path.of(binding.coverPath))) {
                     track.coverPath = binding.coverPath;
                 }
+                String bindingId = binding.neteaseId == null ? "" : binding.neteaseId;
+                if (bindingId.startsWith("qq:")) {
+                    track.neteaseId = "";
+                    track.qqId = bindingId.substring(3);
+                } else {
+                    track.neteaseId = bindingId;
+                    track.qqId = "";
+                }
             }
         }
         if (track.coverPath == null) {

@@ -16,6 +16,8 @@ public class Track {
     public int trackNo;
     public int playCount;
     public double rating;
+    public String neteaseId;
+    public String qqId;
     public long addedAt;
     public long fileSize;
 
@@ -38,6 +40,8 @@ public class Track {
         t.trackNo = trackNo;
         t.playCount = playCount;
         t.rating = rating;
+        t.neteaseId = neteaseId;
+        t.qqId = qqId;
         t.addedAt = addedAt;
         t.fileSize = fileSize;
         return t;
