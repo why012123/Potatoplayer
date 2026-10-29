@@ -392,13 +392,18 @@ public final class NeteaseService {
         return result;
     }
 
-    public Map<String, Object> download(String neteaseId, String quality) {
+    public Map<String, Object> download(String neteaseId, String quality, String block, String genre) {
         requireService();
         if (neteaseId == null || neteaseId.isBlank()) {
             throw new IllegalArgumentException("Missing song id.");
         }
         String jobId = "netease-" + jobSequence.incrementAndGet();
-        downloader.submit(() -> downloadJob(jobId, neteaseId, quality == null ? "high" : quality));
+        downloader.submit(() -> downloadJob(
+                jobId,
+                neteaseId,
+                quality == null ? "high" : quality,
+                block == null ? "" : block.trim(),
+                genre == null ? "" : genre.trim()));
         return Map.of("jobId", jobId, "neteaseId", neteaseId);
     }
 
@@ -415,19 +420,32 @@ public final class NeteaseService {
         }
     }
 
-    private void downloadJob(String jobId, String neteaseId, String quality) {
+    private void downloadJob(String jobId, String neteaseId, String quality, String targetBlock, String targetGenre) {
         Path part = null;
         try {
             NeteaseBindings.Binding existing = host.neteaseBindings().findByNeteaseId(neteaseId);
+            Track local = host.findTrackByOnlineId(neteaseId, null);
+            if (local != null && Files.isRegularFile(Path.of(local.path))) {
+                Map<String, Object> done = existingDownload(
+                        jobId, neteaseId, existing, local, targetBlock, targetGenre);
+                emit("download.done", done);
+                return;
+            }
             if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
-                emit("download.done", Map.of(
-                        "jobId", jobId,
-                        "neteaseId", neteaseId,
-                        "title", existing.title == null ? "" : existing.title,
-                        "artist", existing.artist == null ? "" : existing.artist,
-                        "path", existing.path,
-                        "source", "netease",
-                        "duplicate", true));
+                if (!targetBlock.isBlank()) existing.block = targetBlock;
+                if (!targetGenre.isBlank()) existing.genre = targetGenre;
+                host.neteaseBindings().put(existing);
+                host.rescanAfterDownload();
+                Map<String, Object> done = new LinkedHashMap<>();
+                done.put("jobId", jobId);
+                done.put("neteaseId", neteaseId);
+                done.put("title", existing.title == null ? "" : existing.title);
+                done.put("artist", existing.artist == null ? "" : existing.artist);
+                done.put("path", existing.path);
+                done.put("source", "netease");
+                done.put("duplicate", true);
+                done.put("updated", !targetBlock.isBlank() || !targetGenre.isBlank());
+                emit("download.done", done);
                 return;
             }
 
@@ -472,19 +490,24 @@ public final class NeteaseService {
             binding.album = album;
             binding.coverPath = coverPath;
             binding.quality = quality;
+            binding.block = targetBlock;
+            binding.genre = targetGenre;
             binding.downloadedAt = System.currentTimeMillis();
             host.neteaseBindings().put(binding);
 
-            emit("download.done", Map.of(
-                    "jobId", jobId,
-                    "neteaseId", neteaseId,
-                    "title", title,
-                    "artist", artist,
-                    "album", album,
-                    "path", target.toString(),
-                    "coverPath", coverPath == null ? "" : coverPath,
-                    "source", "netease",
-                    "duplicate", false));
+            Map<String, Object> done = new LinkedHashMap<>();
+            done.put("jobId", jobId);
+            done.put("neteaseId", neteaseId);
+            done.put("title", title);
+            done.put("artist", artist);
+            done.put("album", album);
+            done.put("path", target.toString());
+            done.put("coverPath", coverPath == null ? "" : coverPath);
+            done.put("source", "netease");
+            done.put("duplicate", false);
+            done.put("block", targetBlock);
+            done.put("genre", targetGenre);
+            emit("download.done", done);
             host.rescanAfterDownload();
         } catch (Exception e) {
             if (part != null) {
@@ -499,6 +522,52 @@ public final class NeteaseService {
                     "source", "netease",
                     "message", e.getMessage() == null ? "Download failed." : e.getMessage()));
         }
+    }
+
+    /**
+     * A song already downloaded is never fetched again. A fresh block/genre
+     * selection updates the existing local track (and its binding) instead.
+     */
+    private Map<String, Object> existingDownload(
+            String jobId,
+            String neteaseId,
+            NeteaseBindings.Binding binding,
+            Track track,
+            String targetBlock,
+            String targetGenre) {
+        String currentBlock = track.block == null ? "" : track.block;
+        String currentGenre = track.genre == null ? "" : track.genre;
+        String block = targetBlock.isBlank() ? currentBlock : targetBlock;
+        String genre = targetGenre.isBlank() ? currentGenre : targetGenre;
+        boolean changed = !block.equals(currentBlock) || !genre.equals(currentGenre);
+        if (binding != null) {
+            if (!targetBlock.isBlank()) binding.block = targetBlock;
+            if (!targetGenre.isBlank()) binding.genre = targetGenre;
+            host.neteaseBindings().put(binding);
+        }
+        if (changed) {
+            host.updateTrack(
+                    track.id,
+                    block,
+                    genre,
+                    track.rating,
+                    track.note,
+                    track.neteaseId,
+                    track.qqId);
+        }
+        Map<String, Object> done = new LinkedHashMap<>();
+        done.put("jobId", jobId);
+        done.put("neteaseId", neteaseId);
+        done.put("title", track.title == null ? "" : track.title);
+        done.put("artist", track.artist == null ? "" : track.artist);
+        done.put("path", track.path);
+        done.put("source", "netease");
+        done.put("duplicate", true);
+        done.put("updated", changed);
+        done.put("trackId", track.id);
+        done.put("block", block);
+        done.put("genre", genre);
+        return done;
     }
 
     private String[] audioUrl(String id, String quality) {

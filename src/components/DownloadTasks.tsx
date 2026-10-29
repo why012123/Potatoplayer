@@ -183,7 +183,11 @@ export function DownloadTasks() {
                           {job.status === "error"
                             ? job.message
                             : job.status === "done"
-                              ? tr("Added to your library", "已添加到资料库")
+                              ? job.updated
+                                ? tr("Library info updated", "资料库信息已更新")
+                                : job.duplicate
+                                  ? tr("Already in your library", "已存在于资料库")
+                                  : tr("Added to your library", "已添加到资料库")
                               : job.phase === "resolving"
                                 ? tr("Resolving the best audio…", "正在解析最佳音质…")
                                 : job.phase === "queued"

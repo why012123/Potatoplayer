@@ -747,3 +747,66 @@
 #root .app.brief .now-playing .range {
   accent-color: var(--brief-ink);
 }
+
+
+/* Download targets follow the same flat paper language in brief. */
+#root .app.brief .download-target {
+  margin: -1px 0 12px;
+  padding: 0 2px;
+}
+
+#root .app.brief .download-target__label,
+#root .app.brief .download-target__hint {
+  color: var(--brief-muted);
+}
+
+#root .app.brief .download-target .quality-control.download-target__control {
+  height: 32px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+}
+
+#root .app.brief .download-target .quality-control.download-target__control select {
+  border-radius: 2px;
+  background: transparent;
+  color: var(--brief-ink);
+}
+
+/* A filter sheet in brief keeps the same paper rules. */
+#root .app.brief .filter-dialog {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .filter-dialog__close,
+#root .app.brief .filter-choice,
+#root .app.brief .filter-fields select {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--brief-ink);
+}
+
+#root .app.brief .filter-choice.is-active {
+  border-color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 9%, transparent);
+}
+
+#root .app.brief .filter-button__count {
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+#root .app.brief .filter-summary__chip,
+#root .app.brief .filter-summary__clear {
+  border-radius: 2px;
+}
+
+#root .app.brief .filter-summary__chip {
+  border-color: var(--brief-line);
+  background: transparent;
+}

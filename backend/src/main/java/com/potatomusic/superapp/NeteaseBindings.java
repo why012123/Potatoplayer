@@ -32,6 +32,8 @@ public final class NeteaseBindings {
         public String album;
         public String coverPath;
         public String quality;
+        public String block;
+        public String genre;
         public long downloadedAt;
     }
 

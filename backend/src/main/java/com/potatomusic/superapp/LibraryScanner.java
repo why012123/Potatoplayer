@@ -166,6 +166,10 @@ public final class LibraryScanner {
                 if (notBlank(binding.coverPath) && Files.isRegularFile(Path.of(binding.coverPath))) {
                     track.coverPath = binding.coverPath;
                 }
+                // Explicit download targets (and later edits) live on the binding,
+                // so they win over whatever the audio tags happen to contain.
+                if (notBlank(binding.block)) track.block = binding.block.trim();
+                if (notBlank(binding.genre)) track.genre = binding.genre.trim();
                 String bindingId = binding.neteaseId == null ? "" : binding.neteaseId;
                 if (bindingId.startsWith("qq:")) {
                     track.neteaseId = "";

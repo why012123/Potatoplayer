@@ -103,10 +103,40 @@ export function NowPlaying() {
   }, [lyrics, time]);
 
   const lyricRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const queueListRef = useRef<HTMLDivElement | null>(null);
+  const currentQueueRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     lyricRefs.current = [];
   }, [track?.id]);
+
+  // The queue keeps the playing song somewhere in the middle. When the tab is
+  // opened (or playback advances), centre that row instead of always showing
+  // the first song in the list.
+  useEffect(() => {
+    if (rightTab !== "queue") return;
+    // The queue tab mounts after the cross-fade. Waiting one frame after that
+    // transition is what lets the freshly mounted list scroll to the current row.
+    const scroll = () => {
+      const list = queueListRef.current;
+      const row = currentQueueRef.current;
+      if (!list || !row) return;
+      const listRect = list.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const target =
+        rowRect.top - listRect.top + list.scrollTop - (list.clientHeight - rowRect.height) / 2;
+      list.scrollTo({ top: Math.max(0, target), behavior: "auto" });
+    };
+    let later = 0;
+    const frame = window.requestAnimationFrame(() => {
+      scroll();
+      later = window.setTimeout(scroll, 260);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (later) window.clearTimeout(later);
+    };
+  }, [rightTab, playback?.trackId, queue.length]);
 
   useEffect(() => {
     if (rightTab !== "lyrics" || activeLyric < 0) return;
@@ -448,13 +478,14 @@ export function NowPlaying() {
                     transition={{ duration: 0.2 }}
                   >
                     {queueTracks.length ? (
-                      <div className="queue-list">
+                      <div className="queue-list" ref={queueListRef}>
                         {queueTracks.map((item, index) => {
                           const current = item.id === playback?.trackId;
                           return (
                             <button
                               type="button"
                               key={`${item.id}-${index}`}
+                              ref={current ? (node) => { currentQueueRef.current = node; } : undefined}
                               className={clsx("queue-row", current && "is-current")}
                               onClick={() => void playTrack(item, queue, 0)}
                             >

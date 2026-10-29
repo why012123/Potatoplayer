@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
@@ -60,10 +60,12 @@ function SongRow({
   song,
   onDownload,
   downloading,
+  owned,
 }: {
   song: NeteaseSong;
   onDownload: () => void;
   downloading?: boolean;
+  owned?: boolean;
 }) {
   const tr = useTr();
   return (
@@ -97,10 +99,14 @@ function SongRow({
         className="button button--glass button--small online-download"
         onClick={onDownload}
         disabled={downloading}
-        title={tr("Download and add to your library", "下载并添加到资料库")}
+        title={
+          owned
+            ? tr("Already downloaded — update its block and genre", "已下载过，只更新区块与流派")
+            : tr("Download and add to your library", "下载并添加到资料库")
+        }
       >
         {downloading ? <LoaderCircle size={14} className="is-spinning" /> : <CloudDownload size={14} />}
-        {tr("Download", "下载")}
+        {owned ? tr("Update", "更新") : tr("Download", "下载")}
       </button>
     </div>
   );
@@ -113,14 +119,55 @@ export function DiscoverPage() {
   const downloads = useAppStore((state) => state.downloads);
   const imports = useAppStore((state) => state.imports);
   const onlineSource = useAppStore((state) => state.onlineSource);
+  const tracks = useAppStore((state) => state.tracks);
+  const blocks = useAppStore((state) => state.blocks);
+  const genres = useAppStore((state) => state.genres);
   const quality = useAppStore((state) => state.downloadQuality);
   const setQuality = useAppStore((state) => state.setDownloadQuality);
   const importNeteasePlaylist = useAppStore((state) => state.importNeteasePlaylist);
+  const ownedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const track of tracks) {
+      const id = onlineSource === "qq" ? track.qqId : track.neteaseId;
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [tracks, onlineSource]);
   const [status, setStatus] = useState<NeteaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
+  const [downloadBlock, setDownloadBlockState] = useState(() => {
+    try {
+      return localStorage.getItem("potato:download-block") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [downloadGenre, setDownloadGenreState] = useState(() => {
+    try {
+      return localStorage.getItem("potato:download-genre") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const setDownloadBlock = (value: string) => {
+    setDownloadBlockState(value);
+    try {
+      localStorage.setItem("potato:download-block", value);
+    } catch {
+      // Storage is optional.
+    }
+  };
+  const setDownloadGenre = (value: string) => {
+    setDownloadGenreState(value);
+    try {
+      localStorage.setItem("potato:download-genre", value);
+    } catch {
+      // Storage is optional.
+    }
+  };
   const [results, setResults] = useState<NeteaseSong[]>([]);
   const [searching, setSearching] = useState(false);
   const [daily, setDaily] = useState<NeteaseSong[]>([]);
@@ -372,8 +419,15 @@ export function DiscoverPage() {
 
   const download = async (song: NeteaseSong) => {
     try {
-      await invokeOnline("download", { id: song.id, quality: onlineQuality(quality) });
-      pushToast(tr("Download queued", "已加入下载队列"), `${song.artists} — ${song.name}`);
+      await invokeOnline("download", {
+        id: song.id,
+        quality: onlineQuality(quality),
+        block: downloadBlock,
+        genre: downloadGenre,
+      });
+      if (!ownedIds.has(song.id)) {
+        pushToast(tr("Download queued", "已加入下载队列"), `${song.artists} — ${song.name}`);
+      }
     } catch (e) {
       pushToast(tr("Could not queue download", "无法加入下载队列"), e instanceof Error ? e.message : String(e), "error");
     }
@@ -384,7 +438,12 @@ export function DiscoverPage() {
     if (!tracks.length) return;
     for (const song of tracks) {
       try {
-        await invokeOnline("download", { id: song.id, quality: onlineQuality(quality) });
+        await invokeOnline("download", {
+          id: song.id,
+          quality: onlineQuality(quality),
+          block: downloadBlock,
+          genre: downloadGenre,
+        });
       } catch {
         // Continue the batch; individual failures are surfaced by the backend.
       }
@@ -401,6 +460,8 @@ export function DiscoverPage() {
     await importNeteasePlaylist(
       { name: activePlaylist.name, tracks: activePlaylist.tracks.map((song) => ({ id: song.id, name: song.name, artists: song.artists })) },
       onlineQuality(quality),
+      downloadBlock,
+      downloadGenre,
     );
   };
 
@@ -695,6 +756,35 @@ export function DiscoverPage() {
         </label>
       </div>
 
+      <div className="download-target">
+        <span className="download-target__label">{tr("Download to", "下载到")}</span>
+        <label className="quality-control download-target__control">
+          <span>{tr("Block", "区块")}</span>
+          <select value={downloadBlock} onChange={(event) => setDownloadBlock(event.target.value)}>
+            <option value="">{tr("No block", "不指定")}</option>
+            {blocks.map((tag) => (
+              <option key={tag.name} value={tag.name}>
+                {tag.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="quality-control download-target__control">
+          <span>{tr("Genre", "流派")}</span>
+          <select value={downloadGenre} onChange={(event) => setDownloadGenre(event.target.value)}>
+            <option value="">{tr("No genre", "不指定")}</option>
+            {genres.map((tag) => (
+              <option key={tag.name} value={tag.name}>
+                {tag.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <em className="download-target__hint">
+          {tr("Used for new downloads; existing songs only get their info updated.", "新下载会归入这里；已下载的歌曲只更新信息。")}
+        </em>
+      </div>
+
       <div className="online-tabs">
         <button type="button" className={clsx(mode === "search" && "is-active")} onClick={() => chooseMode("search")}>
           <Search size={14} /> {tr("Search", "搜索")}
@@ -752,6 +842,7 @@ export function DiscoverPage() {
                   song={song}
                   onDownload={() => void download(song)}
                   downloading={isDownloading(song.id)}
+                  owned={ownedIds.has(song.id)}
                 />
               ))}
             </div>
@@ -788,6 +879,7 @@ export function DiscoverPage() {
                   song={song}
                   onDownload={() => void download(song)}
                   downloading={isDownloading(song.id)}
+                  owned={ownedIds.has(song.id)}
                 />
               ))}
             </div>
@@ -848,6 +940,7 @@ export function DiscoverPage() {
                   song={song}
                   onDownload={() => void download(song)}
                   downloading={isDownloading(song.id)}
+                  owned={ownedIds.has(song.id)}
                 />
                 ))}
               </div>

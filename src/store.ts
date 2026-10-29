@@ -194,6 +194,8 @@ interface AppStore {
   importNeteasePlaylist: (
     playlist: { name: string; tracks: Array<{ id: string; name: string; artists: string }> },
     quality?: string,
+    block?: string,
+    genre?: string,
   ) => Promise<void>;
   resolvePlaylistImports: () => Promise<void>;
   dismissImport: (id: string) => void;
@@ -365,7 +367,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.4.6",
+  version: "s1.4.7",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -642,6 +644,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           artist?: string;
           path?: string;
           duplicate?: boolean;
+          updated?: boolean;
+          block?: string;
+          genre?: string;
           source?: OnlineSource;
         };
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
@@ -660,6 +665,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
           status: "done",
           importId: pendingImport?.importId ?? current?.importId,
           source: payload.source ?? current?.source ?? get().onlineSource,
+          duplicate: payload.duplicate ?? current?.duplicate,
+          updated: payload.updated ?? current?.updated,
+          block: payload.block ?? current?.block,
+          genre: payload.genre ?? current?.genre,
           createdAt: current?.createdAt ?? Date.now(),
         };
         set({
@@ -673,11 +682,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
           }
         }
         if (!next.importId) {
-          get().pushToast(
-            payload.duplicate ? lx("Already in your library", "已存在于资料库") : lx("Downloaded to your library", "已下载到资料库"),
-            payload.duplicate ? payload.title : `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`,
-            "success",
-          );
+          const label = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`;
+          if (payload.duplicate) {
+            get().pushToast(
+              payload.updated ? lx("Song info updated", "歌曲信息已更新") : lx("Already in your library", "已存在于资料库"),
+              payload.updated
+                ? [label, [payload.block, payload.genre].filter(Boolean).join(" / ")].filter(Boolean).join(" · ")
+                : label,
+              "success",
+            );
+          } else {
+            get().pushToast(lx("Downloaded to your library", "已下载到资料库"), label, "success");
+          }
         }
         void get().resolvePlaylistImports();
         break;
@@ -1358,7 +1374,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  importNeteasePlaylist: async (source, quality = "high") => {
+  importNeteasePlaylist: async (source, quality = "high", block = "", genre = "") => {
     const songs = source.tracks.filter((song) => song?.id);
     if (!songs.length) {
       get().pushToast(lx("Nothing to import", "没有可导入的内容"), lx("This NetEase playlist is empty.", "这个网易云歌单是空的。"), "error");
@@ -1393,6 +1409,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (existing) {
         used.add(existing.id);
         try {
+          if (block || genre) {
+            await bridge().invoke("library.updateTrack", {
+              trackId: existing.id,
+              block: block || existing.block,
+              genre: genre || existing.genre,
+              rating: existing.rating,
+              note: existing.note,
+              neteaseId: existing.neteaseId ?? "",
+              qqId: existing.qqId ?? "",
+            });
+          }
           await bridge().invoke("playlist.addTrack", { playlistId: playlist.id, trackId: existing.id });
           bump({ resolved: (currentRecord()?.resolved ?? 0) + 1 });
         } catch {
@@ -1410,7 +1437,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       };
       pendingImportEntries.push(entry);
       try {
-        const result = await bridge().invoke<{ jobId: string }>(`${onlineSource}.download`, { id: song.id, quality });
+        const result = await bridge().invoke<{ jobId: string }>(`${onlineSource}.download`, {
+          id: song.id,
+          quality,
+          block,
+          genre,
+        });
         if (!result?.jobId) {
           pendingImportEntries = pendingImportEntries.filter((item) => item !== entry);
           bump({ failed: (currentRecord()?.failed ?? 0) + 1 });

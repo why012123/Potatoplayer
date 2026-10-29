@@ -331,6 +331,10 @@ export interface DownloadJob {
   message?: string;
   importId?: string;
   source?: OnlineSource;
+  duplicate?: boolean;
+  updated?: boolean;
+  block?: string;
+  genre?: string;
   createdAt: number;
 }
 

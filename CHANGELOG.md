@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.6`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.7`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,32 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.7 — 2026-10-29
+
+### Fixed
+
+- **“即将播放”总是从队列第一首开始**：队列面板现在在打开、切歌或队列变化时，自动把当前歌曲滚动到列表中部，
+  不再从第一首往下找。队列仍保留完整顺序和当前行高亮。
+- **网络下载可以指定区块和流派**：Discover 增加“下载到 / 区块 / 流派”选择器，搜索、每日推荐、
+  歌单批量下载和歌单导入都会带上目标分类。
+- **已下载歌曲不再重复下载**：后端先按网易云 ID / QQ MID 找本地曲目；命中时跳过音频下载和写文件，
+  只更新绑定与歌曲的区块、流派，并发出 `歌曲信息已更新` 提示。搜索结果中已存在的歌曲按钮显示“更新”。
+  歌单导入遇到已有歌曲也只更新分类、加入歌单，不会重复落盘。
+- **歌曲库筛选改成弹窗**：Songs 顶部增加“筛选”按钮，弹窗内集中提供全部歌曲 / 收藏 / 评分 8+、
+  区块、流派筛选；应用后工具栏只显示当前筛选摘要，支持一键清除。
+
+### Verification
+
+- `npm run typecheck`
+- 后端自测 **66 checks passed**
+- 实际队列 323 首、当前第 81 首：打开“即将播放”后自动滚动到当前行
+- 已下载的 `Grown-up's Paradise` 选择 `iList Standard / Air` 后点击“更新”：
+  - 没有重新下载音频
+  - 歌曲区块/流派更新成功
+  - 提示“歌曲信息已更新”
+- Songs 筛选弹窗应用“收藏”、区块和流派，摘要与结果同步；清除后恢复全部
+- `npm run test:ui` — 323 行歌曲、中文搜索、网易云封面、Songs 筛选弹窗和 Brief 流程通过
 
 ## s1.4.6 — 2026-10-29
 

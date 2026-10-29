@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s1.4.6";
+    public static final String VERSION = "s1.4.7";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -462,6 +462,8 @@ public final class Backend implements PlaybackController.Host {
         binding.title = track.title;
         binding.artist = track.artist;
         binding.album = track.album;
+        binding.block = track.block;
+        binding.genre = track.genre;
         if (binding.coverPath == null) binding.coverPath = track.coverPath;
         binding.downloadedAt = System.currentTimeMillis();
         if (!netease.isBlank()) {
@@ -532,6 +534,12 @@ public final class Backend implements PlaybackController.Host {
                     track.block = clean;
                 } else {
                     track.genre = clean;
+                }
+                NeteaseBindings.Binding binding = neteaseBindings.find(track.path);
+                if (binding != null) {
+                    binding.block = track.block;
+                    binding.genre = track.genre;
+                    neteaseBindings.put(binding);
                 }
             }
         }
@@ -981,6 +989,17 @@ public final class Backend implements PlaybackController.Host {
         }
     }
 
+    /** Finds an already-downloaded local track by its online identity. */
+    public Track findTrackByOnlineId(String neteaseId, String qqId) {
+        synchronized (lock) {
+            for (Track track : state.tracks) {
+                if (notBlank(neteaseId) && neteaseId.equals(track.neteaseId)) return track;
+                if (notBlank(qqId) && qqId.equals(track.qqId)) return track;
+            }
+        }
+        return null;
+    }
+
     @Override
     public List<Track> tracks() {
         synchronized (lock) {
@@ -1280,7 +1299,7 @@ public final class Backend implements PlaybackController.Host {
                     (int) number(p, "limit", 30),
                     (int) number(p, "offset", 0));
             case "netease.lyrics" -> netease.lyrics(text(p, "id", ""));
-            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"));
+            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""));
             case "qq.status" -> qq.status();
             case "qq.startService" -> qq.startService();
             case "qq.qrKey" -> qq.qrKey();
@@ -1291,7 +1310,7 @@ public final class Backend implements PlaybackController.Host {
             case "qq.playlistDetail" -> qq.playlistDetail(text(p, "playlistId", ""));
             case "qq.daily" -> qq.daily();
             case "qq.lyrics" -> qq.lyrics(text(p, "id", ""));
-            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"));
+            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""));
             case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20));
             case "app.shutdown" -> {
                 Thread thread = new Thread(() -> {

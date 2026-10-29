@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import clsx from "clsx";
-import { ArrowDownUp, Check, CheckSquare, FolderOpen, Layers3, ListEnd, ListMusic, ListPlus, Play, SearchX, Shuffle, Tag as TagIcon, X } from "lucide-react";
+import { ArrowDownUp, Check, CheckSquare, FolderOpen, Layers3, ListEnd, ListMusic, ListPlus, Play, SearchX, Shuffle, SlidersHorizontal, Tag as TagIcon, X } from "lucide-react";
 import { useAppStore, type SortMode } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
@@ -34,6 +34,12 @@ export function SongsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [blockFilter, setBlockFilter] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draft, setDraft] = useState<{ filter: Filter; block: string; genre: string }>({
+    filter: "all",
+    block: "",
+    genre: "",
+  });
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const blocks = useAppStore((state) => state.blocks);
@@ -94,6 +100,38 @@ export function SongsPage() {
   const queue = visible.map((track) => track.id);
   const duration = visible.reduce((sum, track) => sum + (track.duration || 0), 0);
   const selectedCount = selected.size;
+  const activeFilterCount = (filter === "all" ? 0 : 1) + (blockFilter ? 1 : 0) + (genreFilter ? 1 : 0);
+  const quickFilterLabel =
+    filter === "favorites" ? tr("Favorites", "收藏") : filter === "rated" ? tr("Rated 8+", "评分 8+") : "";
+  const openFilters = () => {
+    setDraft({ filter, block: blockFilter, genre: genreFilter });
+    setFilterOpen(true);
+  };
+  const applyFilters = () => {
+    setFilter(draft.filter);
+    setBlockFilter(draft.block);
+    setGenreFilter(draft.genre);
+    setFilterOpen(false);
+  };
+  const clearFilters = () => {
+    setDraft({ filter: "all", block: "", genre: "" });
+  };
+  const clearAppliedFilters = () => {
+    setFilter("all");
+    setBlockFilter("");
+    setGenreFilter("");
+  };
+  useEffect(() => {
+    if (!filterOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setFilterOpen(false);
+      }
+    };
+    window.addEventListener("keydown", close, true);
+    return () => window.removeEventListener("keydown", close, true);
+  }, [filterOpen]);
 
   const toggleSelected = (id: string) => {
     setSelected((current) => {
@@ -146,6 +184,17 @@ export function SongsPage() {
           <>
             <button
               type="button"
+              className="button button--glass filter-button"
+              aria-haspopup="dialog"
+              aria-expanded={filterOpen}
+              onClick={openFilters}
+            >
+              <SlidersHorizontal size={15} />
+              {tr("Filter", "筛选")}
+              {activeFilterCount > 0 && <em className="filter-button__count">{activeFilterCount}</em>}
+            </button>
+            <button
+              type="button"
               className={clsx("button", selecting ? "button--dark" : "button--glass")}
               onClick={() => (selecting ? exitSelection() : setSelecting(true))}
             >
@@ -178,115 +227,57 @@ export function SongsPage() {
       />
 
       <div className="library-controls glass">
-      <div className="list-toolbar">
-        <div className="filter-chips">
-          {(
-            [
-              ["all", tr("All songs", "全部歌曲"), tracks.length],
-              ["favorites", tr("Favorites", "收藏"), favorites.length],
-              ["rated", tr("Rated 8+", "评分 8+"), tracks.filter((track) => track.rating >= 8).length],
-            ] as const
-          ).map(([value, label, count]) => (
-            <button
-              key={value}
-              type="button"
-              className={clsx("filter-chip", filter === value && "is-active")}
-              onClick={() => setFilter(value as Filter)}
-            >
-              {label}
-              <em>{count}</em>
-            </button>
-          ))}
+        <div className="list-toolbar">
+          <div className="filter-summary">
+            {activeFilterCount === 0 ? (
+              <span>{tr("All songs", "全部歌曲")}</span>
+            ) : (
+              <>
+                {filter !== "all" && <span className="filter-summary__chip">{quickFilterLabel}</span>}
+                {blockFilter && <span className="filter-summary__chip">{blockFilter}</span>}
+                {genreFilter && <span className="filter-summary__chip">{genreFilter}</span>}
+                <button type="button" className="filter-summary__clear" onClick={clearAppliedFilters}>
+                  <X size={12} /> {tr("Clear", "清除")}
+                </button>
+              </>
+            )}
+            {selecting && (
+              <button type="button" className="taxonomy-filterbar__all" onClick={toggleAll}>
+                {allSelected ? <Check size={12} /> : <CheckSquare size={12} />}
+                {allSelected ? tr("All selected", "已全选") : tr("Select all", "全选")}
+              </button>
+            )}
+          </div>
+          <div className="toolbar-right">
+            <span className="toolbar-count">
+              {tr("{shown} of {total}", "显示 {shown} / {total}", { shown: visible.length, total: tracks.length })}
+            </span>
+            <label className="sort-control">
+              <ArrowDownUp size={13} />
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as SortMode)}
+                aria-label={tr("Sort songs", "歌曲排序")}
+              >
+                {Object.entries(sortLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
-        <div className="toolbar-right">
-          <span className="toolbar-count">
-            {tr("{shown} of {total}", "显示 {shown} / {total}", { shown: visible.length, total: tracks.length })}
-          </span>
-          <label className="sort-control">
-            <ArrowDownUp size={13} />
-            <select
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              aria-label={tr("Sort songs", "歌曲排序")}
-            >
-              {Object.entries(sortLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
 
-      <div className="taxonomy-filterbar">
-        <span className="taxonomy-filterbar__label">
-          <Layers3 size={13} /> {tr("Focus", "筛选")}
-        </span>
-        <label className="taxonomy-select">
-          <span className="taxonomy-select__dot" style={{ background: blocks.find((tag) => tag.name === blockFilter)?.color ?? "transparent" }} />
-          <select
-            value={blockFilter}
-            onChange={(event) => setBlockFilter(event.target.value)}
-            aria-label={tr("Filter by block", "按区块筛选")}
-          >
-            <option value="">{tr("All blocks", "全部区块")}</option>
-            {blocks.map((tag) => (
-              <option key={tag.name} value={tag.name}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="taxonomy-select">
-          <span className="taxonomy-select__dot" style={{ background: genres.find((tag) => tag.name === genreFilter)?.color ?? "transparent" }} />
-          <select
-            value={genreFilter}
-            onChange={(event) => setGenreFilter(event.target.value)}
-            aria-label={tr("Filter by genre", "按流派筛选")}
-          >
-            <option value="">{tr("All genres", "全部流派")}</option>
-            {genres.map((tag) => (
-              <option key={tag.name} value={tag.name}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {(blockFilter || genreFilter) && (
-          <button
-            type="button"
-            className="taxonomy-filterbar__clear"
-            onClick={() => {
-              setBlockFilter("");
-              setGenreFilter("");
-            }}
-          >
-            <X size={12} /> {tr("Clear focus", "清除筛选")}
-          </button>
+        {searchQuery && (
+          <div className="query-note">
+            <span>
+              {tr("Results for ", "搜索结果：")}
+              <strong>“{searchQuery}”</strong>
+            </span>
+            <em>{formatLongDuration(duration)}</em>
+          </div>
         )}
-        <span className="taxonomy-filterbar__count">
-          {visible.length === 1
-            ? tr("1 match", "匹配 1 首")
-            : tr("{count} matches", "匹配 {count} 首", { count: visible.length })}
-        </span>
-        {selecting && (
-          <button type="button" className="taxonomy-filterbar__all" onClick={toggleAll}>
-            {allSelected ? <Check size={12} /> : <CheckSquare size={12} />}
-            {allSelected ? tr("All selected", "已全选") : tr("Select all", "全选")}
-          </button>
-        )}
-      </div>
-
-      {searchQuery && (
-        <div className="query-note">
-          <span>
-            {tr("Results for ", "搜索结果：")}
-            <strong>“{searchQuery}”</strong>
-          </span>
-          <em>{formatLongDuration(duration)}</em>
-        </div>
-      )}
       </div>
 
       {visible.length ? (
@@ -305,6 +296,102 @@ export function SongsPage() {
           <h3>{tr("No matching songs", "没有匹配的歌曲")}</h3>
           <p>{tr("Try a different title, artist or album.", "试试其他标题、艺术家或专辑。")}</p>
         </motion.div>
+      )}
+
+      {filterOpen && createPortal(
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setFilterOpen(false);
+          }}
+        >
+          <div className="modal filter-dialog glass-strong" role="dialog" aria-modal="true" aria-labelledby="filter-dialog-title">
+            <div className="filter-dialog__head">
+              <div>
+                <div className="modal__eyebrow">
+                  <span className="modal__dot" /> {tr("Library", "资料库")}
+                </div>
+                <h2 id="filter-dialog-title">{tr("Filter songs", "筛选歌曲")}</h2>
+                <p className="modal__description">
+                  {tr("Narrow the library by favorites, rating, block and genre.", "按收藏、评分、区块和流派缩小资料库范围。")}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="filter-dialog__close"
+                aria-label={tr("Close filter", "关闭筛选")}
+                onClick={() => setFilterOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <section className="filter-section">
+              <span className="filter-section__title">{tr("Quick filter", "快速筛选")}</span>
+              <div className="filter-choice-grid">
+                {(
+                  [
+                    ["all", tr("All songs", "全部歌曲"), tracks.length],
+                    ["favorites", tr("Favorites", "收藏"), favorites.length],
+                    ["rated", tr("Rated 8+", "评分 8+"), tracks.filter((track) => track.rating >= 8).length],
+                  ] as const
+                ).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={clsx("filter-choice", draft.filter === value && "is-active")}
+                    onClick={() => setDraft((current) => ({ ...current, filter: value as Filter }))}
+                  >
+                    <span>{label}</span>
+                    <em>{count}</em>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div className="filter-fields">
+              <label>
+                <span>{tr("Block", "区块")}</span>
+                <select
+                  value={draft.block}
+                  onChange={(event) => setDraft((current) => ({ ...current, block: event.target.value }))}
+                >
+                  <option value="">{tr("All blocks", "全部区块")}</option>
+                  {blocks.map((tag) => (
+                    <option key={tag.name} value={tag.name}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{tr("Genre", "流派")}</span>
+                <select
+                  value={draft.genre}
+                  onChange={(event) => setDraft((current) => ({ ...current, genre: event.target.value }))}
+                >
+                  <option value="">{tr("All genres", "全部流派")}</option>
+                  {genres.map((tag) => (
+                    <option key={tag.name} value={tag.name}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="modal__actions">
+              <button type="button" className="button button--glass" onClick={clearFilters}>
+                {tr("Clear", "清除")}
+              </button>
+              <button type="button" className="button button--dark" onClick={applyFilters}>
+                {tr("Apply filters", "应用筛选")}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.querySelector(".app") ?? document.getElementById("root") ?? document.body,
       )}
 
       {selecting && selectedCount > 0 && createPortal(

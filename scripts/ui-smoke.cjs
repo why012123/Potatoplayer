@@ -261,14 +261,18 @@ function delay(ms) {
   await page.getByRole("button", { name: "Songs", exact: true }).click();
   await page.waitForSelector(".page--songs");
   await page.waitForTimeout(350);
-  const blockSelect = page.getByLabel("Filter by block");
-  await blockSelect.selectOption({ label: "iList Light" });
+  await page.locator(".filter-button").click();
+  await page.waitForSelector(".filter-dialog");
+  await page.locator(".filter-fields select").nth(0).selectOption({ label: "iList Light" });
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.waitForSelector(".filter-dialog", { state: "detached" });
   await page.waitForTimeout(300);
   const filtered = await page.locator(".page--songs .track-row").count();
-  assert.ok(filtered > 0 && filtered < trackCount, "block focus should narrow the table");
-  assert.equal(await page.locator(".taxonomy-select").first().locator("select").inputValue(), "iList Light");
-  console.log(`[ui] block focus narrowed library to ${filtered}`);
-  await blockSelect.selectOption("");
+  assert.ok(filtered > 0 && filtered < trackCount, "block filter should narrow the table");
+  assert.ok((await page.locator(".filter-summary").innerText()).includes("iList Light"), "block filter should appear in the summary");
+  console.log(`[ui] block filter narrowed library to ${filtered}`);
+  await page.locator(".filter-summary__clear").click();
+  await page.waitForTimeout(200);
 
   await page.locator(".page--songs .track-row .row-more").first().click();
   await page.getByRole("button", { name: "Edit in song editor" }).click();
@@ -421,6 +425,18 @@ function delay(ms) {
   assert.ok((await page.locator(".track-table__head").innerText()).toLowerCase().includes("plays"), "plays sort should show its column");
   assert.ok((await page.locator(".page--songs .track-row__plays").first().innerText()).includes("plays"), "plays sort should show counts");
   console.log("[ui] contextual sort metrics rendered for rating and plays");
+
+  // The library filter lives in a modal so the toolbar can stay quiet.
+  await page.locator(".filter-button").click();
+  await page.waitForSelector(".filter-dialog");
+  await page.locator(".filter-choice").filter({ hasText: "Favorites" }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.waitForSelector(".filter-dialog", { state: "detached" });
+  await page.waitForTimeout(300);
+  assert.ok((await page.locator(".filter-summary").innerText()).includes("Favorites"), "filter dialog should apply favorites");
+  await page.locator(".filter-summary__clear").click();
+  await page.waitForTimeout(200);
+  console.log("[ui] filter modal applied and cleared");
 
   // Listening stats page and its backend data. Resume briefly so the stats
   // ticker observes real elapsed playback, not just a play counter.
