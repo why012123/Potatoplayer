@@ -16,6 +16,7 @@ public final class BackendSelfTest {
         testStableIds();
         testLrcParsing();
         testLegacyImport();
+        testNeteaseBindingMigration();
         testTaxonomyMerge();
         testEqMergeAndPreamp();
         testListeningStats();
@@ -109,6 +110,37 @@ public final class BackendSelfTest {
         check(entry.duration == 289, "duration imported from csv");
         check(Math.abs(entry.rating - 8.8) < 0.001, "rating imported");
         check(entry.playCount == 9, "play count imported");
+    }
+
+    private static void testNeteaseBindingMigration() throws Exception {
+        Path data = Files.createTempDirectory("potato-bindings-test");
+        Path root = Files.createTempDirectory("potato-bindings-library");
+        Path music = Files.createDirectories(root.resolve("source").resolve("music"));
+        Path track = music.resolve("Artist - Song.flac");
+        Files.write(track, new byte[0]);
+
+        Path legacy = root.resolve("source").resolve("netease_bindings.json");
+        Files.writeString(
+                legacy,
+                Json.stringify(Map.of(track.toAbsolutePath().toString(), "123456")),
+                StandardCharsets.UTF_8);
+
+        NeteaseBindings first = new NeteaseBindings(data, legacy);
+        NeteaseBindings.Binding imported = first.find(track.toString());
+        check(imported != null && "123456".equals(imported.neteaseId), "legacy NetEase binding is imported");
+
+        first.remove(track.toString());
+        NeteaseBindings second = new NeteaseBindings(data, legacy);
+        check(second.find(track.toString()) == null, "legacy binding import runs only once");
+
+        Path stringData = Files.createTempDirectory("potato-bindings-string");
+        Files.writeString(
+                stringData.resolve("netease_bindings.json"),
+                Json.stringify(Map.of(track.toAbsolutePath().toString(), "654321")),
+                StandardCharsets.UTF_8);
+        NeteaseBindings strings = new NeteaseBindings(stringData);
+        NeteaseBindings.Binding stringBinding = strings.find(track.toString());
+        check(stringBinding != null && "654321".equals(stringBinding.neteaseId), "old string bindings load in place");
     }
 
     private static void testTaxonomyMerge() {

@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.4`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.5`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,27 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.5 — 2026-10-29
+
+### Fixed
+
+- **旧版网易云 ID 没有迁移到新资料库**：归档的 Python 版本把绑定存在
+  `PotatoLibrary/source/netease_bindings.json`，格式是 `{本地路径: 网易云 ID}`；新版只读取
+  `~/.potatoplayer-super/netease_bindings.json`，因此本地 318 首歌里只有 9 首还能看到 ID。
+  现在新版启动时会从资料库根目录的上一级读取旧 sidecar，并做一次性合并：
+  - 旧文件 311 条，310 条路径与当前资料库精确匹配
+  - 合并后 **318 / 318 首本地歌曲都有网易云 ID**
+  - 写入 `legacy_netease_bindings.imported` 标记，之后用户主动解绑的歌曲不会被旧文件重新恢复
+  - 同时兼容把旧字符串格式直接放进新 sidecar 的情况
+- **旧文件的 1 条路径已不存在**：`DJ大鱼鱼 - 在这个特别的日子里…flac` 不再出现在资料库，跳过；
+  其余 2 条与现有绑定重叠，保留新数据。
+
+### Verification
+
+- `npm run test:backend` — 66 checks passed（新增旧格式解析、一次性迁移、解绑后不复活）
+- 用真实资料库副本启动验证：318 首歌全部带上网易云 ID；`空種` 恢复为 `630884`
+- `npm run typecheck`
 
 ## s1.4.4 — 2026-10-29
 

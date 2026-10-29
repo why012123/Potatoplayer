@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s1.4.4";
+    public static final String VERSION = "s1.4.5";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -67,7 +67,9 @@ public final class Backend implements PlaybackController.Host {
         } catch (Exception e) {
             System.err.println("[eq] unable to migrate eq.json: " + e.getMessage());
         }
-        this.neteaseBindings = new NeteaseBindings(store.dataDir());
+        Path legacyBindings = musicRoot == null || musicRoot.getParent() == null
+                ? null : musicRoot.getParent().resolve("netease_bindings.json");
+        this.neteaseBindings = new NeteaseBindings(store.dataDir(), legacyBindings);
         this.scanner = new LibraryScanner(store.coversDir(), neteaseBindings);
         this.lyrics = new LyricsService(Path.of(settings.libraryRoot), store.dataDir());
         synchronized (lock) {
