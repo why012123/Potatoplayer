@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.8`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.9`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,30 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.9 — 2026-10-29
+
+### Added
+
+- **广泛的耳机媒体控制**：不绑定耳机型号，接系统级媒体键：
+  - 播放/暂停（`MediaPlayPause`）
+  - 上一首（`MediaPreviousTrack`）
+  - 下一首（`MediaNextTrack`）
+  - 停止（`MediaStop`）
+  - Electron 主进程使用 `globalShortcut` 注册，即使窗口在后台也能控制播放
+  - Renderer 同时注册 MediaSession metadata / action handlers，覆盖 macOS Now Playing 的 transport 控制
+  - 全局键和 MediaSession 走同一套 160ms 去抖，避免同一个耳机按键触发两次播放/暂停
+- **权限提示**：macOS 没有辅助功能权限时，媒体键注册会失败；首次状态会在界面提示去
+  “系统设置 → 隐私与安全性 → 辅助功能”允许 Potatoplayer 后重新打开。
+- **不接管的按键**：耳机音量键仍由 macOS 控制系统音量；ANC、通透、麦克风等硬件功能不处理。
+
+### Verification
+
+- macOS 上 `MediaPlayPause / MediaNextTrack / MediaPreviousTrack / MediaStop` 四项注册成功
+- 主进程向 renderer 发送 `media:control=toggle`，播放状态从 playing 切到 paused
+- MediaSession 已设置当前歌曲 metadata 与 playbackState
+- `npm run typecheck`
+- `npm run test:ui` — 全流程通过（媒体钩子不影响原有 UI）
 
 ## s1.4.8 — 2026-10-29
 

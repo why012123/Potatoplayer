@@ -38,6 +38,7 @@ import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
 import { BilibiliMvDialog } from "@/components/BilibiliMvDialog";
 import { applyTheme } from "@/lib/theme";
+import { useMediaControls } from "@/lib/mediaControls";
 import { applyAppearance, resolveAccent } from "@/lib/appearance";
 import { useTr } from "@/lib/i18n";
 import { documentLanguage, pickText } from "@/lib/text";
@@ -141,6 +142,7 @@ export default function App() {
   const theme = useAppStore((state) => state.theme);
   const appearance = useAppStore((state) => state.appearance);
   const scrollRef = useRef<HTMLDivElement>(null);
+  useMediaControls();
   const [palette, setPalette] = useState<{ primary: string; secondary: string } | null>(null);
   const captureNotified = useRef(false);
   const view = viewHistory[viewIndex] ?? { kind: "home" as const };

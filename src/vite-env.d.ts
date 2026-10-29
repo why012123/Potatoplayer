@@ -16,6 +16,10 @@ export interface PotatoAPI {
   invoke<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   onEvent(listener: (event: BackendEvent) => void): () => void;
   onWindowFocus(listener: (active: boolean) => void): () => void;
+  onMediaControl(listener: (action: string) => void): () => void;
+  onMediaShortcutStatus(
+    listener: (status: Partial<Record<"toggle" | "next" | "previous" | "stop", boolean>> | null) => void,
+  ): () => void;
   pickFolder(): Promise<string | null>;
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<boolean>;

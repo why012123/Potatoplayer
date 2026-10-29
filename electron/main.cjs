@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
@@ -20,6 +20,7 @@ let mainWindow = null;
 let backend = null;
 let quitting = false;
 let captured = false;
+let mediaShortcutStatus = null;
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -110,6 +111,36 @@ function registerProtocol() {
   });
 }
 
+const MEDIA_SHORTCUTS = [
+  ["MediaPlayPause", "toggle"],
+  ["MediaNextTrack", "next"],
+  ["MediaPreviousTrack", "previous"],
+  ["MediaStop", "stop"],
+];
+
+function sendMediaAction(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("media:control", action);
+}
+
+function registerMediaShortcuts() {
+  // UI tests and preview captures must not steal the user's media keys.
+  if (process.env.POTATO_HIDDEN || capturePath || previewMode) return;
+  mediaShortcutStatus = {};
+  for (const [accelerator, action] of MEDIA_SHORTCUTS) {
+    try {
+      const registered = globalShortcut.register(accelerator, () => sendMediaAction(action));
+      mediaShortcutStatus[action] = registered;
+      if (!registered) {
+        console.warn(`[media] could not register ${accelerator}${process.platform === "darwin" ? " (macOS Accessibility permission may be required)" : ""}`);
+      }
+    } catch (error) {
+      mediaShortcutStatus[action] = false;
+      console.warn(`[media] ${accelerator} registration failed: ${error.message}`);
+    }
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1360,
@@ -149,6 +180,9 @@ function createWindow() {
 
   mainWindow.webContents.on("did-finish-load", () => {
     if (previewMode && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle(windowTitle);
+    if (mediaShortcutStatus && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("media:shortcut-status", mediaShortcutStatus);
+    }
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -329,7 +363,12 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       if (capturePath) setTimeout(() => void attemptCapture(), 450);
     });
 
+    registerMediaShortcuts();
     createWindow();
+  });
+
+  app.on("will-quit", () => {
+    globalShortcut.unregisterAll();
   });
 
   app.on("activate", () => {
