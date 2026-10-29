@@ -5715,7 +5715,7 @@ img {
   color: var(--muted);
 }
 
-.online-playlist-head > div {
+.online-playlist-head__meta {
   flex: 1;
   min-width: 0;
 }

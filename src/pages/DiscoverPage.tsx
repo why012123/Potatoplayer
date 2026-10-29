@@ -914,7 +914,7 @@ export function DiscoverPage() {
                     </span>
                   }
                 />
-                <div>
+                <div className="online-playlist-head__meta">
                   <span className="eyebrow">
                     {tr("{source} playlist", "{source} 歌单", { source: sourceName })}
                   </span>
