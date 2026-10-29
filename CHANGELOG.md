@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.5`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.6`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,33 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.6 — 2026-10-29
+
+### Fixed
+
+- **本地中文搜索搜不到传统字形/日文汉字**：搜索只做 `toLowerCase()`，所以
+  `南条` 找不到 `南條愛乃`、`空种` 找不到 `空種`、`鸟之诗` 找不到 `鳥の詩`。
+  现在统一用 `normalizeSearchText()`：
+  - 内置 3,182 个 JP/Traditional → Simplified 单字映射（OpenCC jp2cn 生成，无运行时依赖）
+  - 归一化 NFKC、大小写、假名和标点空格
+  - 对 Search 页面、Songs 过滤、命令面板和歌曲编辑器统一生效
+  - 搜索“南条”“空种”“鸟之诗”“花之塔”现在都能命中
+- **网易云搜索结果只有渐变占位，没有封面**：`/search` 返回的歌曲大多没有 `al.picUrl`，
+  但 `/song/detail` 有。搜索后现在批量请求缺失歌曲的详情（最多 40 首一次），补齐
+  `coverUrl` 后再渲染；失败时仍回退到渐变封面，不影响搜索。
+- **网络下载音质每次启动重置**：音质原来只是 Discover 页的 `useState("high")`。
+  现在持久化在 `potato:download-quality`，重试下载也跟随当前偏好；网易云与 QQ
+  的质量参数仍按各自接口转换。
+
+### Verification
+
+- `npm run typecheck`
+- 后端自测 **66 checks passed**
+- 实际资料库 323 首：`南条`、`空种`、`鸟之诗`、`花之塔` 均有结果
+- 网易云搜索 40 首全部渲染封面（detail 补齐）
+- 将音质切到无损后重载页面，仍保持 `lossless`
+- `npm run test:ui` — 323 行本地歌曲、中文搜索、网易云 40 首封面、Brief 全宽等流程通过
 
 ## s1.4.5 — 2026-10-29
 

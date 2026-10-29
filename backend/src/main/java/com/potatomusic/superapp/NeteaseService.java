@@ -241,7 +241,44 @@ public final class NeteaseService {
         requireService();
         if (keyword == null || keyword.isBlank()) return List.of();
         JsonNode data = get("/search?keywords=" + encode(keyword.trim()) + "&type=1&limit=" + Math.max(1, Math.min(50, limit)), 18);
-        return parseSongArray(data == null ? null : data.path("result").path("songs"));
+        List<Map<String, Object>> songs = parseSongArray(data == null ? null : data.path("result").path("songs"));
+        enrichSearchCovers(songs);
+        return songs;
+    }
+
+    /**
+     * /search omits album art for most rows, while /song/detail still carries
+     * al.picUrl. Fetch the missing covers in one batch so the online list shows
+     * artwork instead of falling back to a gradient.
+     */
+    private void enrichSearchCovers(List<Map<String, Object>> songs) {
+        List<String> ids = new ArrayList<>();
+        for (Map<String, Object> song : songs) {
+            String cover = song.get("coverUrl") == null ? "" : String.valueOf(song.get("coverUrl"));
+            String id = song.get("id") == null ? "" : String.valueOf(song.get("id"));
+            if (!cover.isBlank() || id.isBlank() || ids.contains(id)) continue;
+            ids.add(id);
+        }
+        if (ids.isEmpty()) return;
+        try {
+            JsonNode detail = get("/song/detail?ids=" + String.join(",", ids), 18);
+            JsonNode rows = detail == null ? null : detail.path("songs");
+            if (rows == null || !rows.isArray()) return;
+            Map<String, String> covers = new LinkedHashMap<>();
+            for (JsonNode row : rows) {
+                String id = row.path("id").asText("");
+                String cover = coverOf(row);
+                if (!id.isBlank() && !cover.isBlank()) covers.put(id, cover);
+            }
+            if (covers.isEmpty()) return;
+            for (Map<String, Object> song : songs) {
+                String id = song.get("id") == null ? "" : String.valueOf(song.get("id"));
+                String cover = song.get("coverUrl") == null ? "" : String.valueOf(song.get("coverUrl"));
+                if (cover.isBlank() && covers.containsKey(id)) song.put("coverUrl", covers.get(id));
+            }
+        } catch (Exception ignored) {
+            // Search itself succeeded; a missing cover must not fail the list.
+        }
     }
 
     public List<Map<String, Object>> playlists() {

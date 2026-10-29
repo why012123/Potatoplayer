@@ -28,6 +28,7 @@ import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
 import { formatTime } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
+import { normalizeSearchText } from "@/lib/search";
 import { coverUrl } from "@/lib/covers";
 
 type Draft = {
@@ -104,14 +105,16 @@ export function SongEditorPage() {
   }, [selected?.id, selected?.block, selected?.genre, selected?.rating, selected?.note, selected?.neteaseId, selected?.qqId]);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const rawQuery = query.trim();
+    const needle = normalizeSearchText(rawQuery);
     return tracks.filter((track) => {
       if (blockFilter && track.block !== blockFilter) return false;
       if (genreFilter && track.genre !== genreFilter) return false;
-      if (!needle) return true;
-      return `${track.title} ${track.artist} ${track.album} ${track.block} ${track.genre} ${track.note}`
-        .toLowerCase()
-        .includes(needle);
+      if (!rawQuery) return true;
+      if (!needle) return false;
+      return normalizeSearchText(
+        `${track.title} ${track.artist} ${track.album} ${track.block} ${track.genre} ${track.note}`,
+      ).includes(needle);
     });
   }, [tracks, query, blockFilter, genreFilter]);
 

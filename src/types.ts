@@ -36,6 +36,7 @@ export interface Playlist {
 
 export type PlaybackEngineId = "vlc" | "potatohq" | "mpv";
 export type OutputMode = "pcm" | "dop64" | "dop128";
+export type DownloadQuality = "standard" | "high" | "lossless";
 
 export interface EngineCapabilities {
   id: PlaybackEngineId;

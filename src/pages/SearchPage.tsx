@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { ArtistCard, CollectionCard } from "@/components/MediaCards";
 import { buildArtists, buildCollections } from "@/lib/collections";
+import { normalizeSearchText } from "@/lib/search";
 import { useTr } from "@/lib/i18n";
 
 export function SearchPage() {
@@ -16,25 +17,38 @@ export function SearchPage() {
   const playTrack = useAppStore((state) => state.playTrack);
   const enqueueMany = useAppStore((state) => state.enqueueMany);
 
-  const needle = query.toLowerCase();
+  const needle = normalizeSearchText(query);
   const matchingTracks = useMemo(
     () =>
-      tracks
-        .filter((track) =>
-          `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`.toLowerCase().includes(needle),
-        )
-        .slice(0, 40),
+      needle
+        ? tracks
+            .filter((track) =>
+              normalizeSearchText(
+                `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`,
+              ).includes(needle),
+            )
+            .slice(0, 40)
+        : [],
     [tracks, needle],
   );
   const matchingCollections = useMemo(
     () =>
-      buildCollections(tracks)
-        .filter((collection) => `${collection.title} ${collection.artist}`.toLowerCase().includes(needle))
-        .slice(0, 5),
+      needle
+        ? buildCollections(tracks)
+            .filter((collection) =>
+              normalizeSearchText(`${collection.title} ${collection.artist}`).includes(needle),
+            )
+            .slice(0, 5)
+        : [],
     [tracks, needle],
   );
   const matchingArtists = useMemo(
-    () => buildArtists(tracks).filter((artist) => artist.name.toLowerCase().includes(needle)).slice(0, 5),
+    () =>
+      needle
+        ? buildArtists(tracks)
+            .filter((artist) => normalizeSearchText(artist.name).includes(needle))
+            .slice(0, 5)
+        : [],
     [tracks, needle],
   );
   const total = matchingTracks.length + matchingCollections.length + matchingArtists.length;

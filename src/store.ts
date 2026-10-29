@@ -12,6 +12,7 @@ import type {
   ScanProgress,
   PlaybackEngineId,
   OutputMode,
+  DownloadQuality,
   EngineAvailability,
   EngineCapabilities,
   Settings,
@@ -102,6 +103,7 @@ interface AppStore {
   downloads: DownloadJob[];
   imports: PlaylistImport[];
   onlineSource: OnlineSource;
+  downloadQuality: DownloadQuality;
   downloadPanelOpen: boolean;
   toasts: Toast[];
 
@@ -186,6 +188,7 @@ interface AppStore {
   dismissDownload: (jobId: string) => void;
   setDownloadPanelOpen: (open: boolean) => void;
   setOnlineSource: (source: OnlineSource) => void;
+  setDownloadQuality: (quality: DownloadQuality) => void;
   clearFinishedDownloads: () => void;
   retryDownload: (jobId: string) => Promise<void>;
   importNeteasePlaylist: (
@@ -299,6 +302,15 @@ function readOnlineSource(): OnlineSource {
   }
 }
 
+function readDownloadQuality(): DownloadQuality {
+  try {
+    const value = localStorage.getItem("potato:download-quality");
+    return value === "standard" || value === "lossless" ? value : "high";
+  } catch {
+    return "high";
+  }
+}
+
 function readReducedMotion(): boolean {
   try {
     return localStorage.getItem("potato:reduced-motion") === "1";
@@ -353,7 +365,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.4.5",
+  version: "s1.4.6",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -407,6 +419,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   imports: [],
   downloadPanelOpen: false,
   onlineSource: readOnlineSource(),
+  downloadQuality: readDownloadQuality(),
   toasts: [],
 
   initialize: async () => {
@@ -1292,6 +1305,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  setDownloadQuality: (quality) => {
+    set({ downloadQuality: quality });
+    try {
+      localStorage.setItem("potato:download-quality", quality);
+    } catch {
+      // Storage is optional.
+    }
+  },
+
   clearFinishedDownloads: () =>
     set({
       downloads: get().downloads.filter((job) => job.status === "running"),
@@ -1302,9 +1324,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const job = get().downloads.find((item) => item.jobId === jobId);
     if (!job?.neteaseId) return;
     try {
-      const result = await bridge().invoke<{ jobId: string }>(`${job.source ?? "netease"}.download`, {
+      const source = job.source ?? "netease";
+      const preferred = get().downloadQuality;
+      const quality =
+        source === "qq"
+          ? preferred === "standard"
+            ? "128"
+            : preferred === "lossless"
+              ? "flac"
+              : "320"
+          : preferred;
+      const result = await bridge().invoke<{ jobId: string }>(`${source}.download`, {
         id: job.neteaseId,
-        quality: "high",
+        quality,
       });
       const refreshed: DownloadJob = {
         ...job,

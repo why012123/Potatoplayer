@@ -97,6 +97,21 @@ function delay(ms) {
   assert.ok(trackCount > 5, "songs page should contain the whole library");
   console.log(`[ui] songs page: ${trackCount} rendered rows`);
 
+  // Simplified Chinese input must find traditional/Japanese metadata.
+  // 南条 -> 南條愛乃, 空种 -> 空種.
+  const localSearch = page.locator(".topbar__search input");
+  await localSearch.fill("南条");
+  await page.waitForSelector(".page--search .track-row", { timeout: 5_000 });
+  const chineseRows = await page.locator(".page--search .track-row").count();
+  assert.ok(chineseRows > 0, "Chinese search should match traditional metadata");
+  assert.ok((await page.locator(".page--search").innerText()).includes("空種"), "Chinese search should find 空種 by 南条");
+  await localSearch.fill("空种");
+  await page.waitForSelector(".page--search .track-row", { timeout: 5_000 });
+  assert.ok((await page.locator(".page--search").innerText()).includes("空種"), "simplified 空种 should match 空種");
+  await localSearch.fill("");
+  await page.waitForSelector(".page--songs", { timeout: 5_000 });
+  console.log("[ui] Chinese search matched traditional metadata");
+
   await page.locator(".track-row").first().click();
   let state = await page.evaluate(() => window.potato.invoke("playback.state"));
   // VLC can take a moment to open the output device when another player is
@@ -345,7 +360,21 @@ function delay(ms) {
   await page.waitForSelector(".online-song", { timeout: 25_000 });
   const onlineRows = await page.locator(".online-song").count();
   assert.ok(onlineRows > 0, "NetEase search should return songs");
-  console.log(`[ui] NetEase search returned ${onlineRows} songs`);
+  await page
+    .waitForFunction(
+      () => {
+        const image = document.querySelector(".online-song__cover img");
+        return Boolean(image && image.complete && image.naturalWidth > 0);
+      },
+      { timeout: 20_000 },
+    )
+    .catch(() => undefined);
+  const onlineCover = await page.evaluate(() => {
+    const image = document.querySelector(".online-song__cover img");
+    return image ? { src: image.currentSrc || image.src, width: image.naturalWidth } : null;
+  });
+  assert.ok(onlineCover && onlineCover.width > 0, "NetEase search rows should render album covers");
+  console.log(`[ui] NetEase search returned ${onlineRows} songs with covers (${onlineCover.width}px)`);
   const sourceButton = page.locator(".nav-item__source");
   const sourceBefore = await sourceButton.innerText();
   await sourceButton.click();

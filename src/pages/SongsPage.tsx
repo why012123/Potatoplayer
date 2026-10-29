@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
+import { normalizeSearchText } from "@/lib/search";
 
 type Filter = "all" | "favorites" | "rated";
 
@@ -51,12 +52,17 @@ export function SongsPage() {
   };
 
   const visible = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const rawQuery = searchQuery.trim();
+    const query = normalizeSearchText(rawQuery);
     let list = [...tracks];
-    if (query) {
-      list = list.filter((track) =>
-        `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`.toLowerCase().includes(query),
-      );
+    if (rawQuery) {
+      list = query
+        ? list.filter((track) =>
+            normalizeSearchText(
+              `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`,
+            ).includes(query),
+          )
+        : [];
     }
     if (filter === "favorites") list = list.filter((track) => favoritesSet.has(track.id));
     if (filter === "rated") list = list.filter((track) => track.rating >= 8);

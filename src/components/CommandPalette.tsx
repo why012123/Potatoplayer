@@ -21,6 +21,7 @@ import {
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import { normalizeSearchText } from "@/lib/search";
 import { isCommitEnter } from "@/lib/keyboard";
 import { Cover } from "@/components/Cover";
 
@@ -80,9 +81,14 @@ export function CommandPalette() {
         icon: <ListMusic size={16} />,
       });
     }
-    const needle = query.trim().toLowerCase();
+    const rawQuery = query.trim();
+    const needle = normalizeSearchText(rawQuery);
     const matchingTracks = tracks
-      .filter((track) => `${track.title} ${track.artist} ${track.album}`.toLowerCase().includes(needle))
+      .filter(
+        (track) =>
+          (!rawQuery || Boolean(needle)) &&
+          normalizeSearchText(`${track.title} ${track.artist} ${track.album}`).includes(needle),
+      )
       .slice(0, 7)
       .map((track) => ({
         id: `track-${track.id}`,
@@ -99,8 +105,12 @@ export function CommandPalette() {
           />
         ),
       }));
-    if (!needle) return [...base, ...matchingTracks];
-    return [...base.filter((action) => `${action.label} ${action.hint}`.toLowerCase().includes(needle)), ...matchingTracks];
+    if (!rawQuery) return [...base, ...matchingTracks];
+    if (!needle) return [];
+    return [
+      ...base.filter((action) => `${action.label} ${action.hint}`.toLowerCase().includes(rawQuery.toLowerCase())),
+      ...matchingTracks,
+    ];
   }, [tracks, playlists, query, tr]);
 
   useEffect(() => {

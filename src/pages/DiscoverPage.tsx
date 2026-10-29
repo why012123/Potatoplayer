@@ -18,7 +18,7 @@ import {
   Sparkles,
   WifiOff,
 } from "lucide-react";
-import type { NeteasePlaylist, NeteaseSong, NeteaseStatus } from "@/types";
+import type { DownloadQuality, NeteasePlaylist, NeteaseSong, NeteaseStatus } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
@@ -113,13 +113,14 @@ export function DiscoverPage() {
   const downloads = useAppStore((state) => state.downloads);
   const imports = useAppStore((state) => state.imports);
   const onlineSource = useAppStore((state) => state.onlineSource);
+  const quality = useAppStore((state) => state.downloadQuality);
+  const setQuality = useAppStore((state) => state.setDownloadQuality);
   const importNeteasePlaylist = useAppStore((state) => state.importNeteasePlaylist);
   const [status, setStatus] = useState<NeteaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
-  const [quality, setQuality] = useState("high");
   const [results, setResults] = useState<NeteaseSong[]>([]);
   const [searching, setSearching] = useState(false);
   const [daily, setDaily] = useState<NeteaseSong[]>([]);
@@ -686,7 +687,7 @@ export function DiscoverPage() {
         </form>
         <label className="quality-control">
           <span>{tr("Quality", "音质")}</span>
-          <select value={quality} onChange={(event) => setQuality(event.target.value)}>
+          <select value={quality} onChange={(event) => setQuality(event.target.value as DownloadQuality)}>
             <option value="standard">{tr("Standard", "标准")}</option>
             <option value="high">{tr("High 320k", "高品质 320k")}</option>
             <option value="lossless">{tr("Lossless", "无损")}</option>
