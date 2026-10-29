@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.11`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.12`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,24 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.12 — 2026-10-29
+
+### Changed
+
+- **评分筛选改为双滑块区间**：不再用固定档位下拉，改为 0–10 的双滑块，
+  可以拖动选择任意下限和上限（步进 0.1），例如 `8.0–10.0`、`6.5–8.9`。
+  - 滑块自带当前区间读数、刻度、0/10 端点
+  - 当区间包含 0 时显示“包含未评分”开关；关闭后只保留已评分歌曲
+  - 区间标签直接出现在工具栏摘要中，例如“评分 8.0–10.0”
+  - 支持键盘左右键微调，双滑块在 brief / 日间 / 夜间模式下都保持平面直角风格
+
+### Verification
+
+- 真实资料库 323 首：`评分 8.0–10.0 + iList Light + Air` → 7 首
+- 拖动/输入到 `8.0` 后，筛选摘要和列表数量实时同步
+- `npm run typecheck` 通过
+- `npm run test:ui` 通过
 
 ## s1.4.11 — 2026-10-29
 

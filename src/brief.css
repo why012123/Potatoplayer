@@ -858,3 +858,48 @@
 #root .app.brief .filter-dialog__result strong {
   color: var(--brief-ink);
 }
+
+#root .app.brief .rating-range {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+}
+
+#root .app.brief .rating-range__switch {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  color: var(--brief-muted);
+}
+
+#root .app.brief .rating-range__switch.is-on {
+  border-color: var(--brief-ink);
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 8%, transparent);
+}
+
+#root .app.brief .rating-range__switch i {
+  border-radius: 1px;
+  background: var(--brief-muted);
+}
+
+#root .app.brief .rating-range__switch.is-on i {
+  background: var(--brief-ink);
+  box-shadow: none;
+}
+
+#root .app.brief .rating-range__track {
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--brief-ink) 18%, transparent);
+}
+
+#root .app.brief .rating-range__fill {
+  border-radius: 1px;
+  background: var(--brief-ink);
+}
+
+#root .app.brief .rating-range__input::-webkit-slider-thumb {
+  border: 1px solid var(--brief-ink);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}

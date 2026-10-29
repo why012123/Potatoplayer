@@ -264,7 +264,12 @@ function delay(ms) {
   await page.locator(".filter-button").click();
   await page.waitForSelector(".filter-dialog");
   await page.getByRole("button", { name: /^iList Light \d+$/ }).click();
-  await page.locator(".filter-fields select").nth(0).selectOption("8");
+  await page.locator(".rating-range__input--min").evaluate((element) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    setter.call(element, "8");
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   await page.getByRole("button", { name: "Apply filters" }).click();
   await page.waitForSelector(".filter-dialog", { state: "detached" });
   await page.waitForTimeout(300);
@@ -272,7 +277,7 @@ function delay(ms) {
   assert.ok(filtered > 0 && filtered < trackCount, "block filter should narrow the table");
   const blockSummary = await page.locator(".filter-summary").innerText();
   assert.ok(blockSummary.includes("iList Light"), "block filter should appear in the summary");
-  assert.ok(blockSummary.includes("Rating 8+"), "rating filter should appear in the summary");
+  assert.ok(blockSummary.includes("Rating 8.0"), "rating filter should appear in the summary");
   console.log(`[ui] block filter narrowed library to ${filtered}`);
   await page.locator(".filter-summary__clear").click();
   await page.waitForTimeout(200);

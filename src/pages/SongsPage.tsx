@@ -12,7 +12,6 @@ import { useTr } from "@/lib/i18n";
 import { normalizeSearchText } from "@/lib/search";
 
 type FilterScope = "all" | "favorites";
-type RatingFilter = "any" | "unrated" | "6" | "7" | "8" | "9" | "10";
 type PlaysFilter = "any" | "never" | "played" | "10" | "50";
 type AddedFilter = "any" | "7d" | "30d" | "year" | "older";
 type DurationFilter = "any" | "short" | "medium" | "long" | "epic";
@@ -23,7 +22,9 @@ type CoverFilter = "any" | "cover" | "no-cover";
 
 interface SongFilters {
   scope: FilterScope;
-  rating: RatingFilter;
+  ratingMin: number;
+  ratingMax: number;
+  includeUnrated: boolean;
   plays: PlaysFilter;
   added: AddedFilter;
   duration: DurationFilter;
@@ -37,7 +38,9 @@ interface SongFilters {
 
 const DEFAULT_FILTERS: SongFilters = {
   scope: "all",
-  rating: "any",
+  ratingMin: 0,
+  ratingMax: 10,
+  includeUnrated: true,
   plays: "any",
   added: "any",
   duration: "any",
@@ -59,9 +62,9 @@ function cloneFilters(filters: SongFilters): SongFilters {
 function matchesSongFilters(track: Track, filters: SongFilters, favoriteIds: Set<string>): boolean {
   if (filters.scope === "favorites" && !favoriteIds.has(track.id)) return false;
 
-  if (filters.rating === "unrated") {
-    if (track.rating > 0) return false;
-  } else if (filters.rating !== "any" && track.rating < Number(filters.rating)) {
+  if (track.rating === 0) {
+    if (!filters.includeUnrated || filters.ratingMin > 0) return false;
+  } else if (track.rating < filters.ratingMin || track.rating > filters.ratingMax) {
     return false;
   }
 
@@ -189,12 +192,17 @@ export function SongsPage() {
   const queue = visible.map((track) => track.id);
   const duration = visible.reduce((sum, track) => sum + (track.duration || 0), 0);
   const selectedCount = selected.size;
-  const ratingLabel =
-    filters.rating === "unrated"
-      ? tr("Unrated", "未评分")
-      : filters.rating === "any"
-        ? ""
-        : tr("Rating {rating}+", "评分 {rating}+", { rating: filters.rating });
+  const formatRating = (value: number) => value.toFixed(1);
+  const ratingRangeActive = filters.ratingMin > 0 || filters.ratingMax < 10;
+  const ratingLabel = ratingRangeActive
+    ? tr(
+        "Rating {min}–{max}",
+        "评分 {min}–{max}",
+        { min: formatRating(filters.ratingMin), max: formatRating(filters.ratingMax) },
+      )
+    : !filters.includeUnrated
+      ? tr("Rated only", "仅已评分")
+      : "";
   const playsLabel =
     filters.plays === "never"
       ? tr("Never played", "从未播放")
@@ -273,6 +281,18 @@ export function SongsPage() {
     () => tracks.filter((track) => matchesSongFilters(track, draft, favoritesSet)).length,
     [tracks, draft, favorites],
   );
+  const setRatingMin = (value: number) => {
+    setDraft((current) => ({
+      ...current,
+      ratingMin: Math.min(value, current.ratingMax),
+    }));
+  };
+  const setRatingMax = (value: number) => {
+    setDraft((current) => ({
+      ...current,
+      ratingMax: Math.max(value, current.ratingMin),
+    }));
+  };
   useEffect(() => {
     if (!filterOpen) return;
     const close = (event: KeyboardEvent) => {
@@ -515,22 +535,60 @@ export function SongsPage() {
                   <span className="filter-section__title">{tr("Rating & activity", "评分与播放")}</span>
                   <span className="filter-section__hint">{tr("Narrow by how you have listened.", "按你的聆听习惯缩小范围。")}</span>
                 </div>
-                <div className="filter-fields filter-fields--three">
-                  <label>
-                    <span>{tr("Rating", "评分")}</span>
-                    <select
-                      value={draft.rating}
-                      onChange={(event) => setDraft((current) => ({ ...current, rating: event.target.value as RatingFilter }))}
-                    >
-                      <option value="any">{tr("Any rating", "全部评分")}</option>
-                      <option value="unrated">{tr("Unrated", "未评分")}</option>
-                      <option value="6">{tr("6+", "6 分以上")}</option>
-                      <option value="7">{tr("7+", "7 分以上")}</option>
-                      <option value="8">{tr("8+", "8 分以上")}</option>
-                      <option value="9">{tr("9+", "9 分以上")}</option>
-                      <option value="10">{tr("10", "10 分")}</option>
-                    </select>
-                  </label>
+                <div className="filter-fields filter-fields--two filter-fields--activity">
+                  <div className="rating-range">
+                    <div className="rating-range__head">
+                      <div>
+                        <span className="rating-range__label">{tr("Rating range", "评分范围")}</span>
+                        <strong>{formatRating(draft.ratingMin)} – {formatRating(draft.ratingMax)}</strong>
+                      </div>
+                      {draft.ratingMin === 0 && (
+                        <button
+                          type="button"
+                          className={clsx("rating-range__switch", draft.includeUnrated && "is-on")}
+                          role="switch"
+                          aria-checked={draft.includeUnrated}
+                          onClick={() => setDraft((current) => ({ ...current, includeUnrated: !current.includeUnrated }))}
+                        >
+                          <i /> {tr("Include unrated", "包含未评分")}
+                        </button>
+                      )}
+                    </div>
+                    <div className="rating-range__slider">
+                      <div className="rating-range__track">
+                        <div
+                          className="rating-range__fill"
+                          style={{
+                            left: `${draft.ratingMin * 10}%`,
+                            right: `${(10 - draft.ratingMax) * 10}%`,
+                          }}
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        value={draft.ratingMin}
+                        aria-label={tr("Minimum rating", "最低评分")}
+                        className="rating-range__input rating-range__input--min"
+                        onChange={(event) => setRatingMin(Number(event.target.value))}
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        value={draft.ratingMax}
+                        aria-label={tr("Maximum rating", "最高评分")}
+                        className="rating-range__input rating-range__input--max"
+                        onChange={(event) => setRatingMax(Number(event.target.value))}
+                      />
+                    </div>
+                    <div className="rating-range__ticks" aria-hidden="true">
+                      <span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span>
+                    </div>
+                  </div>
                   <label>
                     <span>{tr("Play count", "播放次数")}</span>
                     <select
