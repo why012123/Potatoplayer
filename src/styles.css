@@ -11011,3 +11011,264 @@ img {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── Detailed Songs filter sheet ─────────────────────────────────────────── */
+
+.filter-dialog {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 64px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.filter-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 26px 20px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.filter-dialog__headcopy {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.filter-dialog__mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.filter-dialog__head h2 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 710;
+  letter-spacing: -0.95px;
+  line-height: 1.05;
+}
+
+.filter-dialog__head .modal__description {
+  max-width: 470px;
+  margin: 6px 0 0;
+  font-size: 10px;
+}
+
+.filter-dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 26px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
+}
+
+.filter-dialog__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.filter-dialog__body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.filter-section {
+  margin: 0;
+  padding: 17px 0;
+  border-top: 1px solid var(--line);
+}
+
+.filter-section--quick {
+  border-top: 0;
+}
+
+.filter-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 20px;
+}
+
+.filter-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.filter-section__title {
+  margin: 0;
+  font-size: 8px;
+  font-weight: 690;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.filter-section__hint {
+  overflow: hidden;
+  font-size: 8.5px;
+  font-weight: 450;
+  color: var(--faint);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-choice-grid--scope {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.filter-fields {
+  margin-top: 0;
+  gap: 8px;
+}
+
+.filter-fields--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filter-fields--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.filter-fields select {
+  height: 36px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface, #fff) 26%, transparent);
+}
+
+.filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 29px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 8.5px;
+  font-weight: 540;
+  color: var(--muted);
+  background: transparent;
+}
+
+.filter-tag > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-tag i {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.filter-tag em {
+  font-family: var(--mono);
+  font-size: 7.5px;
+  font-style: normal;
+  color: var(--faint);
+}
+
+.filter-tag:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.filter-tag.is-active {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 11%, rgba(255, 255, 255, 0.2));
+}
+
+.filter-tag.is-active em {
+  color: var(--muted);
+}
+
+.filter-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex: none;
+  padding: 14px 26px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface, #fff) 20%, transparent);
+}
+
+.filter-dialog__result {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.filter-dialog__result strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.filter-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 700px) {
+  .filter-dialog__head,
+  .filter-dialog__foot {
+    padding-inline: 18px;
+  }
+
+  .filter-dialog__body {
+    padding-inline: 18px;
+  }
+
+  .filter-fields--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .filter-choice-grid,
+  .filter-choice-grid--scope,
+  .filter-fields,
+  .filter-fields--three,
+  .filter-fields--two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filter-section__hint {
+    display: none;
+  }
+
+  .filter-dialog__foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .filter-dialog__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

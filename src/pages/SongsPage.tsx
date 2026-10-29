@@ -4,13 +4,111 @@ import { motion } from "motion/react";
 import clsx from "clsx";
 import { ArrowDownUp, Check, CheckSquare, FolderOpen, Layers3, ListEnd, ListMusic, ListPlus, Play, SearchX, Shuffle, SlidersHorizontal, Tag as TagIcon, X } from "lucide-react";
 import { useAppStore, type SortMode } from "@/store";
+import type { Track } from "@/types";
 import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
 import { normalizeSearchText } from "@/lib/search";
 
-type Filter = "all" | "favorites" | "rated";
+type FilterScope = "all" | "favorites";
+type RatingFilter = "any" | "unrated" | "6" | "7" | "8" | "9" | "10";
+type PlaysFilter = "any" | "never" | "played" | "10" | "50";
+type AddedFilter = "any" | "7d" | "30d" | "year" | "older";
+type DurationFilter = "any" | "short" | "medium" | "long" | "epic";
+type FormatFilter = "any" | "lossless" | "lossy";
+type OnlineFilter = "any" | "bound" | "unbound" | "netease" | "qq";
+type NotesFilter = "any" | "noted" | "empty";
+type CoverFilter = "any" | "cover" | "no-cover";
+
+interface SongFilters {
+  scope: FilterScope;
+  rating: RatingFilter;
+  plays: PlaysFilter;
+  added: AddedFilter;
+  duration: DurationFilter;
+  format: FormatFilter;
+  online: OnlineFilter;
+  notes: NotesFilter;
+  cover: CoverFilter;
+  blocks: string[];
+  genres: string[];
+}
+
+const DEFAULT_FILTERS: SongFilters = {
+  scope: "all",
+  rating: "any",
+  plays: "any",
+  added: "any",
+  duration: "any",
+  format: "any",
+  online: "any",
+  notes: "any",
+  cover: "any",
+  blocks: [],
+  genres: [],
+};
+
+const LOSSLESS_EXTENSIONS = new Set(["flac", "wav", "aiff", "aif", "ape", "dsf", "dff"]);
+const LOSSY_EXTENSIONS = new Set(["mp3", "m4a", "aac", "ogg", "opus", "wma"]);
+
+function cloneFilters(filters: SongFilters): SongFilters {
+  return { ...filters, blocks: [...filters.blocks], genres: [...filters.genres] };
+}
+
+function matchesSongFilters(track: Track, filters: SongFilters, favoriteIds: Set<string>): boolean {
+  if (filters.scope === "favorites" && !favoriteIds.has(track.id)) return false;
+
+  if (filters.rating === "unrated") {
+    if (track.rating > 0) return false;
+  } else if (filters.rating !== "any" && track.rating < Number(filters.rating)) {
+    return false;
+  }
+
+  if (filters.plays === "never" && track.playCount > 0) return false;
+  if (filters.plays === "played" && track.playCount <= 0) return false;
+  if ((filters.plays === "10" || filters.plays === "50") && track.playCount < Number(filters.plays)) {
+    return false;
+  }
+
+  if (filters.added !== "any") {
+    if (!track.addedAt) return false;
+    const age = Date.now() - track.addedAt;
+    const day = 86_400_000;
+    if (filters.added === "7d" && age > 7 * day) return false;
+    if (filters.added === "30d" && age > 30 * day) return false;
+    if (filters.added === "year" && age > 365 * day) return false;
+    if (filters.added === "older" && age < 365 * day) return false;
+  }
+
+  if (filters.duration !== "any") {
+    if (track.duration <= 0) return false;
+    if (filters.duration === "short" && track.duration >= 120) return false;
+    if (filters.duration === "medium" && (track.duration < 120 || track.duration >= 300)) return false;
+    if (filters.duration === "long" && (track.duration < 300 || track.duration >= 600)) return false;
+    if (filters.duration === "epic" && track.duration < 600) return false;
+  }
+
+  if (filters.format !== "any") {
+    const extension = track.path.toLowerCase().split(".").pop() ?? "";
+    if (filters.format === "lossless" && !LOSSLESS_EXTENSIONS.has(extension)) return false;
+    if (filters.format === "lossy" && !LOSSY_EXTENSIONS.has(extension)) return false;
+  }
+
+  if (filters.online === "bound" && !track.neteaseId && !track.qqId) return false;
+  if (filters.online === "unbound" && (track.neteaseId || track.qqId)) return false;
+  if (filters.online === "netease" && !track.neteaseId) return false;
+  if (filters.online === "qq" && !track.qqId) return false;
+
+  if (filters.notes === "noted" && !track.note.trim()) return false;
+  if (filters.notes === "empty" && track.note.trim()) return false;
+  if (filters.cover === "cover" && !track.coverPath) return false;
+  if (filters.cover === "no-cover" && track.coverPath) return false;
+
+  if (filters.blocks.length && !filters.blocks.includes(track.block)) return false;
+  if (filters.genres.length && !filters.genres.includes(track.genre)) return false;
+  return true;
+}
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -31,15 +129,9 @@ export function SongsPage() {
   const setSortMode = useAppStore((state) => state.setSortMode);
   const playTrack = useAppStore((state) => state.playTrack);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [blockFilter, setBlockFilter] = useState("");
-  const [genreFilter, setGenreFilter] = useState("");
+  const [filters, setFilters] = useState<SongFilters>(() => cloneFilters(DEFAULT_FILTERS));
   const [filterOpen, setFilterOpen] = useState(false);
-  const [draft, setDraft] = useState<{ filter: Filter; block: string; genre: string }>({
-    filter: "all",
-    block: "",
-    genre: "",
-  });
+  const [draft, setDraft] = useState<SongFilters>(() => cloneFilters(DEFAULT_FILTERS));
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const blocks = useAppStore((state) => state.blocks);
@@ -70,10 +162,7 @@ export function SongsPage() {
           )
         : [];
     }
-    if (filter === "favorites") list = list.filter((track) => favoritesSet.has(track.id));
-    if (filter === "rated") list = list.filter((track) => track.rating >= 8);
-    if (blockFilter) list = list.filter((track) => track.block === blockFilter);
-    if (genreFilter) list = list.filter((track) => track.genre === genreFilter);
+    list = list.filter((track) => matchesSongFilters(track, filters, favoritesSet));
 
     switch (sortMode) {
       case "artist":
@@ -95,32 +184,95 @@ export function SongsPage() {
         list.sort((a, b) => a.title.localeCompare(b.title) || a.artist.localeCompare(b.artist));
     }
     return list;
-  }, [tracks, searchQuery, filter, sortMode, favorites, blockFilter, genreFilter]);
+  }, [tracks, searchQuery, sortMode, favorites, filters]);
 
   const queue = visible.map((track) => track.id);
   const duration = visible.reduce((sum, track) => sum + (track.duration || 0), 0);
   const selectedCount = selected.size;
-  const activeFilterCount = (filter === "all" ? 0 : 1) + (blockFilter ? 1 : 0) + (genreFilter ? 1 : 0);
-  const quickFilterLabel =
-    filter === "favorites" ? tr("Favorites", "收藏") : filter === "rated" ? tr("Rated 8+", "评分 8+") : "";
+  const ratingLabel =
+    filters.rating === "unrated"
+      ? tr("Unrated", "未评分")
+      : filters.rating === "any"
+        ? ""
+        : tr("Rating {rating}+", "评分 {rating}+", { rating: filters.rating });
+  const playsLabel =
+    filters.plays === "never"
+      ? tr("Never played", "从未播放")
+      : filters.plays === "played"
+        ? tr("Played", "播放过")
+        : filters.plays === "10"
+          ? tr("10+ plays", "播放 10+")
+          : filters.plays === "50"
+            ? tr("50+ plays", "播放 50+")
+            : "";
+  const addedLabel =
+    filters.added === "7d"
+      ? tr("Added in 7 days", "7 天内添加")
+      : filters.added === "30d"
+        ? tr("Added in 30 days", "30 天内添加")
+        : filters.added === "year"
+          ? tr("Added this year", "今年添加")
+          : filters.added === "older"
+            ? tr("Older than a year", "一年前添加")
+            : "";
+  const durationLabel =
+    filters.duration === "short"
+      ? tr("Under 2 min", "2 分钟以下")
+      : filters.duration === "medium"
+        ? tr("2–5 min", "2–5 分钟")
+        : filters.duration === "long"
+          ? tr("5–10 min", "5–10 分钟")
+          : filters.duration === "epic"
+            ? tr("10 min+", "10 分钟以上")
+            : "";
+  const formatLabel =
+    filters.format === "lossless" ? tr("Lossless", "无损") : filters.format === "lossy" ? tr("Lossy", "有损") : "";
+  const onlineLabel =
+    filters.online === "bound"
+      ? tr("Linked online", "已绑定在线身份")
+      : filters.online === "unbound"
+        ? tr("Not linked", "未绑定在线身份")
+        : filters.online === "netease"
+          ? "NetEase"
+          : filters.online === "qq"
+            ? "QQ Music"
+            : "";
+  const notesLabel =
+    filters.notes === "noted" ? tr("With notes", "有备注") : filters.notes === "empty" ? tr("No notes", "无备注") : "";
+  const coverLabel =
+    filters.cover === "cover" ? tr("With cover", "有封面") : filters.cover === "no-cover" ? tr("No cover", "无封面") : "";
+  const filterSummary = [
+    filters.scope === "favorites" ? tr("Favorites", "收藏") : "",
+    ratingLabel,
+    playsLabel,
+    addedLabel,
+    durationLabel,
+    formatLabel,
+    onlineLabel,
+    notesLabel,
+    coverLabel,
+    ...filters.blocks,
+    ...filters.genres,
+  ].filter(Boolean);
+  const activeFilterCount = filterSummary.length;
   const openFilters = () => {
-    setDraft({ filter, block: blockFilter, genre: genreFilter });
+    setDraft(cloneFilters(filters));
     setFilterOpen(true);
   };
   const applyFilters = () => {
-    setFilter(draft.filter);
-    setBlockFilter(draft.block);
-    setGenreFilter(draft.genre);
+    setFilters(cloneFilters(draft));
     setFilterOpen(false);
   };
   const clearFilters = () => {
-    setDraft({ filter: "all", block: "", genre: "" });
+    setDraft(cloneFilters(DEFAULT_FILTERS));
   };
   const clearAppliedFilters = () => {
-    setFilter("all");
-    setBlockFilter("");
-    setGenreFilter("");
+    setFilters(cloneFilters(DEFAULT_FILTERS));
   };
+  const draftCount = useMemo(
+    () => tracks.filter((track) => matchesSongFilters(track, draft, favoritesSet)).length,
+    [tracks, draft, favorites],
+  );
   useEffect(() => {
     if (!filterOpen) return;
     const close = (event: KeyboardEvent) => {
@@ -233,9 +385,9 @@ export function SongsPage() {
               <span>{tr("All songs", "全部歌曲")}</span>
             ) : (
               <>
-                {filter !== "all" && <span className="filter-summary__chip">{quickFilterLabel}</span>}
-                {blockFilter && <span className="filter-summary__chip">{blockFilter}</span>}
-                {genreFilter && <span className="filter-summary__chip">{genreFilter}</span>}
+                {filterSummary.map((label, index) => (
+                  <span className="filter-summary__chip" key={`${label}-${index}`}>{label}</span>
+                ))}
                 <button type="button" className="filter-summary__clear" onClick={clearAppliedFilters}>
                   <X size={12} /> {tr("Clear", "清除")}
                 </button>
@@ -308,14 +460,19 @@ export function SongsPage() {
         >
           <div className="modal filter-dialog glass-strong" role="dialog" aria-modal="true" aria-labelledby="filter-dialog-title">
             <div className="filter-dialog__head">
-              <div>
-                <div className="modal__eyebrow">
-                  <span className="modal__dot" /> {tr("Library", "资料库")}
+              <div className="filter-dialog__headcopy">
+                <div className="filter-dialog__mark">
+                  <SlidersHorizontal size={18} />
                 </div>
-                <h2 id="filter-dialog-title">{tr("Filter songs", "筛选歌曲")}</h2>
-                <p className="modal__description">
-                  {tr("Narrow the library by favorites, rating, block and genre.", "按收藏、评分、区块和流派缩小资料库范围。")}
-                </p>
+                <div>
+                  <div className="modal__eyebrow">
+                    <span className="modal__dot" /> {tr("Library", "资料库")}
+                  </div>
+                  <h2 id="filter-dialog-title">{tr("Filter songs", "筛选歌曲")}</h2>
+                  <p className="modal__description">
+                    {tr("Shape the library down to the records you want to hear now.", "把资料库收窄到你现在想听的唱片。")}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -327,67 +484,244 @@ export function SongsPage() {
               </button>
             </div>
 
-            <section className="filter-section">
-              <span className="filter-section__title">{tr("Quick filter", "快速筛选")}</span>
-              <div className="filter-choice-grid">
-                {(
-                  [
-                    ["all", tr("All songs", "全部歌曲"), tracks.length],
-                    ["favorites", tr("Favorites", "收藏"), favorites.length],
-                    ["rated", tr("Rated 8+", "评分 8+"), tracks.filter((track) => track.rating >= 8).length],
-                  ] as const
-                ).map(([value, label, count]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={clsx("filter-choice", draft.filter === value && "is-active")}
-                    onClick={() => setDraft((current) => ({ ...current, filter: value as Filter }))}
-                  >
-                    <span>{label}</span>
-                    <em>{count}</em>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <div className="filter-dialog__body">
+              <section className="filter-section filter-section--quick">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Collection", "收藏范围")}</span>
+                  <span className="filter-section__hint">{tr("Start with everything, or only your favorites.", "从全部歌曲开始，或只看收藏。")}</span>
+                </div>
+                <div className="filter-choice-grid filter-choice-grid--scope">
+                  {(
+                    [
+                      ["all", tr("All songs", "全部歌曲"), tracks.length],
+                      ["favorites", tr("Favorites", "收藏"), favorites.length],
+                    ] as const
+                  ).map(([value, label, count]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={clsx("filter-choice", draft.scope === value && "is-active")}
+                      onClick={() => setDraft((current) => ({ ...current, scope: value }))}
+                    >
+                      <span>{label}</span>
+                      <em>{count}</em>
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-            <div className="filter-fields">
-              <label>
-                <span>{tr("Block", "区块")}</span>
-                <select
-                  value={draft.block}
-                  onChange={(event) => setDraft((current) => ({ ...current, block: event.target.value }))}
-                >
-                  <option value="">{tr("All blocks", "全部区块")}</option>
-                  {blocks.map((tag) => (
-                    <option key={tag.name} value={tag.name}>
-                      {tag.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{tr("Genre", "流派")}</span>
-                <select
-                  value={draft.genre}
-                  onChange={(event) => setDraft((current) => ({ ...current, genre: event.target.value }))}
-                >
-                  <option value="">{tr("All genres", "全部流派")}</option>
-                  {genres.map((tag) => (
-                    <option key={tag.name} value={tag.name}>
-                      {tag.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Rating & activity", "评分与播放")}</span>
+                  <span className="filter-section__hint">{tr("Narrow by how you have listened.", "按你的聆听习惯缩小范围。")}</span>
+                </div>
+                <div className="filter-fields filter-fields--three">
+                  <label>
+                    <span>{tr("Rating", "评分")}</span>
+                    <select
+                      value={draft.rating}
+                      onChange={(event) => setDraft((current) => ({ ...current, rating: event.target.value as RatingFilter }))}
+                    >
+                      <option value="any">{tr("Any rating", "全部评分")}</option>
+                      <option value="unrated">{tr("Unrated", "未评分")}</option>
+                      <option value="6">{tr("6+", "6 分以上")}</option>
+                      <option value="7">{tr("7+", "7 分以上")}</option>
+                      <option value="8">{tr("8+", "8 分以上")}</option>
+                      <option value="9">{tr("9+", "9 分以上")}</option>
+                      <option value="10">{tr("10", "10 分")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{tr("Play count", "播放次数")}</span>
+                    <select
+                      value={draft.plays}
+                      onChange={(event) => setDraft((current) => ({ ...current, plays: event.target.value as PlaysFilter }))}
+                    >
+                      <option value="any">{tr("Any play count", "全部次数")}</option>
+                      <option value="never">{tr("Never played", "从未播放")}</option>
+                      <option value="played">{tr("Played", "播放过")}</option>
+                      <option value="10">{tr("10+ plays", "播放 10+")}</option>
+                      <option value="50">{tr("50+ plays", "播放 50+")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{tr("Added", "添加时间")}</span>
+                    <select
+                      value={draft.added}
+                      onChange={(event) => setDraft((current) => ({ ...current, added: event.target.value as AddedFilter }))}
+                    >
+                      <option value="any">{tr("Any time", "任何时间")}</option>
+                      <option value="7d">{tr("Last 7 days", "最近 7 天")}</option>
+                      <option value="30d">{tr("Last 30 days", "最近 30 天")}</option>
+                      <option value="year">{tr("This year", "今年")}</option>
+                      <option value="older">{tr("Older", "一年前")}</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("File & identity", "文件与身份")}</span>
+                  <span className="filter-section__hint">{tr("Match duration, audio format and online links.", "按时长、音频格式和在线绑定筛选。")}</span>
+                </div>
+                <div className="filter-fields filter-fields--three">
+                  <label>
+                    <span>{tr("Duration", "时长")}</span>
+                    <select
+                      value={draft.duration}
+                      onChange={(event) => setDraft((current) => ({ ...current, duration: event.target.value as DurationFilter }))}
+                    >
+                      <option value="any">{tr("Any length", "全部时长")}</option>
+                      <option value="short">{tr("Under 2 min", "2 分钟以下")}</option>
+                      <option value="medium">{tr("2–5 min", "2–5 分钟")}</option>
+                      <option value="long">{tr("5–10 min", "5–10 分钟")}</option>
+                      <option value="epic">{tr("10 min+", "10 分钟以上")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{tr("Format", "格式")}</span>
+                    <select
+                      value={draft.format}
+                      onChange={(event) => setDraft((current) => ({ ...current, format: event.target.value as FormatFilter }))}
+                    >
+                      <option value="any">{tr("Any format", "全部格式")}</option>
+                      <option value="lossless">{tr("Lossless", "无损")}</option>
+                      <option value="lossy">{tr("Lossy", "有损")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{tr("Online", "在线身份")}</span>
+                    <select
+                      value={draft.online}
+                      onChange={(event) => setDraft((current) => ({ ...current, online: event.target.value as OnlineFilter }))}
+                    >
+                      <option value="any">{tr("Any link", "全部")}</option>
+                      <option value="bound">{tr("Linked", "已绑定")}</option>
+                      <option value="unbound">{tr("Not linked", "未绑定")}</option>
+                      <option value="netease">NetEase</option>
+                      <option value="qq">QQ Music</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Details", "其他细节")}</span>
+                  <span className="filter-section__hint">{tr("Notes and artwork completeness.", "备注与封面完整度。")}</span>
+                </div>
+                <div className="filter-fields filter-fields--two">
+                  <label>
+                    <span>{tr("Notes", "备注")}</span>
+                    <select
+                      value={draft.notes}
+                      onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value as NotesFilter }))}
+                    >
+                      <option value="any">{tr("Any note state", "全部")}</option>
+                      <option value="noted">{tr("With notes", "有备注")}</option>
+                      <option value="empty">{tr("No notes", "无备注")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{tr("Cover", "封面")}</span>
+                    <select
+                      value={draft.cover}
+                      onChange={(event) => setDraft((current) => ({ ...current, cover: event.target.value as CoverFilter }))}
+                    >
+                      <option value="any">{tr("Any artwork", "全部")}</option>
+                      <option value="cover">{tr("With cover", "有封面")}</option>
+                      <option value="no-cover">{tr("No cover", "无封面")}</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Blocks", "区块")}</span>
+                  <span className="filter-section__hint">
+                    {draft.blocks.length
+                      ? tr("{count} selected", "已选 {count} 个", { count: draft.blocks.length })
+                      : tr("Select one or more blocks.", "可多选区块。")}
+                  </span>
+                </div>
+                <div className="filter-tags">
+                  {blocks.map((tag) => {
+                    const count = tracks.filter((track) => track.block === tag.name).length;
+                    const active = draft.blocks.includes(tag.name);
+                    return (
+                      <button
+                        key={tag.name}
+                        type="button"
+                        className={clsx("filter-tag", active && "is-active")}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            blocks: active ? current.blocks.filter((name) => name !== tag.name) : [...current.blocks, tag.name],
+                          }))
+                        }
+                      >
+                        <i style={{ background: tag.color }} />
+                        <span>{tag.name}</span>
+                        <em>{count}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Genres", "流派")}</span>
+                  <span className="filter-section__hint">
+                    {draft.genres.length
+                      ? tr("{count} selected", "已选 {count} 个", { count: draft.genres.length })
+                      : tr("Select one or more genres.", "可多选流派。")}
+                  </span>
+                </div>
+                <div className="filter-tags">
+                  {genres.map((tag) => {
+                    const count = tracks.filter((track) => track.genre === tag.name).length;
+                    const active = draft.genres.includes(tag.name);
+                    return (
+                      <button
+                        key={tag.name}
+                        type="button"
+                        className={clsx("filter-tag", active && "is-active")}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            genres: active ? current.genres.filter((name) => name !== tag.name) : [...current.genres, tag.name],
+                          }))
+                        }
+                      >
+                        <i style={{ background: tag.color }} />
+                        <span>{tag.name}</span>
+                        <em>{count}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
 
-            <div className="modal__actions">
-              <button type="button" className="button button--glass" onClick={clearFilters}>
-                {tr("Clear", "清除")}
-              </button>
-              <button type="button" className="button button--dark" onClick={applyFilters}>
-                {tr("Apply filters", "应用筛选")}
-              </button>
+            <div className="filter-dialog__foot">
+              <span className="filter-dialog__result">
+                <strong>{draftCount}</strong>{" "}
+                {tr(
+                  draftCount === 1 ? "song will match" : "songs will match",
+                  draftCount === 1 ? "首歌曲符合" : "首歌曲符合",
+                )}
+              </span>
+              <div className="filter-dialog__actions">
+                <button type="button" className="button button--glass" onClick={clearFilters}>
+                  {tr("Reset", "重置")}
+                </button>
+                <button type="button" className="button button--dark" onClick={applyFilters}>
+                  {tr("Apply filters", "应用筛选")}
+                </button>
+              </div>
             </div>
           </div>
         </div>,

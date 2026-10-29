@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.10`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.11`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,32 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.11 — 2026-10-29
+
+### Changed
+
+- **歌曲库筛选升级为详细筛选面板**，不再是四个字段的小弹窗：
+  - 收藏范围：全部 / 收藏
+  - 评分：未评分、6+、7+、8+、9+、10
+  - 播放次数：从未播放、播放过、10+、50+
+  - 添加时间：最近 7 天 / 30 天 / 今年 / 一年前
+  - 时长：2 分钟以下 / 2–5 / 5–10 / 10 分钟以上
+  - 格式：无损 / 有损
+  - 在线身份：已绑定 / 未绑定 / NetEase / QQ Music
+  - 备注：有备注 / 无备注
+  - 封面：有封面 / 无封面
+  - 区块、流派改为**多选标签**，带颜色点和数量
+- **弹窗布局重做**：720px 宽、固定头部/底部、中间独立滚动；每个分组有标题和说明，
+  底部实时显示“将匹配多少首歌曲”，应用后工具栏只显示筛选摘要。
+- 多选条件为「同组 OR、跨组 AND」：例如 `评分 8+ + iList Light + Air` 会得到 7 首。
+
+### Verification
+
+- 真实资料库 323 首上验证：`评分 8+ + iList Light + Air` → 7 首
+- 筛选摘要正确显示 3 个条件，支持一键清除
+- `npm run typecheck` 通过
+- `npm run test:ui` 覆盖评分 + 区块组合和多选标签
 
 ## s1.4.10 — 2026-10-29
 

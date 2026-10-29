@@ -820,3 +820,41 @@
   flex: 1.45;
   min-width: 176px;
 }
+
+#root .app.brief .filter-dialog__head,
+#root .app.brief .filter-dialog__foot,
+#root .app.brief .filter-section {
+  border-color: var(--brief-line);
+}
+
+#root .app.brief .filter-dialog__mark {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  color: var(--brief-ink);
+  background: transparent;
+}
+
+#root .app.brief .filter-dialog__foot {
+  background: var(--brief-paper);
+}
+
+#root .app.brief .filter-tag {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  color: var(--brief-muted);
+}
+
+#root .app.brief .filter-tag:hover {
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 6%, transparent);
+}
+
+#root .app.brief .filter-tag.is-active {
+  border-color: var(--brief-ink);
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 9%, transparent);
+}
+
+#root .app.brief .filter-dialog__result strong {
+  color: var(--brief-ink);
+}
