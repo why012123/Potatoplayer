@@ -213,6 +213,20 @@ function lx(en: string, zh: string, vars?: TextVars): string {
 
 let subscribed = false;
 let initializing = false;
+let onlineWarmup: Promise<unknown> | null = null;
+
+/**
+ * Start both local online bridges once per launch. They are optional, so any
+ * failure stays silent — the Discover page still offers a manual restart.
+ */
+function warmOnlineServices() {
+  if (onlineWarmup) return onlineWarmup;
+  onlineWarmup = Promise.allSettled([
+    bridge().invoke("netease.startService"),
+    bridge().invoke("qq.startService"),
+  ]);
+  return onlineWarmup;
+}
 let windowActive =
   typeof document === "undefined" ? true : document.visibilityState !== "hidden";
 if (typeof window !== "undefined") {
@@ -465,6 +479,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         scanProgress: data.scanNeeded ? { done: 0, total: data.tracks.length, phase: "preparing" } : null,
       });
       if (preview) void get().ensureLyrics(preview);
+      void warmOnlineServices();
       if (data.scanNeeded) {
         set({ scanning: true });
         try {

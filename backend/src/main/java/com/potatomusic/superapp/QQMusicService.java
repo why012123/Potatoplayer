@@ -103,7 +103,7 @@ public final class QQMusicService {
         return status;
     }
 
-    public Map<String, Object> startService() {
+    public synchronized Map<String, Object> startService() {
         if (serverCheck()) {
             cachedAt = 0;
             return status();
