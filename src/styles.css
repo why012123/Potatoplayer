@@ -1130,6 +1130,14 @@ img {
   font-size: 13.5px;
   font-weight: 650;
   letter-spacing: -0.28px;
+  white-space: nowrap;
+}
+
+/* The duration is the only long value in the strip; give it room instead of
+   leaving a lone “钟” on a second line. */
+.stat-strip > div:nth-of-type(2) {
+  flex: 1.35;
+  min-width: 154px;
 }
 
 .stat-strip i {

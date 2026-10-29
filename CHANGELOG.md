@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.7`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.8`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,20 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.8 — 2026-10-29
+
+### Fixed
+
+- **首页资料库时长的“钟”被挤到第二行**：`stat-strip` 的时长列和其他数字列等宽，长中文值在窄列里自动换行，
+  出现“22 小时 26 分 / 钟”的断裂。现在时长列单独加宽（Editorial 1.45 倍，min-width 176px），
+  所有统计值统一 `white-space: nowrap`，整条统计栏恢复单行；收藏/歌曲/艺术家列仍等宽。
+
+### Verification
+
+- 1624×1006、右侧播放栏收起时：`22 小时 26 分钟` 单行显示
+- `npm run typecheck` 通过
+- 截图检查 `/tmp/stat-strip-fixed.png`
 
 ## s1.4.7 — 2026-10-29
 

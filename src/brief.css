@@ -810,3 +810,13 @@
   border-color: var(--brief-line);
   background: transparent;
 }
+
+
+#root .app.brief .stat-strip strong {
+  white-space: nowrap;
+}
+
+#root .app.brief .stat-strip > div:nth-of-type(2) {
+  flex: 1.45;
+  min-width: 176px;
+}

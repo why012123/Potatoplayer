@@ -1544,6 +1544,12 @@
   font-size: 15px;
   font-weight: 650;
   letter-spacing: -0.35px;
+  white-space: nowrap;
+}
+
+:root[data-style="editorial"] .stat-strip > div:nth-of-type(2) {
+  flex: 1.45;
+  min-width: 176px;
 }
 
 :root[data-style="editorial"] .stat-strip i {
