@@ -1,0 +1,749 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Brief — flat paper. This file is imported after every other visual layer and
+   scoped through #root so the editorial/classic shells cannot win by source
+   order. Brief is a separate room: no sidebar, no player column, no glass.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#root .app.brief {
+  --brief-paper: #f1ece3;
+  --brief-ink: #17130f;
+  --brief-muted: #6b6258;
+  --brief-line: #29231d;
+  --text: var(--brief-ink);
+  --muted: var(--brief-muted);
+  --faint: #8a8074;
+  --line: rgba(41, 35, 29, 0.2);
+  padding: 14px;
+  color: var(--brief-ink);
+  background: var(--brief-paper);
+}
+
+#root .app.brief.theme-dark {
+  --brief-paper: #151311;
+  --brief-ink: #f2ece1;
+  --brief-muted: #b9ad9e;
+  --brief-line: #e6dccd;
+  --faint: #8f8375;
+  --line: rgba(242, 236, 225, 0.2);
+}
+
+#root .app.brief .ambient {
+  display: none;
+}
+
+#root .app.brief *,
+#root .app.brief *::before,
+#root .app.brief *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* One canvas. */
+#root .app.brief .app-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+#root .app.brief .sidebar {
+  display: none;
+}
+
+#root .app.brief .workspace {
+  grid-template-rows: 64px minmax(0, 1fr);
+}
+
+#root .app.brief .workspace-body,
+#root .app.brief .workspace-body.workspace-body--solo {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+/* Invoked from the mini player or the hero's lyrics action: the full player
+   becomes a flat sheet over the paper instead of taking a permanent column. */
+#root .app.brief .now-playing {
+  position: fixed;
+  z-index: 120;
+  top: 92px;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  width: min(390px, calc(100vw - 48px));
+  padding: 18px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: 10px 10px 0 color-mix(in srgb, var(--brief-ink) 14%, transparent);
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+#root .app.brief .topbar {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(300px, 560px) minmax(210px, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 0 30px;
+  border-bottom: 1px solid var(--brief-line);
+  background: transparent;
+}
+
+#root .app.brief .topbar__nav,
+#root .app.brief .topbar__context {
+  display: none;
+}
+
+#root .app.brief .topbar__left--brief {
+  min-width: 0;
+}
+
+#root .app.brief .brief-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  padding: 0;
+  border: 0;
+  color: var(--brief-ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+#root .app.brief .brief-brand__mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+  box-shadow: none;
+}
+
+#root .app.brief .brief-brand__word {
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.055em;
+}
+
+#root .app.brief .brief-brand em {
+  padding: 3px 6px;
+  border: 1px solid var(--brief-ink);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+#root .app.brief .topbar__search,
+#root .app.brief .topbar__search:focus-within {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  gap: 9px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .topbar__search:focus-within {
+  border-color: var(--brief-ink);
+}
+
+#root .app.brief .topbar__search .search-icon {
+  color: var(--brief-muted);
+}
+
+#root .app.brief .topbar__search input {
+  font-size: 12.5px;
+}
+
+#root .app.brief .search-shortcut {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  color: var(--brief-muted);
+  background: transparent;
+}
+
+#root .app.brief .search-clear {
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+#root .app.brief .topbar__right {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+#root .app.brief .topbar__tools {
+  height: auto;
+  padding: 0;
+  gap: 5px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .topbar__tools .icon-button,
+#root .app.brief .topbar-avatar {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  color: var(--brief-ink);
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .topbar__tools .icon-button:hover {
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 8%, transparent);
+}
+
+#root .app.brief .topbar-avatar {
+  border-color: var(--brief-ink);
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+#root .app.brief .topbar-avatar:hover {
+  transform: none;
+}
+
+#root .app.brief .topbar__tools-rule {
+  display: none;
+}
+
+#root .app.brief .scan-pill {
+  height: 30px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+}
+
+/* ── Page canvas ─────────────────────────────────────────────────────────── */
+
+#root .app.brief .page-shell,
+#root .app.brief .page-shell.glass {
+  border: 0;
+  border-radius: 0;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .page-shell::after {
+  display: none;
+}
+
+#root .app.brief .page-scroll {
+  padding: 30px clamp(26px, 4.6vw, 68px) 146px;
+  scrollbar-color: color-mix(in srgb, var(--brief-ink) 26%, transparent) transparent;
+}
+
+#root .app.brief .page-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--brief-ink) 22%, transparent);
+}
+
+#root .app.brief .page-header {
+  align-items: flex-end;
+  padding-top: 14px;
+  margin-bottom: 30px;
+  border-top: 1px solid var(--brief-line);
+}
+
+#root .app.brief .eyebrow {
+  margin-bottom: 12px;
+  color: var(--brief-muted);
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+}
+
+#root .app.brief .page-header h1 {
+  font-family: var(--font-display, var(--font));
+  font-size: clamp(52px, 6.6vw, 92px);
+  font-weight: 620;
+  line-height: 0.88;
+  letter-spacing: -0.065em;
+}
+
+#root .app.brief .page-header p {
+  max-width: 660px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--brief-muted);
+}
+
+#root .app.brief .page-header__actions {
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+#root .app.brief .section-header {
+  padding-top: 14px;
+  border-top: 1px solid var(--brief-line);
+}
+
+#root .app.brief .section-header h2 {
+  color: var(--brief-ink);
+  letter-spacing: -0.045em;
+}
+
+/* No floating glass in this room. */
+#root .app.brief .glass,
+#root .app.brief .glass-strong {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief button,
+#root .app.brief .button {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+#root .app.brief .button--glass {
+  border: 1px solid var(--brief-line);
+  color: var(--brief-ink);
+  background: transparent;
+}
+
+#root .app.brief .button--glass:hover {
+  border-color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 6%, transparent);
+}
+
+#root .app.brief .button--dark {
+  border: 1px solid var(--brief-ink);
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+/* ── Home hero: a black plate with a photograph cut into the right edge ──── */
+
+#root .app.brief .hero {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 0;
+  min-height: 400px;
+  padding: 40px;
+  border: 0;
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+  box-shadow: none;
+}
+
+/* The cover already fills the right edge of the plate; do not repeat it as a
+   floating thumbnail on the left. */
+#root .app.brief .hero__art-column {
+  display: none;
+}
+
+#root .app.brief .hero__backdrop {
+  inset: 0 0 0 auto;
+  width: 40%;
+  opacity: 1;
+  filter: none;
+  transform: none;
+  background-size: cover;
+  border-left: 1px solid color-mix(in srgb, var(--brief-paper) 24%, transparent);
+}
+
+#root .app.brief .hero__shade,
+#root .app.brief .hero__rings {
+  display: none;
+}
+
+#root .app.brief .hero__copy {
+  width: 54%;
+  max-width: 660px;
+  align-self: center;
+  padding-left: 0;
+}
+
+#root .app.brief .hero__eyebrow,
+#root .app.brief .hero__artist,
+#root .app.brief .hero__copy > p {
+  color: color-mix(in srgb, var(--brief-paper) 67%, transparent);
+}
+
+#root .app.brief .hero h1 {
+  color: var(--brief-paper);
+  font-family: var(--font-display, var(--font));
+  font-size: clamp(38px, 4.6vw, 64px);
+  font-weight: 620;
+  line-height: 0.92;
+  letter-spacing: -0.06em;
+  text-shadow: none;
+}
+
+#root .app.brief .hero__artist:hover {
+  color: var(--brief-paper);
+}
+
+#root .app.brief .hero .button--dark {
+  border-color: var(--brief-paper);
+  color: var(--brief-ink);
+  background: var(--brief-paper);
+}
+
+#root .app.brief .hero .button--glass {
+  border-color: color-mix(in srgb, var(--brief-paper) 42%, transparent);
+  color: var(--brief-paper);
+  background: transparent;
+}
+
+#root .app.brief .hero__heart {
+  border: 1px solid color-mix(in srgb, var(--brief-paper) 38%, transparent);
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .hero__heart:hover {
+  color: var(--brief-paper);
+  background: color-mix(in srgb, var(--brief-paper) 12%, transparent);
+  transform: none;
+}
+
+#root .app.brief .hero__cover {
+  filter: none;
+}
+
+#root .app.brief .hero__cover .cover {
+  border: 1px solid color-mix(in srgb, var(--brief-paper) 30%, transparent);
+}
+
+#root .app.brief .hero__disc {
+  opacity: 0.28;
+  filter: grayscale(1);
+}
+
+#root .app.brief .hero__rating {
+  border: 1px solid var(--brief-paper);
+  border-radius: 2px;
+  color: var(--brief-ink);
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+/* ── Flat collection surfaces ────────────────────────────────────────────── */
+
+#root .app.brief .stat-strip,
+#root .app.brief .taxonomy-overview,
+#root .app.brief .track-table,
+#root .app.brief .home-empty,
+#root .app.brief .empty-stage,
+#root .app.brief .playlist-hero,
+#root .app.brief .detail-hero {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .stat-strip {
+  padding-block: 14px;
+}
+
+#root .app.brief .track-table {
+  border-inline: 0;
+  border-bottom: 0;
+}
+
+#root .app.brief .track-table__head,
+#root .app.brief .track-table__row-wrap,
+#root .app.brief .track-row {
+  border-radius: 0;
+}
+
+#root .app.brief .track-table__head {
+  border-top: 1px solid var(--brief-line);
+  border-bottom: 1px solid var(--brief-line);
+  background: transparent;
+}
+
+#root .app.brief .track-row:hover {
+  background: color-mix(in srgb, var(--brief-ink) 5%, transparent);
+}
+
+#root .app.brief .tag-chip,
+#root .app.brief .tag-pill,
+#root .app.brief .online-fee {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .media-card,
+#root .app.brief .track-card,
+#root .app.brief .card {
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .media-card:hover,
+#root .app.brief .track-card:hover {
+  background: color-mix(in srgb, var(--brief-ink) 5%, transparent);
+}
+
+#root .app.brief .cover {
+  border-radius: 2px !important;
+}
+
+#root .app.brief .cover__sheen {
+  display: none;
+}
+
+#root .app.brief .hero,
+#root .app.brief .stat-strip,
+#root .app.brief .taxonomy-overview,
+#root .app.brief .track-table,
+#root .app.brief .home-empty,
+#root .app.brief .empty-stage,
+#root .app.brief .playlist-hero,
+#root .app.brief .detail-hero,
+#root .app.brief .cover {
+  border-radius: 2px;
+}
+
+#root .app.brief .page--songs .track-table {
+  max-width: 1160px;
+}
+
+/* ── Mini player and dock ────────────────────────────────────────────────── */
+
+#root .app.brief .mini-player {
+  right: 28px;
+  bottom: 92px;
+  width: min(360px, calc(100vw - 40px));
+  padding: 9px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .mini-player__cover {
+  border-radius: 2px !important;
+}
+
+#root .app.brief .mini-player__progress {
+  background: color-mix(in srgb, var(--brief-ink) 16%, transparent);
+}
+
+#root .app.brief .mini-player__progress i {
+  background: var(--brief-ink);
+}
+
+#root .app.brief .mini-player__play,
+#root .app.brief .mini-player__expand {
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+}
+
+#root .app.brief .mini-player__expand {
+  color: var(--brief-ink);
+  background: transparent;
+  border: 1px solid var(--brief-line);
+}
+
+#root .app.brief .brief-dock {
+  bottom: 18px;
+  gap: 5px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .brief-dock__label {
+  color: var(--brief-muted);
+  font-size: 7px;
+}
+
+#root .app.brief .brief-dock__item {
+  height: 34px;
+  border-radius: 2px;
+  font-size: 9.5px;
+  color: var(--brief-muted);
+}
+
+#root .app.brief .brief-dock__item:hover {
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 7%, transparent);
+}
+
+#root .app.brief .brief-dock__item.is-active {
+  border-radius: 2px;
+  color: var(--brief-paper);
+  background: var(--brief-ink);
+  box-shadow: none;
+}
+
+#root .app.brief .brief-dock__tool {
+  width: 32px;
+  height: 32px;
+  border-radius: 2px;
+  color: var(--brief-muted);
+}
+
+#root .app.brief .brief-dock__tool:hover {
+  color: var(--brief-ink);
+  background: color-mix(in srgb, var(--brief-ink) 7%, transparent);
+}
+
+#root .app.brief .brief-dock__rule {
+  background: var(--brief-line);
+}
+
+/* ── Dialogs stay part of the paper ─────────────────────────────────────── */
+
+#root .app.brief .modal,
+#root .app.brief .settings-dialog,
+#root .app.brief .eq-dialog,
+#root .app.brief .prompt-dialog,
+#root .app.brief .command-palette {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: var(--brief-paper);
+  box-shadow: none;
+}
+
+#root .app.brief .modal-backdrop {
+  background: rgba(20, 16, 13, 0.55);
+}
+
+#root .app.brief :is(input, select, textarea) {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+/* Small toolbar controls follow the same square language. */
+#root .app.brief .filter-chip,
+#root .app.brief .filter-chips,
+#root .app.brief .list-toolbar,
+#root .app.brief .sort-control,
+#root .app.brief .taxonomy-filterbar,
+#root .app.brief .taxonomy-select,
+#root .app.brief .taxonomy-filterbar__all,
+#root .app.brief .taxonomy-filterbar__clear,
+#root .app.brief .search-pill {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  #root .app.brief .topbar {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 42vw);
+    padding: 0 20px;
+  }
+
+  #root .app.brief .topbar__right {
+    display: none;
+  }
+
+  #root .app.brief .page-scroll {
+    padding-inline: 22px;
+  }
+
+  #root .app.brief .page-header h1 {
+    font-size: clamp(42px, 8vw, 64px);
+  }
+
+  #root .app.brief .hero {
+    padding: 28px;
+  }
+
+  #root .app.brief .hero__backdrop {
+    width: 34%;
+  }
+
+  #root .app.brief .hero__copy {
+    width: 60%;
+  }
+}
+
+@media (max-width: 760px) {
+  #root .app.brief .page-scroll {
+    padding-inline: 18px;
+    padding-bottom: 138px;
+  }
+
+  #root .app.brief .hero__backdrop {
+    display: none;
+  }
+
+  #root .app.brief .hero__copy {
+    width: 100%;
+  }
+
+  #root .app.brief .hero__art-column {
+    display: none;
+  }
+
+  #root .app.brief .brief-dock__item span {
+    display: none;
+  }
+
+  #root .app.brief .mini-player {
+    right: 14px;
+    bottom: 78px;
+  }
+}
+
+/* The invoked player is paper too — no cover glow, no floating round tabs. */
+#root .app.brief .now-playing::after,
+#root .app.brief .now-playing__glow {
+  display: none;
+}
+
+#root .app.brief .now-playing__art {
+  border: 1px solid var(--brief-line);
+  box-shadow: none;
+}
+
+#root .app.brief .now-playing__head-actions .icon-button {
+  border-radius: 2px;
+}
+
+#root .app.brief .np-tabs {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .app.brief .np-tabs__pill {
+  border-radius: 2px;
+}
+
+#root .app.brief .np-tabs button {
+  border-radius: 2px;
+}
+
+#root .app.brief .lyrics-line {
+  border-radius: 2px;
+}
+
+#root .app.brief .lyrics-line.is-active {
+  background: color-mix(in srgb, var(--brief-ink) 8%, transparent);
+}
+
+#root .app.brief .now-playing .range {
+  accent-color: var(--brief-ink);
+}

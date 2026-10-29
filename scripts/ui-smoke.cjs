@@ -432,8 +432,8 @@ function delay(ms) {
   console.log("[ui] Dive setup rendered");
   await page.screenshot({ path: path.join(root, "dist", "test-dive.png") });
 
-  // Comments is a standalone page for the current track; brief mode is a
-  // compact icon rail toggled from the brand mark.
+  // Comments is a standalone page for the current track. Brief mode is a
+  // full-width flat canvas toggled from the brand mark.
   await page.getByRole("button", { name: "Comments", exact: true }).click();
   await page.waitForSelector(".page--comments", { timeout: 10_000 });
   assert.ok(await page.locator(".comments-hero").isVisible(), "comments page should show the current track");
@@ -442,7 +442,12 @@ function delay(ms) {
   await page.locator(".brand--toggle").click();
   await page.waitForSelector(".app.brief", { timeout: 5_000 });
   assert.ok(await page.locator(".page--comments").isVisible(), "brief mode should keep the page visible");
-  console.log("[ui] brief mode toggled");
+  const briefShell = await page.locator(".page-shell").boundingBox();
+  assert.ok(briefShell && briefShell.width > 1100, "brief mode should use the whole window, not a sidebar column");
+  assert.equal(await page.locator(".sidebar").isVisible(), false, "brief mode should hide the sidebar");
+  const briefGrid = await page.locator(".app-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns);
+  assert.equal(briefGrid.trim().split(/\s+/).length, 1, "brief mode should have one grid column");
+  console.log("[ui] brief mode toggled (full-width flat canvas)");
   await page.screenshot({ path: path.join(root, "dist", "test-brief.png") });
   await page.locator(".brief-brand").click();
   await page.waitForSelector(".app.brief", { state: "detached", timeout: 5_000 });

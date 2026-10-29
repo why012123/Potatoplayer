@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.3`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.4`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,28 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.4 — 2026-10-29
+
+### Fixed
+
+- **Brief 左侧缩成一条空白栏、页面主体消失**：根因不是 React 布局，而是样式层叠。
+  `styles.css` 里的 `.app.brief .app-grid { grid-template-columns: minmax(0, 1fr) }` 与后加载的
+  `editorial.css` 中 `:root[data-style="editorial"] .app-grid { 232px minmax(0, 1fr) }` 特异性相同，
+  后者按加载顺序胜出。侧栏虽然被隐藏，但 grid 仍保留 232px 轨道，页面整体被压进一条窄列。
+  现在把 brief 的全宽与平面覆盖样式统一放进最后加载的 `brief.css`，并用 `#root` 作用域
+  确保不会再被 editorial / classic 反压；侧栏、右栏和页面都回到全宽。
+- **Brief 下歌词与播放器按钮失效**：brief 原先直接隐藏右栏，导致 Hero 的“歌词”和 Mini Player 的
+  展开按钮打开一个不可见面板。现在完整播放器以平面覆盖层出现，可关闭并回到 Mini Player。
+- **Songs 筛选器、排序和工具栏仍有圆角胶囊**：统一为 2px 直角平面控件。
+- **UI smoke 增加 brief 全宽回归断言**：检查页面宽度、侧栏隐藏和单列 grid，避免同类层叠问题再次静默通过。
+
+### Verification
+
+- `npm run typecheck`
+- `npm run test:backend` — 63 checks passed
+- `npm run test:ui` — 全宽 brief、More、Daily Mix、Dive、Comments、播放与沉浸式流程通过
+- 1624×1006 与 1200×760 两档窗口截图检查
 
 ## s1.4.3 — 2026-10-29
 
