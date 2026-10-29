@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("potato", {
     ipcRenderer.on("media:control", handler);
     return () => ipcRenderer.removeListener("media:control", handler);
   },
+  updateMediaState: (state) => ipcRenderer.send("media:update", state),
   onMediaShortcutStatus: (listener) => {
     const handler = (_event, status) => listener(status || null);
     ipcRenderer.on("media:shortcut-status", handler);

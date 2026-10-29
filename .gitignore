@@ -19,6 +19,9 @@ backend/.deps/
 data/
 covers/
 
+# Generated native Now Playing helper (rebuilt by npm start)
+build/media-remote/
+
 # Generated 3D stage bundle (rebuilt by npm run build:renderer)
 public/lyric3d/stage.bundle.js
 

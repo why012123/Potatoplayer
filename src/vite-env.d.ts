@@ -17,6 +17,16 @@ export interface PotatoAPI {
   onEvent(listener: (event: BackendEvent) => void): () => void;
   onWindowFocus(listener: (active: boolean) => void): () => void;
   onMediaControl(listener: (action: string) => void): () => void;
+  updateMediaState(state: {
+    active: boolean;
+    title?: string;
+    artist?: string;
+    album?: string;
+    coverPath?: string | null;
+    duration?: number;
+    position?: number;
+    playing?: boolean;
+  }): void;
   onMediaShortcutStatus(
     listener: (status: Partial<Record<"toggle" | "next" | "previous" | "stop", boolean>> | null) => void,
   ): () => void;

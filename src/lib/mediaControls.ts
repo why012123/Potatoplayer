@@ -51,6 +51,11 @@ export function useMediaControls() {
   useEffect(() => {
     if (!window.potato?.onMediaControl) return;
     return window.potato.onMediaControl((action) => {
+      if (action.startsWith("seek:")) {
+        const seconds = Number(action.slice(5));
+        if (Number.isFinite(seconds)) dispatch("seek", seconds);
+        return;
+      }
       dispatch(action);
     });
   }, [dispatch]);
@@ -133,7 +138,43 @@ export function useMediaControls() {
       }
     }
     navigator.mediaSession.playbackState = playback?.playing ? "playing" : "paused";
-  }, [track?.id, track?.title, track?.artist, track?.album, track?.coverPath, playback?.playing]);
+    window.potato?.updateMediaState?.({
+      active: true,
+      title: track.title,
+      artist: track.artist,
+      album: track.album || "",
+      coverPath: track.coverPath,
+      duration: playback?.duration || track.duration || 0,
+      position: playback?.time ?? 0,
+      playing: Boolean(playback?.playing),
+    });
+  }, [track?.id, track?.title, track?.artist, track?.album, track?.coverPath, track?.duration, playback?.playing]);
+
+  useEffect(() => {
+    if (!track) {
+      window.potato?.updateMediaState?.({ active: false });
+    }
+  }, [track?.id]);
+
+  // Keep the native Now Playing elapsed time in sync when the user seeks. The
+  // OS advances the progress itself between these sparse updates.
+  const lastPositionSent = useRef(0);
+  useEffect(() => {
+    if (!track || !window.potato?.updateMediaState) return;
+    const now = Date.now();
+    if (now - lastPositionSent.current < 900) return;
+    lastPositionSent.current = now;
+    window.potato.updateMediaState({
+      active: true,
+      title: track.title,
+      artist: track.artist,
+      album: track.album || "",
+      coverPath: track.coverPath,
+      duration: playback?.duration || track.duration || 0,
+      position: playback?.time ?? 0,
+      playing: Boolean(playback?.playing),
+    });
+  }, [playback?.time, track?.id]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;

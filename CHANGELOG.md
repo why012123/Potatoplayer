@@ -4,7 +4,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.9`. The line started at `s1.0.0`; patch releases use
+- **Current release:** `s1.4.10`. The line started at `s1.0.0`; patch releases use
   the familiar `s1.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
@@ -13,6 +13,33 @@ All notable changes to Potatoplayer Super are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s1.4.10 — 2026-10-29
+
+### Added / Fixed
+
+- **原生 macOS Now Playing / 耳机控制**：s1.4.9 的 globalShortcut 只是媒体键层，
+  对 AirPods/蓝牙耳机经由系统 Now Playing 路由的按键不生效，而且注册成功也可能没有事件。
+  现在接入一个很小的原生 Swift helper（`native/media-remote`）：
+  - 使用 `MPRemoteCommandCenter` 接收系统媒体命令
+  - 使用 `MPNowPlayingInfoCenter` 发布当前歌曲、歌手、专辑、进度和封面
+  - 支持播放/暂停、上一首、下一首、停止、seek
+  - **不需要辅助功能权限**，也不会打开额外的静音音频流，避免和 VLC / potatoHQ 独占输出冲突
+  - Electron 主进程通过 stdin/stdout 与 helper 通信；renderer 只负责传 metadata，不直接接触原生 API
+- **全局媒体键 fallback**：如果 helper 因平台/编译环境不可用，仍保留 `globalShortcut` 方案；
+  macOS 缺少辅助功能权限时才会提示授权。
+- **构建**：`npm start` / `npm run dev` 会自动编译 helper；失败则自动回退，不影响启动。
+
+### Verification
+
+- 用 `nowplaying-cli` 验证真实系统 Now Playing：
+  - 当前歌曲显示为 `15cm — KAKO`
+  - `togglePlayPause`：播放 → 暂停
+  - `next`：切到队列下一首 `365里路 — 庄学忠`
+  - `seek 20`：实际播放位置到 20.8s
+  - 切歌后 Now Playing title/artist 同步更新
+- `npm run typecheck` 通过
+- 后端自测 **66 checks passed**
 
 ## s1.4.9 — 2026-10-29
 

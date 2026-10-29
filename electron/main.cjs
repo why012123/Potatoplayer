@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
 
@@ -21,6 +22,9 @@ let backend = null;
 let quitting = false;
 let captured = false;
 let mediaShortcutStatus = null;
+let mediaHelper = null;
+let mediaHelperBuffer = "";
+let mediaHelperReady = false;
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -111,6 +115,74 @@ function registerProtocol() {
   });
 }
 
+function mediaHelperPath() {
+  return path.join(appRoot, "build", "media-remote", "PotatoplayerMedia.app", "Contents", "MacOS", "PotatoplayerMedia");
+}
+
+function nativeMediaStatus() {
+  return { toggle: true, next: true, previous: true, stop: true, native: true };
+}
+
+function sendMediaShortcutStatus() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mediaShortcutStatus) return;
+  mainWindow.webContents.send("media:shortcut-status", mediaShortcutStatus);
+}
+
+function startMediaHelper() {
+  if (process.platform !== "darwin" || process.env.POTATO_HIDDEN || capturePath || previewMode) return false;
+  const binary = mediaHelperPath();
+  if (!fs.existsSync(binary)) return false;
+  try {
+    mediaHelper = spawn(binary, [], { stdio: ["pipe", "pipe", "pipe"] });
+    mediaHelper.stdout.setEncoding("utf8");
+    mediaHelper.stdout.on("data", (chunk) => {
+      mediaHelperBuffer += chunk;
+      let newline;
+      while ((newline = mediaHelperBuffer.indexOf("\n")) >= 0) {
+        const line = mediaHelperBuffer.slice(0, newline).trim();
+        mediaHelperBuffer = mediaHelperBuffer.slice(newline + 1);
+        if (!line) continue;
+        if (line === "ready") {
+          mediaHelperReady = true;
+          mediaShortcutStatus = nativeMediaStatus();
+          sendMediaShortcutStatus();
+          continue;
+        }
+        sendMediaAction(line);
+      }
+    });
+    mediaHelper.stderr.setEncoding("utf8");
+    mediaHelper.stderr.on("data", (chunk) => {
+      const text = String(chunk).trim();
+      if (text) console.warn("[media]", text);
+    });
+    mediaHelper.on("exit", () => {
+      mediaHelper = null;
+      mediaHelperReady = false;
+      if (quitting || process.env.POTATO_HIDDEN || capturePath || previewMode) return;
+      // The native helper is the preferred path. If it dies, keep what we can
+      // with global media keys instead of silently losing headset support.
+      registerMediaShortcuts();
+      sendMediaShortcutStatus();
+    });
+    return true;
+  } catch (error) {
+    console.warn("[media] native helper failed to start:", error.message);
+    mediaHelper = null;
+    return false;
+  }
+}
+
+function startMediaControls() {
+  if (process.env.POTATO_HIDDEN || capturePath || previewMode) return;
+  if (startMediaHelper()) {
+    // The helper is authoritative; do not grab media keys globally as well.
+    mediaShortcutStatus = nativeMediaStatus();
+    return;
+  }
+  registerMediaShortcuts();
+}
+
 const MEDIA_SHORTCUTS = [
   ["MediaPlayPause", "toggle"],
   ["MediaNextTrack", "next"],
@@ -139,6 +211,7 @@ function registerMediaShortcuts() {
       console.warn(`[media] ${accelerator} registration failed: ${error.message}`);
     }
   }
+  sendMediaShortcutStatus();
 }
 
 function createWindow() {
@@ -318,6 +391,15 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       return;
     }
 
+    ipcMain.on("media:update", (_event, payload) => {
+      if (!mediaHelper?.stdin?.writable || !payload || typeof payload !== "object") return;
+      try {
+        mediaHelper.stdin.write(`${JSON.stringify(payload)}\n`);
+      } catch (error) {
+        console.warn("[media] helper update failed:", error.message);
+      }
+    });
+
     ipcMain.handle("backend:invoke", async (_event, { method, params }) => {
       const result = await backend.invoke(method, params);
       if (Array.isArray(result?.coverRoots)) backend.setCoverRoots(result.coverRoots);
@@ -363,12 +445,17 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       if (capturePath) setTimeout(() => void attemptCapture(), 450);
     });
 
-    registerMediaShortcuts();
+    startMediaControls();
     createWindow();
   });
 
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
+    if (mediaHelper) {
+      mediaHelper.stdin?.end();
+      mediaHelper.kill();
+      mediaHelper = null;
+    }
   });
 
   app.on("activate", () => {
