@@ -201,7 +201,7 @@ const initialMotion = createMotionPreferences(
 const initialMotionPreset = motionPresetFor(initialMotion);
 const prefs = {
   sound: storedPrefs.sound ?? true,
-  music: storedPrefs.music ?? storedPrefs.sound ?? true,
+  music: storedPrefs.music ?? false,
   soundVolume: storedPrefs.soundVolume ?? 0.55,
   musicVolume: storedPrefs.musicVolume ?? 0.5,
   motion: initialMotion,
