@@ -15,11 +15,16 @@ Local modifications:
 
 - `vite.config.ts` uses a relative base so the build can be opened from
   Electron's `file://` URL.
-- `scripts/generate-music-archives.mjs` replaces the 40 sample archive records
-  with the five largest named blocks of the local Potatoplayer library (eight
-  highest-rated tracks each) and keeps `trackId` for playback.
+- `scripts/generate-music-archives.mjs` replaces the sample archive with every
+  local track, grouped into all named blocks (plus "未分组"), keeps `trackId`
+  and `coverPath` for playback/stickers, and expands the layout to eight
+  scrollable columns while keeping the original five-by-eight viewport.
 - `src/main.ts` starts playback when a file is opened, adds a PLAY/PAUSE button,
-  maps Space to playback, and skips PWA registration outside HTTP.
+  maps Space to playback, shows the song title as the large heading and the
+  artist below it, and skips PWA registration outside HTTP.
+- `src/scene.ts` adds a cover sticker plane (white border, shadow, slight
+  rotation) in front of the extracted cassette and its detail/assembly model.
+- Hidden/automation windows use `?silent=1`: app audio off and backend muted.
 - `src/data.ts` records carry an optional `trackId`.
 - `src/potato.d.ts` declares the Electron preload bridge.
 - PWA/service-worker generation is disabled for the Electron build.

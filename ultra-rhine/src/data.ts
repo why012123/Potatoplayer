@@ -13,6 +13,7 @@ export interface ArchiveRecord {
   findings: string[];
   source: string;
   trackId?: string;
+  coverPath?: string;
 }
 
 export const records: ArchiveRecord[] = content.records;

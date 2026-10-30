@@ -40,9 +40,17 @@ for (const track of tracks) {
 }
 
 const ranked = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "zh-Hans-CN"));
-// Prefer real user blocks; "未分组" is a fallback, not a headline column.
-const named = ranked.filter(([block]) => block !== "未分组" && block !== "Unfiled");
-const chosen = (named.length >= 5 ? named : ranked).slice(0, 5);
+// Keep every block (including "未分组") and every track. The 3D archive is
+// scrollable; the original 5x8 window is just the visible frame.
+const chosen = [...ranked]
+  .sort(
+    (a, b) =>
+      Number(a[0] === "未分组" || a[0] === "Unfiled") -
+        Number(b[0] === "未分组" || b[0] === "Unfiled") ||
+      b[1].length - a[1].length ||
+      a[0].localeCompare(b[0], "zh-Hans-CN"),
+  )
+  .slice(0, 10);
 while (chosen.length < 5) {
   const fallback = `精选 ${chosen.length + 1}`;
   const rest = ranked
@@ -76,7 +84,7 @@ const columns = [];
 for (const [block, list] of chosen) {
   categories.push(block);
   columns.push(block);
-  const picked = sortTracks(list).slice(0, 8);
+  const picked = sortTracks(list);
   for (const track of picked) {
     const index = records.length + 1;
     const title = track.title || path.basename(track.path || "Untitled", path.extname(track.path || ""));
@@ -85,6 +93,7 @@ for (const [block, list] of chosen) {
     const genre = track.genre || "未分类";
     records.push({
       id: `X-${String(index).padStart(3, "0")}`,
+      coverPath: track.coverPath || "",
       title,
       en: artist,
       department: block,
@@ -107,10 +116,9 @@ for (const [block, list] of chosen) {
 }
 
 // The scene is calibrated for exactly five columns and eight rows.
-const trimmed = records.slice(0, 40);
 await fs.writeFile(
   output,
-  JSON.stringify({ categories: chosen.map(([block]) => block), columns: chosen.map(([block]) => block), records: trimmed }, null, 2),
+  JSON.stringify({ categories: chosen.map(([block]) => block), columns: chosen.map(([block]) => block), records }, null, 2),
   "utf8",
 );
-console.log(`[ultra] wrote ${trimmed.length} music records across ${chosen.length} blocks (${chosen.map(([b]) => b).join(" / ")}).`);
+console.log(`[ultra] wrote ${records.length} music records across ${chosen.length} blocks (${chosen.map(([b]) => b).join(" / ")}).`);

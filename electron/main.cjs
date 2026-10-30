@@ -337,6 +337,7 @@ function createUltraWindow() {
   });
 
   const ultraEntry = path.join(appRoot, "ultra-rhine", "dist", "index.html");
+  const ultraSilent = process.env.POTATO_HIDDEN || process.env.POTATO_ULTRA_SILENT === "1";
   if (!fs.existsSync(ultraEntry)) {
     ultraWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
@@ -348,6 +349,8 @@ function createUltraWindow() {
         </body>`,
       )}`,
     );
+  } else if (ultraSilent) {
+    ultraWindow.loadFile(ultraEntry, { query: { silent: "1" } });
   } else {
     ultraWindow.loadFile(ultraEntry);
   }
@@ -522,6 +525,32 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     });
 
     ipcMain.handle("cover:palette", (_event, target) => paletteFromImage(target));
+
+    // Covers are painted into WebGL sticker textures. A data URL keeps the
+    // canvas untainted, which a cross-scheme potato-cover image would not.
+    ipcMain.handle("cover:data", async (_event, target) => {
+      if (typeof target !== "string" || !backend) return null;
+      if (!backend.coverRoots.length) {
+        try {
+          const boot = await backend.invoke("bootstrap");
+          if (Array.isArray(boot?.coverRoots)) backend.setCoverRoots(boot.coverRoots);
+        } catch {
+          // The backend may still be starting; the caller can retry.
+        }
+      }
+      if (!backend.isCoverAllowed(target)) return null;
+      try {
+        const stat = await fs.promises.stat(target);
+        if (!stat.isFile() || stat.size > 6_000_000) return null;
+        const bytes = await fs.promises.readFile(target);
+        const ext = path.extname(target).toLowerCase();
+        const mime =
+          ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : ext === ".gif" ? "image/gif" : "image/jpeg";
+        return `data:${mime};base64,${bytes.toString("base64")}`;
+      } catch {
+        return null;
+      }
+    });
 
     ipcMain.handle("ultra:open", () => {
       createUltraWindow();

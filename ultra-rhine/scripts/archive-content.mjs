@@ -21,9 +21,9 @@ export function validateContent(content) {
   }
   for (const key of ["categories", "columns"]) {
     const names = content[key];
-    if (!Array.isArray(names) || names.length !== 5 || !names.every(isText)) {
-      errors.push(`${key}：必须包含五个非空分类名称`);
-    } else if (new Set(names).size !== 5 || names.includes("全部档案")) {
+    if (!Array.isArray(names) || names.length < 1 || names.length > 12 || !names.every(isText)) {
+      errors.push(`${key}：必须包含 1–12 个非空分类名称`);
+    } else if (new Set(names).size !== names.length || names.includes("全部档案")) {
       errors.push(`${key}：分类名称不能重复，也不能使用“全部档案”`);
     }
   }
@@ -35,10 +35,10 @@ export function validateContent(content) {
     categories.some((name) => !columns.includes(name)) ||
     columns.some((name) => !categories.includes(name))
   ) {
-    errors.push("categories 与 columns 必须包含相同的五个分类（顺序可以不同）");
+    errors.push("categories 与 columns 必须包含相同的分类（顺序可以不同）");
   }
   const records = Array.isArray(content.records) ? content.records : [];
-  if (records.length !== 40) errors.push("records：当前阵列要求四十份档案");
+  if (!records.length) errors.push("records：至少需要一份档案");
   const ids = new Set();
   records.forEach((record, index) => {
     const label = `records[${index}]`;
@@ -71,8 +71,8 @@ export function validateContent(content) {
     }
   });
   for (const name of columns) {
-    if (records.filter((record) => record?.category === name).length !== 8) {
-      errors.push(`分类“${name}”：当前阵列要求八份档案`);
+    if (!records.some((record) => record?.category === name)) {
+      errors.push(`分类“${name}”：至少需要一份档案`);
     }
   }
   if (errors.length)

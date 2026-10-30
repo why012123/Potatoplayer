@@ -99,7 +99,7 @@ $("#stage").innerHTML = `
     <div id="hover-label" class="hover-label" hidden>X-<span id="hover-code">001</span> / <span id="hover-title"></span></div>
     <div class="archive-counter"><span class="tiny-label">ARCHIVE / SELECT</span><div><span id="selected-number">01</span><i>/</i><span class="count-total">12</span></div></div>
     <div class="archive-navigation"><button data-action="prev" aria-label="上一个档案">↑</button><div id="file-ticks" class="file-ticks"></div><button data-action="next" aria-label="下一个档案">↓</button></div>
-    <div class="column-navigation"><button data-action="column-prev" aria-label="上一列">←</button><div><span id="column-number">COLUMN <span id="column-index">03</span> / 05</span><strong id="column-name">机构档案</strong></div><button data-action="column-next" aria-label="下一列">→</button></div>
+    <div class="column-navigation"><button data-action="column-prev" aria-label="上一列">←</button><div><span id="column-number">COLUMN <span id="column-index">03</span> / <span id="column-total">05</span></span><strong id="column-name">机构档案</strong></div><button data-action="column-next" aria-label="下一列">→</button></div>
     <div class="archive-hint"><kbd>←</kbd> <kbd>→</kbd> 切换列 <span>／</span> <kbd>↑</kbd> <kbd>↓</kbd> 前后档案 <span>／</span> <kbd>ENTER</kbd> 读取</div>
   </section>
   <section id="detail-ui" class="detail-ui" aria-label="档案内容" hidden>
@@ -199,11 +199,12 @@ const initialMotion = createMotionPreferences(
       : undefined),
 );
 const initialMotionPreset = motionPresetFor(initialMotion);
+const forcedSilent = new URLSearchParams(location.search).has("silent");
 const prefs = {
-  sound: storedPrefs.sound ?? true,
-  music: storedPrefs.music ?? false,
-  soundVolume: storedPrefs.soundVolume ?? 0.55,
-  musicVolume: storedPrefs.musicVolume ?? 0.5,
+  sound: forcedSilent ? false : storedPrefs.sound ?? true,
+  music: forcedSilent ? false : storedPrefs.music ?? false,
+  soundVolume: forcedSilent ? 0 : storedPrefs.soundVolume ?? 0.55,
+  musicVolume: forcedSilent ? 0 : storedPrefs.musicVolume ?? 0.5,
   motion: initialMotion,
   motionPreset: initialMotionPreset,
   quality: storedPrefs.quality ?? true,
@@ -611,6 +612,9 @@ function updateSelection(navigation?: ArchiveNavigation) {
         : "auto",
   });
   $(".count-total").textContent = String(files.length).padStart(2, "0");
+  const columnTotal = $("#column-total");
+  if (columnTotal) columnTotal.textContent = String(archiveColumns.length).padStart(2, "0");
+  $("#file-ticks").hidden = files.length > 16;
   columnCounter.update({
     value: lane + 1,
     animated: motionActive("rollingNumbers") && mode === "archive",
@@ -657,6 +661,7 @@ function openFile() {
   const trackId = record.trackId;
   const bridge = window.potato;
   if (trackId && bridge) {
+    if (forcedSilent) void bridge.invoke("playback.mute", { muted: true }).catch(() => undefined);
     const queue = records
       .map((entry) => entry.trackId)
       .filter((id): id is string => Boolean(id));
@@ -699,7 +704,7 @@ function renderDetail() {
   $("#object-id").textContent = "NO." + String(selected + 1).padStart(3, "0");
   $("#detail-content").innerHTML = `
   <div class="detail-kicker"><span>FILE ${r.id}</span><span>${escapeHtml(r.clearance)}</span></div>
-  <h2>${escapeHtml(r.en)}</h2><div class="detail-title-cn">${escapeHtml(r.title)}<span>${escapeHtml(r.category)}</span></div>
+  <h2>${escapeHtml(r.title)}</h2><div class="detail-title-cn">${escapeHtml(r.en)}<span>${escapeHtml(r.category)}</span></div>
   <div class="detail-rule"></div>
   <dl class="metadata"><div><dt>DEPARTMENT / 科室</dt><dd>${escapeHtml(r.department)}</dd></div><div><dt>COLLECTION / 编目范围</dt><dd>${escapeHtml(r.date)}</dd></div><div><dt>RELATED / 相关人物</dt><dd>${escapeHtml(r.lead)}</dd></div><div><dt>STATUS / 状态</dt><dd><i></i>${r.clearance === "RESTRICTED" ? "目录访问" : "已归档 · 可读取"}</dd></div></dl>
   <div class="detail-tabs" role="tablist"><button id="tab-overview" class="active" role="tab" aria-controls="tab-panel" aria-selected="true" data-tab="overview">01 <span>概述</span></button><button id="tab-notes" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="notes">02 <span>研究记录</span></button><button id="tab-history" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="history">03 <span>访问日志</span></button><i class="tab-indicator" aria-hidden="true"></i></div>

@@ -578,6 +578,9 @@ button {
   --rn-blur: 0.35;
   --rn-edge-fade: 0.08em;
 }
+.file-ticks[hidden] {
+  display: none;
+}
 .file-ticks {
   display: flex;
   align-items: center;

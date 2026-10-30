@@ -4,11 +4,11 @@ export type ArchiveCell = { lane: number; row: number };
 export type ArchiveNavigation =
   { axis: "row" | "lane"; direction: number } | { cell: ArchiveCell };
 
-export const LOOP_COLUMNS = 9;
-export const LOOP_ROWS = 32;
+export const LOOP_COLUMNS = 10;
+export const LOOP_ROWS = 128;
 export const COLUMN_SPACING = 5.2;
 export const ROW_SPACING = 0.62;
-const POOL_LANES = [0, 1, 2, 3, 4, -2, -1, 5, 6];
+const POOL_LANES = [0, 1, 2, 3, 4, 5, 6, 7, -2, -1];
 
 export function wrap(value: number, count: number) {
   return ((value % count) + count) % count;

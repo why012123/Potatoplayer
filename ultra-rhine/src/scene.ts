@@ -20,7 +20,7 @@ import { applyTextureQuality, resizeQuality } from "./quality-renderer";
 import { CardAppearance } from "./appearance";
 import { configureInternalOptics } from "./internal-optics";
 import { DecryptionController } from "./decryption";
-import { fileAtSlot, fileLocation } from "./data";
+import { fileAtSlot, fileLocation, records } from "./data";
 import {
   cellKey,
   sameCell,
@@ -239,6 +239,16 @@ export class ArchiveScene {
   private loaded = false;
   private labelCanvas = document.createElement("canvas");
   private labelTexture?: THREE.CanvasTexture;
+  private stickerGeometry?: THREE.PlaneGeometry;
+  private stickers: Array<{
+    mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+    path: string;
+  }> = [];
+  private stickerCandidates: Array<{ cell: ArchiveCell; matrix: THREE.Matrix4 }> = [];
+  private stickerTextures = new Map<string, THREE.CanvasTexture>();
+  private stickerRequests = new Set<string>();
+  private selectedSticker?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private stickerPlaceholder?: THREE.CanvasTexture;
   private labelMark = new Image();
   private motion: MotionPreferences = fullMotion();
   private quality = normalizeQuality(undefined);
@@ -496,6 +506,49 @@ export class ArchiveScene {
     );
     label.position.set(-1.36, 3.04, 0.255);
     this.model.add(label);
+
+    // A cover sticker sits just in front of the glass, slightly rotated, with
+    // its own paper border. The same geometry is shared by the instanced
+    // background cards, so each card only costs one extra draw call.
+    this.stickerGeometry = new THREE.PlaneGeometry(1.28, 1.28);
+    this.stickerGeometry.rotateZ(0.035);
+    this.stickerGeometry.translate(1.18, 2.12, 0.268);
+    this.stickerPlaceholder = this.makeStickerPlaceholder();
+    this.selectedSticker = new THREE.Mesh(
+      this.stickerGeometry,
+      new THREE.MeshBasicMaterial({
+        map: this.stickerPlaceholder,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+        alphaTest: 0.01,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+      }),
+    );
+    this.selectedSticker.renderOrder = 5;
+    this.selectedSticker.visible = false;
+    this.model.add(this.selectedSticker);
+    for (let index = 0; index < 72; index++) {
+      const mesh = new THREE.Mesh(
+        this.stickerGeometry,
+        new THREE.MeshBasicMaterial({
+          map: this.stickerPlaceholder,
+          transparent: true,
+          depthWrite: false,
+          toneMapped: false,
+          alphaTest: 0.01,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+        }),
+      );
+      mesh.matrixAutoUpdate = false;
+      mesh.visible = false;
+      mesh.renderOrder = 5;
+      this.scene.add(mesh);
+      this.stickers.push({ mesh, path: "" });
+    }
+
     this.appearance.prepare(this.model);
     this.appearance.apply(this.model, 0);
     this.drawLabel(0);
@@ -778,6 +831,166 @@ export class ArchiveScene {
     this.pulses.push({ ...cell, time: this.clock });
     this.pulses = this.pulses.slice(-6);
   }
+  private makeStickerPlaceholder() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 256, 256);
+    ctx.save();
+    ctx.shadowColor = "rgba(30, 22, 14, 0.28)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 5;
+    ctx.fillStyle = "#f6f1e8";
+    this.roundStickerRect(ctx, 12, 12, 232, 232, 10);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = "rgba(29, 26, 23, 0.18)";
+    ctx.lineWidth = 2;
+    this.roundStickerRect(ctx, 12, 12, 232, 232, 10);
+    ctx.stroke();
+    ctx.fillStyle = "#9a8f84";
+    ctx.font = "600 18px MiSans, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("NO COVER", 128, 132);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private roundStickerRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+  }
+
+  private stickerCanvas(image: HTMLImageElement | null) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 256, 256);
+    // Drop shadow + warm paper border. The transparent margin lets the card's
+    // glass read underneath the sticker's edge.
+    ctx.save();
+    ctx.shadowColor = "rgba(30, 22, 14, 0.30)";
+    ctx.shadowBlur = 11;
+    ctx.shadowOffsetY = 5;
+    ctx.fillStyle = "#f7f2e9";
+    this.roundStickerRect(ctx, 12, 12, 232, 232, 10);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = "rgba(29, 26, 23, 0.16)";
+    ctx.lineWidth = 2;
+    this.roundStickerRect(ctx, 12, 12, 232, 232, 10);
+    ctx.stroke();
+    if (image) {
+      const size = 208;
+      ctx.save();
+      this.roundStickerRect(ctx, 24, 24, size, size, 6);
+      ctx.clip();
+      const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      ctx.drawImage(image, 24 + (size - width) / 2, 24 + (size - height) / 2, width, height);
+      ctx.restore();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    return texture;
+  }
+
+  private getStickerTexture(path: string): THREE.CanvasTexture {
+    const cached = this.stickerTextures.get(path);
+    if (cached) return cached;
+    if (this.stickerRequests.has(path)) return this.stickerPlaceholder!;
+    this.stickerRequests.add(path);
+    void window.potato
+      ?.coverData(path)
+      .then((url) => {
+        if (!url) return null;
+        const image = new Image();
+        image.src = url;
+        return image.decode().then(() => image);
+      })
+      .then((image) => {
+        if (!image) return;
+        const texture = this.stickerCanvas(image);
+        this.stickerTextures.set(path, texture);
+        if (this.stickerTextures.size > 128) {
+          const oldest = this.stickerTextures.keys().next().value as string;
+          if (oldest && oldest !== path) {
+            this.stickerTextures.get(oldest)?.dispose();
+            this.stickerTextures.delete(oldest);
+          }
+        }
+        for (const slot of this.stickers) {
+          if (slot.path === path) {
+            slot.mesh.material.map = texture;
+            slot.mesh.material.needsUpdate = true;
+          }
+        }
+        const selected = records[fileAtCell(this.selectedCell)];
+        if (selected?.coverPath === path && this.selectedSticker) {
+          this.selectedSticker.material.map = texture;
+          this.selectedSticker.material.needsUpdate = true;
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => this.stickerRequests.delete(path));
+    return this.stickerPlaceholder!;
+  }
+
+  private updateSelectedSticker(index: number) {
+    if (!this.selectedSticker) return;
+    const record = records[index];
+    const path = record?.coverPath;
+    if (!path) {
+      this.selectedSticker.visible = false;
+      return;
+    }
+    this.selectedSticker.visible = true;
+    this.selectedSticker.material.map = this.getStickerTexture(path);
+    this.selectedSticker.material.needsUpdate = true;
+  }
+
+  private updateArrayStickers() {
+    for (let index = 0; index < this.stickers.length; index++) {
+      const slot = this.stickers[index];
+      const candidate = this.stickerCandidates[index];
+      if (!candidate) {
+        slot.mesh.visible = false;
+        slot.path = "";
+        continue;
+      }
+      const record = records[fileAtCell(candidate.cell)];
+      const path = record?.coverPath;
+      if (!path) {
+        slot.mesh.visible = false;
+        slot.path = "";
+        continue;
+      }
+      slot.mesh.visible = true;
+      slot.mesh.matrix.copy(candidate.matrix);
+      slot.mesh.matrixWorldNeedsUpdate = true;
+      if (slot.path !== path) {
+        slot.path = path;
+        slot.mesh.material.map = this.getStickerTexture(path);
+        slot.mesh.material.needsUpdate = true;
+      }
+    }
+  }
+
   private drawLabel(index: number) {
     if (!this.labelTexture) return;
     const c = this.labelCanvas.getContext("2d")!;
@@ -803,6 +1016,7 @@ export class ArchiveScene {
     c.fillText("INFO", 830, 143);
     c.drawImage(this.labelMark, 790, 242, 210, 98);
     this.labelTexture.needsUpdate = true;
+    this.updateSelectedSticker(index);
   }
   private ensureInstanceCapacity(required: number) {
     if (required <= this.instanceCapacity) return;
@@ -1680,6 +1894,7 @@ export class ArchiveScene {
     const hidden = new Set(this.outgoing.map(o => cellKey(o.cell)));
     hidden.add(cellKey(this.selectedCell));
     this.drawnCells = [];
+    this.stickerCandidates.length = 0;
     this.relayPoints.clear();
     this.drawCoverage.update(this.camera);
     this.shadowCoverage?.begin();
@@ -1701,6 +1916,13 @@ export class ArchiveScene {
       if (play.enabled) this.relayPoints.set(cellKey(cell), { cell: { ...cell }, point: new THREE.Vector3(0, 3.5, 0).applyMatrix4(this.dummy.matrix) });
       this.shadowCoverage?.add(this.dummy.matrix);
       if (!this.drawCoverage.contains(x, y, z)) continue;
+      if (
+        this.stickerCandidates.length < this.stickers.length &&
+        Math.abs(row - selectedRow) <= 6 &&
+        Math.abs(lane - selectedLane) <= 2
+      ) {
+        this.stickerCandidates.push({ cell: { lane, row }, matrix: this.dummy.matrix.clone() });
+      }
       const i = this.drawnCells.length;
       this.ensureInstanceCapacity(i + 1);
       this.drawnCells.push(cell);
@@ -1718,6 +1940,7 @@ export class ArchiveScene {
     // renderer culling and do not need an O(n) bound recomputation each frame.
     if (matricesChanged || countChanged || !this.instances[0].boundingSphere) this.instances[0].computeBoundingSphere();
     this.themeUpdates?.commit();
+    this.updateArrayStickers();
     let neighborTop = -Infinity;
     const lane = selectedLane,
       row = selectedRow;
