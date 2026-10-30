@@ -336,10 +336,20 @@ function createUltraWindow() {
     console.error("[ultra] renderer gone", details.reason);
   });
 
-  if (isDev) {
-    ultraWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}/ultra.html`);
+  const ultraEntry = path.join(appRoot, "ultra-rhine", "dist", "index.html");
+  if (!fs.existsSync(ultraEntry)) {
+    ultraWindow.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(
+        `<body style="font:14px -apple-system;padding:48px;background:#eae5e1;color:#1d1a17">
+          <h1 style="font-weight:600">Potatoplayer Ultra</h1>
+          <p>Ultra 还没有构建。请在终端运行：</p>
+          <pre style="padding:16px;background:#f6f1e9">npm run build:ultra</pre>
+          <p>或直接运行 <code>npm run ultra</code>。</p>
+        </body>`,
+      )}`,
+    );
   } else {
-    ultraWindow.loadFile(path.join(appRoot, "dist", "ultra.html"));
+    ultraWindow.loadFile(ultraEntry);
   }
 }
 
@@ -515,23 +525,6 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
 
     ipcMain.handle("ultra:open", () => {
       createUltraWindow();
-    });
-
-    // The Ultra renderer paints covers into WebGL textures. A data URL keeps the
-    // canvas untainted, which a cross-scheme potato-cover image would not.
-    ipcMain.handle("cover:data", async (_event, target) => {
-      if (typeof target !== "string" || !backend?.isCoverAllowed(target)) return null;
-      try {
-        const stat = await fs.promises.stat(target);
-        if (!stat.isFile() || stat.size > 6_000_000) return null;
-        const bytes = await fs.promises.readFile(target);
-        const ext = path.extname(target).toLowerCase();
-        const mime =
-          ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : ext === ".gif" ? "image/gif" : "image/jpeg";
-        return `data:${mime};base64,${bytes.toString("base64")}`;
-      } catch {
-        return null;
-      }
     });
 
     ipcMain.on("app:renderer-ready", () => {

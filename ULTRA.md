@@ -1,60 +1,79 @@
 # Potatoplayer Ultra
 
-Potatoplayer Ultra 是同一资料库上的**三维档案界面**：把区块当作列、单曲当作档案卡，
-用 WebGL 排列成一面可浏览的档案墙。它和 Super 共享同一个 Java 后端、播放引擎、封面与筛选数据，
-不是另一套播放器。
+**Ultra 不是仿制界面，而是直接把 [LBEILC/RhineLabUI](https://github.com/LBEILC/RhineLabUI) 的源码作为基础**，
+只替换档案数据、增加播放桥接。视觉、开场、相机、玻璃模型、解密、360° 查看器、字体与音效都来自原仓库。
+
+> 上游为 MIT；《明日方舟》/莱茵生命的名称、标志、原 PV、原作视觉不在 MIT 授权内。
+> 本目录是本地个人使用的研究性 fork，不要作为官方明日方舟产品再分发。
 
 ## 打开方式
 
-- 已运行 Super（新版本）时：菜单 **Window → Open Potatoplayer Ultra**，快捷键 `⌘⇧U`。
-- 未运行 Super 时：`npm run ultra`（会先构建再以 Ultra 模式启动）。
-- 开发模式：先 `npm run dev`，再打开 `http://127.0.0.1:5173/ultra.html`。
+1. 重启 Super（新版本）
+2. 菜单 **Window → Open Potatoplayer Ultra**，或按 `⌘⇧U`
+3. 也可以在 `⌘K` 命令面板搜索 **Potatoplayer Ultra**
 
-Ultra 是一个独立窗口，可与 Super 同时打开；关闭 Ultra 不会停止正在播放的音乐。
+独立启动：
 
-## 当前能力（v0）
+```sh
+npm run ultra
+```
 
-- 真实资料库：读取 `bootstrap` 的 324 首歌曲、8 个区块、收藏与播放状态。
-- 三维档案墙：每列一个区块，每行一首歌；真实封面绘制为卡片，带编号、区块色、流派、时长。
-- 键盘：`←/→` 切区块，`↑/↓` 切单曲，`Enter` 打开并播放，`Esc` 关闭详情，`/` 搜索。
-- 搜索：复用本地搜索归一化，按标题/歌手/专辑/区块/流派/备注过滤，列数实时变化。
-- 详情：封面、标题、歌手、区块/流派、评分、播放次数、时长、格式、备注、在线 ID。
-- 操作：播放/暂停、下一首加入队列、收藏。
-- 开场：可跳过；`prefers-reduced-motion` 自动跳过。
+首次运行会构建 Ultra（`ultra-rhine/` 是独立的 Vite 工程），之后 `npm start` 会在资料库变化时自动重建。
 
-## 操作提示
+## 数据映射
 
-- 单击卡片只选中；双击或 `Enter` 打开详情并播放。
-- 详情打开时仍可用方向键浏览，详情会跟随当前卡片。
-- 搜索框按 `Esc` 清空并回到全库。
+`ultra-rhine/scripts/generate-music-archives.mjs` 读取
+`~/.potatoplayer-super/library.json`，把原版的 5 列 × 8 份档案替换为：
 
-## 实现
+- 5 个曲目最多的命名区块（不含“未分组”）
+- 每个区块评分最高的 8 首
+- 共 40 份“音乐档案”
 
-| 文件 | 作用 |
+保留原版的 5×8 几何、编号 `X-001…X-040`、列名、详情结构与动效。
+
+| 原版字段 | 音乐库 |
 |---|---|
-| `ultra.html` | 独立窗口的页面骨架与 HUD |
-| `src/ultra/main.ts` | 数据加载、选择状态、搜索、详情、播放/收藏 IPC |
-| `src/ultra/scene.ts` | Three.js 场景、卡片布局、相机、拾取、动画 |
-| `src/ultra/cards.ts` | 把封面与元数据绘制到 320×416 CanvasTexture |
-| `src/ultra/columns.ts` | 区块→列、排序与搜索过滤 |
-| `src/ultra/ultra.css` | 纸张/细线/琥珀的 Ultra 视觉语言 |
+| `title` | 歌曲名 |
+| `en` | 歌手 |
+| `department` / `category` | 区块 |
+| `date` | 专辑 |
+| `lead` | 歌手 / 年份 |
+| `abstract` | 备注，或自动生成的简介 |
+| `findings` | 评分/播放/格式、时长/流派/专辑、入库日期/文件名 |
+| `trackId` | Super 的歌曲 ID，用于播放 |
 
-主进程新增：
+## 播放
 
-- `POTATO_ULTRA=1` / `--ultra` 启动模式；
-- 独立 `BrowserWindow`，共享 preload 与后端；
-- `cover:data` IPC：把封面读成 data URL，避免 WebGL 画布被跨协议图片污染。
+- `ACCESS FILE` / `Enter`：打开详情并开始播放当前档案对应的歌曲
+- 详情底部新增 **PLAY / PAUSE**，走 Super 的后端
+- 空格：播放 / 暂停
+- 播放队列 = 40 份档案的歌曲顺序
+- 和 Super 共享播放状态；Super 里切歌，Ultra 的播放状态也会跟着变
 
-## 边界
+## 构建
 
-- 仍是 beta：没有玻璃透射、拆解式详情、模型查看器与音频可视化。
-- 三维卡片使用简化材质；每屏最多 12 列 × 5 行，超出通过横向切列浏览。
-- 不改动 Super 的列表、播放与下载逻辑；Ultra 只是第二种呈现方式。
+```sh
+npm run build:ultra   # 生成音乐档案并构建 ultra-rhine/dist
+npm run ultra         # 构建 + 以 Ultra 模式启动
+```
 
-## 下一步
+`ultra-rhine/` 是独立 Vite 工程，有自己的 `package.json`、`node_modules` 和构建产物；
+Super 的渲染器不打包 Three.js。
 
-1. 更接近 RhineLabUI 的镜头语言：斜俯视、列间视差、选中卡抬升与邻卡波纹。
-2. 玻璃/解密转场：详情从卡片位置展开，封面与正文分层揭示。
-3. 专辑/歌单维度：除区块外，可按专辑或播放列表切换列。
-4. 画质档与自适应 DPR：性能/原始/高，静止时跳过重绘。
-5. 独立仓库与应用图标：如果 Ultra 继续长大，再拆成单独项目。
+## 与 Super 的关系
+
+- 共享同一个 Java 后端、播放引擎、资料库与设置。
+- 不改 Super 的列表、筛选、下载与编辑逻辑。
+- Ultra 是第二个窗口 / 第二套前端；可以单独启动，也可以从 Super 打开。
+
+## 已知限制
+
+- 档案墙固定 5×8 = 40 首，不是全部 324 首；完整资料库仍在 Super。
+- 封面没有贴到档案盒上，保持原版的白色档案盒外观。
+- 搜索只覆盖这 40 份档案。
+- 不是通用组件库；这是对上游完整应用的 fork。
+- 资料库变化后需要重建（`npm run build:ultra` 或重启 Super 时的自动检查）。
+
+## 上游与改动
+
+见 [`ultra-rhine/ATTRIBUTION.md`](ultra-rhine/ATTRIBUTION.md)。

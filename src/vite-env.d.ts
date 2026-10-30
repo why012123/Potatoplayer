@@ -34,7 +34,6 @@ export interface PotatoAPI {
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<boolean>;
   coverPalette(path: string): Promise<Palette | null>;
-  coverData(path: string): Promise<string | null>;
   openUltra(): Promise<void>;
   rendererReady(): void;
   platform: string;
