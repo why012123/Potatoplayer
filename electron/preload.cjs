@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("potato", {
   openPath: (target) => ipcRenderer.invoke("app:open-path", target),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
   coverPalette: (target) => ipcRenderer.invoke("cover:palette", target),
+  coverData: (target) => ipcRenderer.invoke("cover:data", target),
+  openUltra: () => ipcRenderer.invoke("ultra:open"),
   rendererReady: () => ipcRenderer.send("app:renderer-ready"),
   platform: process.platform,
 });

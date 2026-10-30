@@ -15,9 +15,15 @@ const capturePath = process.env.POTATO_CAPTURE_PATH || null;
 const captureView = process.env.POTATO_CAPTURE_VIEW || process.env.POTATO_START_VIEW || null;
 const shouldExitAfterCapture = process.env.POTATO_CAPTURE_EXIT !== "0";
 const previewMode = Boolean(process.env.POTATO_PREVIEW);
-const windowTitle = previewMode ? "Potatoplayer Super — UI Preview" : "Potatoplayer Super";
+const ultraMode = process.env.POTATO_ULTRA === "1" || process.argv.includes("--ultra");
+const windowTitle = ultraMode
+  ? "Potatoplayer Ultra"
+  : previewMode
+    ? "Potatoplayer Super — UI Preview"
+    : "Potatoplayer Super";
 
 let mainWindow = null;
+let ultraWindow = null;
 let backend = null;
 let quitting = false;
 let captured = false;
@@ -124,8 +130,10 @@ function nativeMediaStatus() {
 }
 
 function sendMediaShortcutStatus() {
-  if (!mainWindow || mainWindow.isDestroyed() || !mediaShortcutStatus) return;
-  mainWindow.webContents.send("media:shortcut-status", mediaShortcutStatus);
+  if (!mediaShortcutStatus) return;
+  for (const win of [mainWindow, ultraWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send("media:shortcut-status", mediaShortcutStatus);
+  }
 }
 
 function startMediaHelper() {
@@ -288,6 +296,53 @@ function createWindow() {
   });
 }
 
+function createUltraWindow() {
+  if (ultraWindow && !ultraWindow.isDestroyed()) {
+    ultraWindow.show();
+    ultraWindow.focus();
+    return;
+  }
+  ultraWindow = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    title: "Potatoplayer Ultra",
+    backgroundColor: "#ece7e1",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 20 } : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+      backgroundThrottling: true,
+    },
+  });
+
+  ultraWindow.once("ready-to-show", () => {
+    if (!process.env.POTATO_HIDDEN) ultraWindow.show();
+  });
+  ultraWindow.on("closed", () => {
+    ultraWindow = null;
+  });
+  ultraWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https://")) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  ultraWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error("[ultra] renderer gone", details.reason);
+  });
+
+  if (isDev) {
+    ultraWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}/ultra.html`);
+  } else {
+    ultraWindow.loadFile(path.join(appRoot, "dist", "ultra.html"));
+  }
+}
+
 async function attemptCapture() {
   if (captured || !mainWindow || mainWindow.isDestroyed() || !capturePath) return;
   captured = true;
@@ -310,7 +365,7 @@ function buildMenu() {
   }
   const template = [
     {
-      label: "Potatoplayer Super",
+      label: ultraMode ? "Potatoplayer Ultra" : "Potatoplayer Super",
       submenu: [
         { role: "about" },
         { type: "separator" },
@@ -339,7 +394,18 @@ function buildMenu() {
     },
     {
       label: "Window",
-      submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { role: "front" }],
+      submenu: [
+        {
+          label: "Open Potatoplayer Ultra",
+          accelerator: "CmdOrCtrl+Shift+U",
+          click: () => createUltraWindow(),
+        },
+        { type: "separator" },
+        { role: "minimize" },
+        { role: "zoom" },
+        { type: "separator" },
+        { role: "front" },
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -350,7 +416,11 @@ function buildMenu() {
 if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, argv) => {
+    if (argv.includes("--ultra")) {
+      createUltraWindow();
+      return;
+    }
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -358,7 +428,7 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
   });
 
   app.whenReady().then(async () => {
-    app.setName("Potatoplayer Super");
+    app.setName(ultraMode ? "Potatoplayer Ultra" : "Potatoplayer Super");
     if (process.platform === "darwin" && app.dock) {
       const icon = path.join(appRoot, "build", "icon.png");
       if (fs.existsSync(icon)) app.dock.setIcon(icon);
@@ -370,23 +440,25 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     backend.on("event", (message) => {
       if (message.event === "ready") return;
       if (Array.isArray(message.data?.coverRoots)) backend.setCoverRoots(message.data.coverRoots);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("backend:event", message);
+      for (const win of [mainWindow, ultraWindow]) {
+        if (win && !win.isDestroyed()) win.webContents.send("backend:event", message);
       }
     });
     backend.on("backend-exit", () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("backend:event", {
-          event: "backend.fatal",
-          data: { message: "The audio service stopped. Reopen the app to start it again." },
-        });
+      for (const win of [mainWindow, ultraWindow]) {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("backend:event", {
+            event: "backend.fatal",
+            data: { message: "The audio service stopped. Reopen the app to start it again." },
+          });
+        }
       }
     });
 
     try {
       await backend.start();
     } catch (error) {
-      dialog.showErrorBox("Potatoplayer Super", error.message);
+      dialog.showErrorBox(ultraMode ? "Potatoplayer Ultra" : "Potatoplayer Super", error.message);
       app.quit();
       return;
     }
@@ -441,12 +513,34 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
 
     ipcMain.handle("cover:palette", (_event, target) => paletteFromImage(target));
 
+    ipcMain.handle("ultra:open", () => {
+      createUltraWindow();
+    });
+
+    // The Ultra renderer paints covers into WebGL textures. A data URL keeps the
+    // canvas untainted, which a cross-scheme potato-cover image would not.
+    ipcMain.handle("cover:data", async (_event, target) => {
+      if (typeof target !== "string" || !backend?.isCoverAllowed(target)) return null;
+      try {
+        const stat = await fs.promises.stat(target);
+        if (!stat.isFile() || stat.size > 6_000_000) return null;
+        const bytes = await fs.promises.readFile(target);
+        const ext = path.extname(target).toLowerCase();
+        const mime =
+          ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : ext === ".gif" ? "image/gif" : "image/jpeg";
+        return `data:${mime};base64,${bytes.toString("base64")}`;
+      } catch {
+        return null;
+      }
+    });
+
     ipcMain.on("app:renderer-ready", () => {
       if (capturePath) setTimeout(() => void attemptCapture(), 450);
     });
 
     startMediaControls();
-    createWindow();
+    if (ultraMode) createUltraWindow();
+    else createWindow();
   });
 
   app.on("will-quit", () => {
@@ -459,7 +553,10 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      if (ultraMode) createUltraWindow();
+      else createWindow();
+    }
   });
 
   app.on("window-all-closed", () => {

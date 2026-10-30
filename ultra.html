@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: potato-cover:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws://localhost:5173 http://localhost:5173; font-src 'self' data:;"
+    />
+    <title>Potatoplayer Ultra</title>
+  </head>
+  <body>
+    <div id="ultra">
+      <header id="hud-top">
+        <div class="brand">
+          <span class="brand__mark">◈</span>
+          <div class="brand__copy">
+            <strong>POTATOPLAYER</strong>
+            <span>ULTRA / ARCHIVE</span>
+          </div>
+        </div>
+        <label class="search">
+          <span class="search__glyph">/</span>
+          <input id="search" type="search" autocomplete="off" spellcheck="false" placeholder="SEARCH ARCHIVE" />
+        </label>
+        <div class="stats">
+          <span id="file-count">— FILES</span>
+          <span id="block-count">— BLOCKS</span>
+        </div>
+      </header>
+
+      <main id="stage">
+        <div id="scene-host" aria-label="3D music archive"></div>
+        <div id="vignette"></div>
+
+        <aside id="detail" aria-hidden="true">
+          <button id="detail-close" class="detail__close" type="button" aria-label="Close file">×</button>
+          <div class="detail__sweep"></div>
+          <div class="detail__cover" id="detail-cover"></div>
+          <div class="detail__eyebrow" id="detail-eyebrow">FILE</div>
+          <h1 id="detail-title">—</h1>
+          <p class="detail__artist" id="detail-artist">—</p>
+          <div class="detail__meta" id="detail-meta"></div>
+          <p class="detail__note" id="detail-note"></p>
+          <div class="detail__actions">
+            <button id="detail-play" class="button button--dark" type="button">PLAY FILE</button>
+            <button id="detail-next" class="button" type="button">PLAY NEXT</button>
+            <button id="detail-fav" class="button button--ghost" type="button">SAVE</button>
+          </div>
+          <div class="detail__foot" id="detail-foot">—</div>
+        </aside>
+
+        <div id="hover-label"></div>
+        <div id="toast" role="status"></div>
+      </main>
+
+      <footer id="hud-bottom">
+        <div class="hud-block">
+          <span class="hud-label">BLOCK</span>
+          <strong id="current-block">—</strong>
+        </div>
+        <div class="hud-pos" id="position">—</div>
+        <div class="hud-hints">
+          <span><b>← →</b> BLOCK</span>
+          <span><b>↑ ↓</b> FILE</span>
+          <span><b>ENTER</b> OPEN</span>
+          <span><b>ESC</b> CLOSE</span>
+        </div>
+      </footer>
+
+      <div id="boot">
+        <div class="boot__inner">
+          <div class="boot__brand">POTATOPLAYER <em>ULTRA</em></div>
+          <div class="boot__rule"></div>
+          <div class="boot__log" id="boot-log"></div>
+          <div class="boot__hint">PRESS ENTER TO ENTER ARCHIVE</div>
+        </div>
+      </div>
+
+      <div id="loading">
+        <span class="loading__spinner"></span>
+        <strong>READING LIBRARY</strong>
+        <span id="loading-detail">Establishing archive link…</span>
+      </div>
+    </div>
+    <script type="module" src="/src/ultra/main.ts"></script>
+  </body>
+</html>
