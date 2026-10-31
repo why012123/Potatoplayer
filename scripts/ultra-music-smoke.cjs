@@ -12,8 +12,19 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
   assert.equal(await page.evaluate(() => rhine.stats().mode), 'archive');
   const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('rhine-settings')));
   assert.equal(prefs.rendering.aoSamples, 0); assert.equal(prefs.rendering.depthOfField, 0); assert.equal(prefs.frameRate, 30);
+  await page.waitForFunction(() => { const c = rhine.stats().covers; return c.visible > 0 && c.ready + c.unavailable === c.visible && c.selectedReady; }, null, { timeout: 20000 }).catch(async e => { console.log(await page.evaluate(() => rhine.stats().covers)); throw e; });
+  // The isolated home intentionally cannot access the real app's downloaded
+  // covers. Account for those explicit failures, never for pending requests.
+  const coverSamples = [];
   // Exercise the shared main-view geometry during rapid selection and orbit.
-  for (let i=0;i<6;i++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(140); }
+  for (let i=0;i<24;i++) {
+   await page.keyboard.press('ArrowDown'); await page.waitForTimeout(100);
+   const covers = await page.evaluate(() => rhine.stats().covers);
+   assert.ok(covers.loading <= 4, 'Cover decoding must be bounded');
+   coverSamples.push((covers.visible - covers.unavailable) ? covers.ready / (covers.visible - covers.unavailable) : 1);
+  }
+  await page.waitForFunction(() => { const c = rhine.stats().covers; return c.ready + c.unavailable === c.visible && c.selectedReady; }, null, { timeout: 20000 }).catch(async e => { console.log(await page.evaluate(() => rhine.stats().covers)); throw e; });
+  console.log('[ultra] rapid-switch cover readiness:', { min: Math.min(...coverSamples), average: coverSamples.reduce((a,b)=>a+b,0)/coverSamples.length, final: await page.evaluate(() => rhine.stats().covers) });
   await page.waitForTimeout(1800);
   await page.screenshot({ path: path.join(root, 'ultra-rhine/dist/cd-array.png') });
   await page.evaluate(() => rhine.select(0)); await page.waitForTimeout(1000);

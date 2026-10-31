@@ -14,6 +14,8 @@ export interface ArchiveRecord {
   source: string;
   trackId?: string;
   coverPath?: string;
+  genre?: string;
+  genreColor?: string;
 }
 
 export const records: ArchiveRecord[] = content.records;

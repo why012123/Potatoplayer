@@ -36,12 +36,22 @@ export function spineGeometry() {
   return geometry;
 }
 export function drawSpine(ctx: CanvasRenderingContext2D, record: ArchiveRecord, x=0,y=0,w=1024,h=64) {
+  ctx.save();
   ctx.fillStyle='#e9e5d9'; ctx.fillRect(x,y,w,h);
-  ctx.fillStyle='#b27937'; ctx.fillRect(x,y,h*.14,h);
+  // A broad transverse band stays legible in the array's lower-resolution atlas.
+  const color = /^#[0-9a-f]{6}$/i.test(record.genreColor || '') ? record.genreColor! : '#87908b';
+  const band = w * .16;
+  ctx.fillStyle=color; ctx.fillRect(x+w-band,y,band,h);
+  const rgb = [1,3,5].map(offset => parseInt(color.slice(offset,offset+2),16) / 255)
+    .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+  ctx.fillStyle=rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722 > .179 ? '#101812' : '#ffffff';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`600 ${h*.30}px MiSans, sans-serif`;
+  ctx.fillText(record.genre || '未分类',x+w-band/2,y+h*.5,band-h*.22);
+  ctx.textAlign='left';
   ctx.fillStyle='#202720'; ctx.font=`600 ${h*.43}px MiSans, sans-serif`;
-  ctx.textBaseline='middle';
-  ctx.fillText(`${record.title}  /  ${record.en}`,x+h*.4,y+h*.5,w-h*1.8);
-  ctx.fillStyle='#786c59'; ctx.font=`${h*.22}px sans-serif`;ctx.fillText('CD',x+w-h*.8,y+h*.5);
+  ctx.fillText(`${record.title}  /  ${record.en}`,x+h*.25,y+h*.5,w-band-h*.5);
+  ctx.restore();
 }
 export function createSpineAtlas(records: ArchiveRecord[]) {
   const canvas=document.createElement('canvas');canvas.width=2048;

@@ -560,7 +560,11 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       if (!backend.isCoverAllowed(target)) return null;
       try {
         const stat = await fs.promises.stat(target);
-        if (!stat.isFile() || stat.size > 6_000_000) return null;
+        if (!stat.isFile() || stat.size > 32_000_000) return null;
+        if (stat.size > 6_000_000) {
+          const thumbnail = await nativeImage.createThumbnailFromPath(target, { width: 512, height: 512 });
+          return thumbnail.isEmpty() ? null : thumbnail.toDataURL();
+        }
         const bytes = await fs.promises.readFile(target);
         const ext = path.extname(target).toLowerCase();
         const mime =
