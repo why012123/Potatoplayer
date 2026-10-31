@@ -32,6 +32,9 @@ try {
 const tracks = Array.isArray(library?.tracks) ? library.tracks : [];
 if (!tracks.length) await useSample("the music library is empty");
 
+// Match the library's editable genre palette rather than deriving colors from blocks.
+const genreColors = new Map((Array.isArray(library.genres) ? library.genres : [])
+  .map(tag => [String(tag.name || "").trim(), tag.color]));
 const groups = new Map();
 for (const track of tracks) {
   const key = (track.block || "").trim() || "未分组";
@@ -90,12 +93,17 @@ for (const [block, list] of chosen) {
     const title = track.title || path.basename(track.path || "Untitled", path.extname(track.path || ""));
     const artist = track.artist || "Unknown artist";
     const album = track.album || "单曲";
-    const genre = track.genre || "未分类";
+    const genre = String(track.genre || "").trim() || "未分类";
+    const rawColor = genreColors.get(genre);
+    const genreColor = typeof rawColor === "string" && /^#[0-9a-f]{6}$/i.test(rawColor)
+      ? rawColor : "#87908b";
     records.push({
       id: `X-${String(index).padStart(3, "0")}`,
       coverPath: track.coverPath || "",
       title,
       en: artist,
+      genre,
+      genreColor,
       department: block,
       category: block,
       date: album,

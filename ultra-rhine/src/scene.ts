@@ -244,6 +244,8 @@ export class ArchiveScene {
   private stickerCandidates: Array<{ cell: ArchiveCell; matrix: THREE.Matrix4 }> = [];
   private stickerTextures = new Map<string, THREE.CanvasTexture>();
   private stickerRequests = new Set<string>();
+  private stickerQueue = new Set<string>();
+  private stickerRetryAfter = new Map<string, number>();
   private selectedSticker?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private stickerPlaceholder?: THREE.CanvasTexture;
   private labelMark = new Image();
@@ -854,43 +856,68 @@ export class ArchiveScene {
 
   private getStickerTexture(path: string): THREE.CanvasTexture {
     const cached = this.stickerTextures.get(path);
-    if (cached) return cached;
-    if (this.stickerRequests.has(path)) return this.stickerPlaceholder!;
-    this.stickerRequests.add(path);
-    void window.potato
-      ?.coverData(path)
-      .then((url) => {
-        if (!url) return null;
+    if (cached) {
+      this.stickerTextures.delete(path);
+      this.stickerTextures.set(path, cached);
+      return cached;
+    }
+    if (!this.stickerRequests.has(path) && performance.now() >= (this.stickerRetryAfter.get(path) || 0))
+      this.stickerQueue.add(path);
+    return this.stickerPlaceholder!;
+  }
+
+  private trimStickerCache() {
+    // Outgoing selection animations also borrow cached artwork.
+    const pinned = new Set<THREE.Texture>();
+    this.scene.traverseVisible(object => {
+      if (object instanceof THREE.Mesh) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) if (material.map) pinned.add(material.map);
+      }
+    });
+    for (const [path, texture] of this.stickerTextures) {
+      if (this.stickerTextures.size <= 128) break;
+      if (pinned.has(texture)) continue;
+      this.stickerTextures.delete(path);
+      texture.dispose();
+    }
+  }
+
+  private pumpStickerQueue() {
+    if (!window.potato) return;
+    while (this.stickerRequests.size < 4 && this.stickerQueue.size) {
+      const path = this.stickerQueue.values().next().value!;
+      this.stickerQueue.delete(path);
+      this.stickerRequests.add(path);
+      void window.potato.coverData(path).then(async url => {
+        if (!url) throw new Error('Cover unavailable');
         const image = new Image();
         image.src = url;
-        return image.decode().then(() => image);
-      })
-      .then((image) => {
-        if (!image) return;
-        const texture = this.stickerCanvas(image);
-        this.stickerTextures.set(path, texture);
-        if (this.stickerTextures.size > 128) {
-          const oldest = this.stickerTextures.keys().next().value as string;
-          if (oldest && oldest !== path) {
-            this.stickerTextures.get(oldest)?.dispose();
-            this.stickerTextures.delete(oldest);
+        try {
+          await image.decode();
+          const texture = this.stickerCanvas(image);
+          this.stickerTextures.set(path, texture);
+          this.stickerRetryAfter.delete(path);
+          for (const slot of this.stickers) {
+            if (slot.path === path) {
+              slot.mesh.material.map = texture;
+              slot.mesh.material.needsUpdate = true;
+            }
           }
-        }
-        for (const slot of this.stickers) {
-          if (slot.path === path) {
-            slot.mesh.material.map = texture;
-            slot.mesh.material.needsUpdate = true;
+          if (records[fileAtCell(this.selectedCell)]?.coverPath === path && this.selectedSticker) {
+            this.selectedSticker.material.map = texture;
+            this.selectedSticker.material.needsUpdate = true;
           }
-        }
-        const selected = records[fileAtCell(this.selectedCell)];
-        if (selected?.coverPath === path && this.selectedSticker) {
-          this.selectedSticker.material.map = texture;
-          this.selectedSticker.material.needsUpdate = true;
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => this.stickerRequests.delete(path));
-    return this.stickerPlaceholder!;
+          this.trimStickerCache();
+          this.renderState.invalidate();
+        } finally { image.src = ''; }
+      }).catch(() => {
+        this.stickerRetryAfter.set(path, performance.now() + 30_000);
+      }).finally(() => {
+        this.stickerRequests.delete(path);
+        this.pumpStickerQueue();
+      });
+    }
   }
 
   private updateSelectedSticker(index: number) {
@@ -902,11 +929,17 @@ export class ArchiveScene {
       return;
     }
     this.selectedSticker.visible = true;
-    this.selectedSticker.material.map = this.getStickerTexture(path);
-    this.selectedSticker.material.needsUpdate = true;
+    const texture = this.getStickerTexture(path);
+    if (this.selectedSticker.material.map !== texture) {
+      this.selectedSticker.material.map = texture;
+      this.selectedSticker.material.needsUpdate = true;
+    }
   }
 
   private updateArrayStickers() {
+    // Rebuild pending work so rapid navigation discards obsolete queued reads.
+    this.stickerQueue.clear();
+    this.updateSelectedSticker(fileAtCell(this.selectedCell));
     for (let index = 0; index < this.stickers.length; index++) {
       const slot = this.stickers[index];
       const candidate = this.stickerCandidates[index];
@@ -922,21 +955,29 @@ export class ArchiveScene {
         spine.userData.recordIndex = recordIndex;
       }
       const record = records[recordIndex];
-      const path = record?.coverPath;
-      if (!path) {
-        slot.mesh.visible = false;
-        slot.path = "";
-        continue;
-      }
+      // Keep the genre spine visible even when a track has no cover art.
+      const path = record?.coverPath || "";
       slot.mesh.visible = true;
       slot.mesh.matrix.copy(candidate.matrix);
       slot.mesh.matrixWorldNeedsUpdate = true;
-      if (slot.path !== path) {
+      const texture = path ? this.getStickerTexture(path) : this.stickerPlaceholder!;
+      if (slot.path !== path || slot.mesh.material.map !== texture) {
         slot.path = path;
-        slot.mesh.material.map = this.getStickerTexture(path);
+        slot.mesh.material.map = texture;
         slot.mesh.material.needsUpdate = true;
       }
     }
+    // Warm the next rows and adjacent columns after the visible covers.
+    for (let distance = 1; distance <= 10; distance++) {
+      for (const direction of [-1, 1]) {
+        for (const laneOffset of [0, -1, 1]) {
+          const cell = { lane: this.selectedCell.lane + laneOffset, row: this.selectedCell.row + direction * distance };
+          const path = records[fileAtCell(cell)]?.coverPath;
+          if (path) this.getStickerTexture(path);
+        }
+      }
+    }
+    this.pumpStickerQueue();
   }
 
   private drawLabel(index: number) {
@@ -1844,9 +1885,8 @@ export class ArchiveScene {
       this.shadowCoverage?.add(this.dummy.matrix);
       if (!this.drawCoverage.contains(x, y, z)) continue;
       if (
-        this.stickerCandidates.length < this.stickers.length &&
-        Math.abs(row - selectedRow) <= 6 &&
-        Math.abs(lane - selectedLane) <= 2
+        Math.abs(row - selectedRow) <= 12 &&
+        Math.abs(lane - selectedLane) <= 3
       ) {
         this.stickerCandidates.push({ cell: { lane, row }, matrix: this.dummy.matrix.clone() });
       }
@@ -1867,6 +1907,8 @@ export class ArchiveScene {
     // renderer culling and do not need an O(n) bound recomputation each frame.
     if (matricesChanged || countChanged || !this.instances[0].boundingSphere) this.instances[0].computeBoundingSphere();
     this.themeUpdates?.commit();
+    const coverDistance = (cell: ArchiveCell) => Math.abs(cell.row - selectedRow) + Math.abs(cell.lane - selectedLane) * 3;
+    this.stickerCandidates.sort((a, b) => coverDistance(a.cell) - coverDistance(b.cell));
     this.updateArrayStickers();
     let neighborTop = -Infinity;
     const lane = selectedLane,
@@ -1994,6 +2036,13 @@ export class ArchiveScene {
         .map((v) => Math.round(v * 10000) / 10000),
       fieldOfView: this.camera.fov,
       loaded: this.loaded,
+      covers: {
+        failed: this.stickerRetryAfter.size,  cached: this.stickerTextures.size, loading: this.stickerRequests.size, queued: this.stickerQueue.size,
+        unavailable: this.stickers.filter(slot => slot.mesh.visible && slot.path && this.stickerRetryAfter.has(slot.path)).length,
+        visible: this.stickers.filter(slot => slot.mesh.visible && slot.path).length,
+        ready: this.stickers.filter(slot => slot.mesh.visible && slot.path && slot.mesh.material.map !== this.stickerPlaceholder).length,
+        selectedReady: this.selectedSticker?.material.map !== this.stickerPlaceholder,
+      },
       drawCalls: this.renderer.info.render.calls,
       renderedFrames: this.renderedFrames,
       reusedFrames: this.reusedFrames,
