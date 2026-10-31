@@ -32,12 +32,35 @@ export interface TogetherPlayback {
   updatedAt: number;
 }
 
+export interface TogetherFile {
+  key: string;
+  size: number;
+  sha256: string;
+  ext: string;
+}
+
+export interface TogetherNeed {
+  key: string;
+  track: TogetherTrack | null;
+  memberId?: string;
+  name?: string;
+}
+
+export interface TogetherTransfer {
+  key: string;
+  direction: "up" | "down";
+  state: "waiting" | "working" | "ready" | "error";
+  message?: string;
+}
+
 export interface TogetherRoom {
   id: string;
   hostId: string;
   members: TogetherMember[];
   state: TogetherPlayback;
   chat: TogetherMessage[];
+  files?: TogetherFile[];
+  needs?: TogetherNeed[];
   serverNow: number;
 }
 
@@ -59,6 +82,11 @@ interface TogetherStore {
   clockOffset: number;
   latency: number;
   missingKey: string | null;
+  selfToken: string | null;
+  files: TogetherFile[];
+  needs: TogetherNeed[];
+  transfers: Record<string, TogetherTransfer>;
+  tempPlayingKey: string | null;
   openDialog: () => void;
   closeDialog: () => void;
   setServerUrl: (value: string) => void;
@@ -68,6 +96,9 @@ interface TogetherStore {
   leaveRoom: () => void;
   sendChat: (text: string) => void;
   publishPlayback: (state: { track: TogetherTrack | null; playing: boolean; position: number }) => void;
+  requestFile: (key: string, track: TogetherTrack | null) => void;
+  setTransfer: (key: string, transfer: TogetherTransfer | null) => void;
+  setTempPlayingKey: (key: string | null) => void;
   clearError: () => void;
 }
 
@@ -89,6 +120,14 @@ function remember(key: string, value: string) {
   } catch {
     // The room still works for this session.
   }
+}
+
+export function togetherFileUrl(serverUrl: string, roomId: string, key: string): string {
+  const url = new URL(normalizeServerUrl(serverUrl));
+  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.pathname = `/rooms/${encodeURIComponent(roomId)}/files`;
+  url.search = `?key=${encodeURIComponent(key)}`;
+  return url.toString();
 }
 
 export function normalizeServerUrl(raw: string): string {
@@ -155,6 +194,11 @@ function emptyRoom() {
     chat: [],
     state: null,
     missingKey: null,
+    selfToken: null,
+    files: [],
+    needs: [],
+    transfers: {},
+    tempPlayingKey: null,
   };
 }
 
@@ -191,7 +235,12 @@ function handleMessage(raw: string) {
       serverNow,
       clockOffset: serverNow - Date.now(),
       name: self?.name || store.name,
+      selfToken: String(message.selfToken || ""),
+      files: Array.isArray(room.files) ? room.files : [],
+      needs: Array.isArray(room.needs) ? room.needs : [],
       missingKey: null,
+      tempPlayingKey: null,
+      transfers: {},
     });
     startPing();
     return;
@@ -205,6 +254,8 @@ function handleMessage(raw: string) {
       members: room.members || [],
       state: room.state || useTogether.getState().state,
       chat: Array.isArray(room.chat) ? room.chat : useTogether.getState().chat,
+      files: Array.isArray(room.files) ? room.files : useTogether.getState().files,
+      needs: Array.isArray(room.needs) ? room.needs : useTogether.getState().needs,
       serverNow: Number(room.serverNow) || useTogether.getState().serverNow,
     });
     return;
@@ -226,6 +277,35 @@ function handleMessage(raw: string) {
     const current = useTogether.getState().chat;
     if (current.some((item) => item.id === entry.id)) return;
     useTogether.setState({ chat: [...current, entry].slice(-120) });
+    return;
+  }
+
+  if (type === "file") {
+    const file = message.file as TogetherFile;
+    if (!file?.key || !file.sha256) return;
+    const current = useTogether.getState();
+    const files = current.files.filter((item) => item.key !== file.key);
+    useTogether.setState({
+      files: [...files, file],
+      needs: current.needs.filter((item) => item.key !== file.key),
+    });
+    return;
+  }
+
+  if (type === "need") {
+    const key = String(message.key || "");
+    if (!key) return;
+    const current = useTogether.getState();
+    if (current.files.some((item) => item.key === key)) return;
+    const need: TogetherNeed = {
+      key,
+      track: (message.track as TogetherTrack) || null,
+      memberId: message.memberId ? String(message.memberId) : undefined,
+      name: message.name ? String(message.name) : undefined,
+    };
+    useTogether.setState({
+      needs: [...current.needs.filter((item) => item.key !== key), need],
+    });
     return;
   }
 
@@ -268,6 +348,11 @@ export const useTogether = create<TogetherStore>((set, get) => ({
   clockOffset: 0,
   latency: 0,
   missingKey: null,
+  selfToken: null,
+  files: [],
+  needs: [],
+  transfers: {},
+  tempPlayingKey: null,
 
   openDialog: () => set({ open: true }),
   closeDialog: () => set({ open: false }),
@@ -297,6 +382,23 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     if (current.status !== "connected" || current.hostId !== current.selfId) return;
     send({ type: "playback", state });
   },
+  requestFile: (key, track) => {
+    if (!key) return;
+    const current = get();
+    if (current.status !== "connected" || current.files.some((item) => item.key === key)) return;
+    if (current.needs.some((item) => item.key === key)) return;
+    send({ type: "need", key, track });
+    set({
+      needs: [...current.needs, { key, track, memberId: current.selfId || undefined, name: current.name }],
+    });
+  },
+  setTransfer: (key, transfer) => {
+    const transfers = { ...get().transfers };
+    if (transfer) transfers[key] = transfer;
+    else delete transfers[key];
+    set({ transfers });
+  },
+  setTempPlayingKey: (key) => set({ tempPlayingKey: key }),
 }));
 
 function connect(type: "create" | "join", roomId?: string) {
@@ -319,6 +421,11 @@ function connect(type: "create" | "join", roomId?: string) {
     chat: [],
     state: null,
     missingKey: null,
+    selfToken: null,
+    files: [],
+    needs: [],
+    transfers: {},
+    tempPlayingKey: null,
   });
 
   let next: WebSocket;
@@ -352,6 +459,11 @@ function connect(type: "create" | "join", roomId?: string) {
         roomId: null,
         hostId: null,
         members: [],
+        selfToken: null,
+        files: [],
+        needs: [],
+        transfers: {},
+        tempPlayingKey: null,
       });
     }
   };

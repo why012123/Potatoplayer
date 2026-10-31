@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAppStore } from "@/store";
 import type { Track } from "@/types";
 import {
+  togetherFileUrl,
   useTogether,
   type TogetherPlayback,
   type TogetherTrack,
@@ -53,6 +54,10 @@ function targetPosition(remote: TogetherPlayback, clockOffset: number): number {
   return Math.max(0, remote.position + (serverNow - remote.startedAt) / 1000);
 }
 
+function fileUrl(serverUrl: string, roomId: string, key: string): string {
+  return togetherFileUrl(serverUrl, roomId, key);
+}
+
 export function TogetherSync() {
   const playback = useAppStore((state) => state.playback);
   const tracks = useAppStore((state) => state.tracks);
@@ -66,7 +71,17 @@ export function TogetherSync() {
   const remote = useTogether((state) => state.state);
   const clockOffset = useTogether((state) => state.clockOffset);
   const missingKey = useTogether((state) => state.missingKey);
+  const selfToken = useTogether((state) => state.selfToken);
+  const serverUrl = useTogether((state) => state.serverUrl);
+  const roomId = useTogether((state) => state.roomId);
+  const files = useTogether((state) => state.files);
+  const needs = useTogether((state) => state.needs);
+  const transfers = useTogether((state) => state.transfers);
+  const tempPlayingKey = useTogether((state) => state.tempPlayingKey);
   const publishPlayback = useTogether((state) => state.publishPlayback);
+  const requestFile = useTogether((state) => state.requestFile);
+  const setTransfer = useTogether((state) => state.setTransfer);
+  const setTempPlayingKey = useTogether((state) => state.setTempPlayingKey);
   const setMissingKey = useTogether.setState;
 
   const isHost = Boolean(selfId && hostId === selfId);
@@ -86,12 +101,7 @@ export function TogetherSync() {
     const changed = key !== last.key || playback.playing !== last.playing;
     if (!changed && !jumped && now - last.at < 1200) return;
 
-    lastPublish.current = {
-      key,
-      playing: playback.playing,
-      position: playback.time,
-      at: now,
-    };
+    lastPublish.current = { key, playing: playback.playing, position: playback.time, at: now };
     publishPlayback({
       track: remoteMetadata(track),
       playing: playback.playing,
@@ -99,17 +109,163 @@ export function TogetherSync() {
     });
   }, [playback, tracks, isHost, status, publishPlayback]);
 
+  // Any member that already owns a requested track uploads it to the room.
+  useEffect(() => {
+    if (status !== "connected" || !selfToken || !roomId || typeof window.potato?.togetherUpload !== "function") return;
+    for (const need of needs) {
+      if (!need.track || files.some((file) => file.key === need.key)) continue;
+      if (transfers[need.key]) continue;
+      const track = findLocalTrack(tracks, need.track);
+      if (!track) continue;
+      setTransfer(need.key, { key: need.key, direction: "up", state: "working", message: "正在上传…" });
+      void window.potato
+        .togetherUpload({
+          url: fileUrl(serverUrl, roomId, need.key),
+          token: selfToken,
+          path: track.path,
+          fileName: track.path.split(/[\\/]/).pop(),
+        })
+        .then(() => {
+          setTransfer(need.key, { key: need.key, direction: "up", state: "ready", message: "已上传" });
+        })
+        .catch((error: unknown) => {
+          setTransfer(need.key, {
+            key: need.key,
+            direction: "up",
+            state: "error",
+            message: error instanceof Error ? error.message : "上传失败",
+          });
+        });
+    }
+  }, [needs, files, transfers, tracks, status, selfToken, roomId, serverUrl, setTransfer]);
+
+  // Missing local file: ask once, then download the relay copy when it arrives.
+  useEffect(() => {
+    if (isHost || status !== "connected" || !remote?.track) return;
+    const key = remote.track.key;
+    const tempId = `together:${key}`;
+    if (playback?.trackId === tempId) {
+      if (missingKey) setMissingKey({ missingKey: null });
+      return;
+    }
+    const track = findLocalTrack(tracks, remote.track);
+    if (track) {
+      if (missingKey) setMissingKey({ missingKey: null });
+      if (tempPlayingKey) setTempPlayingKey(null);
+      return;
+    }
+    if (missingKey !== key) setMissingKey({ missingKey: key });
+    if (!files.some((file) => file.key === key) && !needs.some((need) => need.key === key)) {
+      requestFile(key, remote.track);
+    }
+  }, [
+    remote,
+    tracks,
+    playback?.trackId,
+    isHost,
+    status,
+    missingKey,
+    files,
+    needs,
+    tempPlayingKey,
+    requestFile,
+    setMissingKey,
+    setTempPlayingKey,
+  ]);
+
+  useEffect(() => {
+    if (isHost || status !== "connected" || !remote?.track || !missingKey) return;
+    if (!selfToken || !roomId || typeof window.potato?.togetherDownload !== "function") return;
+    const key = missingKey;
+    const file = files.find((item) => item.key === key);
+    if (!file) return;
+    const transfer = transfers[key];
+    if (transfer && (transfer.state === "working" || transfer.state === "ready")) return;
+
+    setTransfer(key, { key, direction: "down", state: "working", message: "正在接收…" });
+    void window.potato
+      .togetherDownload({
+        url: fileUrl(serverUrl, roomId, key),
+        token: selfToken,
+        sha256: file.sha256,
+        ext: file.ext,
+      })
+      .then(async (downloaded) => {
+        const current = useTogether.getState();
+        const currentRemote = current.state;
+        if (!currentRemote?.track || currentRemote.track.key !== key) return;
+        const target = targetPosition(currentRemote, current.clockOffset);
+        await window.potato.invoke("playback.playTemp", {
+          path: downloaded.path,
+          trackId: `together:${key}`,
+          title: currentRemote.track.title,
+          artist: currentRemote.track.artist,
+          album: currentRemote.track.album,
+          duration: currentRemote.track.duration,
+          startAt: target,
+        });
+        if (!currentRemote.playing) {
+          await new Promise((resolve) => window.setTimeout(resolve, 160));
+          await useAppStore.getState().togglePlay();
+        }
+        setTempPlayingKey(key);
+        setTransfer(key, { key, direction: "down", state: "ready", message: "已补齐" });
+        setMissingKey({ missingKey: null });
+      })
+      .catch((error: unknown) => {
+        setTransfer(key, {
+          key,
+          direction: "down",
+          state: "error",
+          message: error instanceof Error ? error.message : "接收失败",
+        });
+      });
+  }, [
+    missingKey,
+    files,
+    transfers,
+    isHost,
+    status,
+    remote,
+    selfToken,
+    roomId,
+    serverUrl,
+    setTransfer,
+    setTempPlayingKey,
+    setMissingKey,
+  ]);
+
+  // Keep the downloaded temporary track aligned with the host clock.
+  useEffect(() => {
+    if (isHost || status !== "connected" || !remote?.track) return;
+    const tempId = `together:${remote.track.key}`;
+    if (playback?.trackId !== tempId) return;
+    const now = Date.now();
+    if (applyLock.current > now) return;
+    const target = targetPosition(remote, clockOffset);
+    if (!remote.playing && playback.playing) {
+      applyLock.current = now + 700;
+      void togglePlay();
+      return;
+    }
+    if (remote.playing && !playback.playing) {
+      applyLock.current = now + 700;
+      void togglePlay();
+      return;
+    }
+    if (Math.abs(playback.time - target) > 1.2) {
+      applyLock.current = now + 500;
+      seek(target);
+    }
+  }, [remote, playback, clockOffset, isHost, status, togglePlay, seek]);
+
   useEffect(() => {
     if (isHost || status !== "connected" || !remote?.track) return;
     const now = Date.now();
     if (applyLock.current > now) return;
 
     const track = findLocalTrack(tracks, remote.track);
-    if (!track) {
-      if (missingKey !== remote.track.key) setMissingKey({ missingKey: remote.track.key });
-      return;
-    }
-    if (missingKey) setMissingKey({ missingKey: null });
+    if (!track) return;
 
     const target = targetPosition(remote, clockOffset);
 
@@ -142,11 +298,9 @@ export function TogetherSync() {
     clockOffset,
     isHost,
     status,
-    missingKey,
     playTrack,
     togglePlay,
     seek,
-    setMissingKey,
   ]);
 
   return null;

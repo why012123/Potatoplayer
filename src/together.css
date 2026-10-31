@@ -292,6 +292,11 @@
   font-size: 9px;
   line-height: 1.55;
 }
+.together-missing.is-error {
+  border-color: color-mix(in srgb, #b94e45 34%, transparent);
+  background: color-mix(in srgb, #c45d53 8%, transparent);
+  color: #9c3f38;
+}
 .together-leave {
   display: inline-flex;
   align-items: center;

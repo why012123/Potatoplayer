@@ -1237,6 +1237,14 @@ public final class Backend implements PlaybackController.Host {
                     text(p, "trackId", ""),
                     stringList(p.path("queue")),
                     number(p, "startAt", 0));
+            case "playback.playTemp" -> playback.playTemp(
+                    text(p, "path", ""),
+                    text(p, "trackId", ""),
+                    text(p, "title", ""),
+                    text(p, "artist", ""),
+                    text(p, "album", ""),
+                    number(p, "duration", 0),
+                    number(p, "startAt", 0));
             case "playback.toggle" -> playback.toggle();
             case "playback.next" -> playback.next(false);
             case "playback.previous" -> playback.previous();

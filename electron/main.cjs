@@ -1,6 +1,11 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const http = require("node:http");
+const https = require("node:https");
+const crypto = require("node:crypto");
+const { Transform } = require("node:stream");
+const { pipeline } = require("node:stream/promises");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
@@ -220,6 +225,20 @@ function registerMediaShortcuts() {
     }
   }
   sendMediaShortcutStatus();
+}
+
+function togetherEndpoint(raw) {
+  const url = new URL(String(raw || ""));
+  if (url.protocol === "ws:") url.protocol = "http:";
+  else if (url.protocol === "wss:") url.protocol = "https:";
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Together file URL must use http(s) or ws(s)");
+  }
+  return url;
+}
+
+function togetherHttp(url) {
+  return url.protocol === "https:" ? https : http;
 }
 
 function createWindow() {
@@ -549,6 +568,106 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
         return `data:${mime};base64,${bytes.toString("base64")}`;
       } catch {
         return null;
+      }
+    });
+
+    ipcMain.handle("together:upload", async (_event, options) => {
+      const file = path.resolve(String(options?.path || ""));
+      const token = String(options?.token || "");
+      if (!token) throw new Error("Missing Together upload token");
+      const stat = await fs.promises.stat(file).catch(() => null);
+      if (!stat?.isFile()) throw new Error("The track file is missing");
+      if (stat.size <= 0) throw new Error("The track file is empty");
+      if (stat.size > 2048 * 1024 * 1024) throw new Error("The track file is too large");
+      const url = togetherEndpoint(options?.url);
+      return await new Promise((resolve, reject) => {
+        const request = togetherHttp(url).request(
+          url,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/octet-stream",
+              "Content-Length": stat.size,
+              "X-File-Name": path.basename(String(options?.fileName || file)),
+            },
+          },
+          (response) => {
+            const chunks = [];
+            response.on("data", (chunk) => chunks.push(chunk));
+            response.on("end", () => {
+              if (response.statusCode >= 400) {
+                reject(new Error(`Together relay rejected the upload (${response.statusCode})`));
+                return;
+              }
+              try {
+                resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+              } catch {
+                reject(new Error("Together relay returned an invalid upload response"));
+              }
+            });
+          },
+        );
+        request.setTimeout(10 * 60 * 1000, () => request.destroy(new Error("Together upload timed out")));
+        request.on("error", reject);
+        const stream = fs.createReadStream(file);
+        stream.on("error", (error) => {
+          request.destroy();
+          reject(error);
+        });
+        stream.pipe(request);
+      });
+    });
+
+    ipcMain.handle("together:download", async (_event, options) => {
+      const sha256 = String(options?.sha256 || "").toLowerCase();
+      const token = String(options?.token || "");
+      if (!token) throw new Error("Missing Together download token");
+      if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error("Invalid Together file hash");
+      const ext = /^\.[a-z0-9]{1,8}$/i.test(String(options?.ext || ""))
+        ? String(options.ext).toLowerCase()
+        : ".bin";
+      const dir = path.join(dataDir(), "together");
+      await fs.promises.mkdir(dir, { recursive: true });
+      const dest = path.join(dir, `${sha256}${ext}`);
+      const existing = await fs.promises.stat(dest).catch(() => null);
+      if (existing?.isFile() && existing.size > 0) {
+        return { path: dest, sha256, size: existing.size };
+      }
+      const url = togetherEndpoint(options?.url);
+      const temp = `${dest}.${crypto.randomUUID()}.part`;
+      const hash = crypto.createHash("sha256");
+      let size = 0;
+      try {
+        const response = await new Promise((resolve, reject) => {
+          const request = togetherHttp(url).request(
+            url,
+            { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+            resolve,
+          );
+          request.setTimeout(10 * 60 * 1000, () => request.destroy(new Error("Together download timed out")));
+          request.on("error", reject);
+          request.end();
+        });
+        if (response.statusCode >= 400) throw new Error(`Together relay rejected the download (${response.statusCode})`);
+        await pipeline(
+          response,
+          new Transform({
+            transform(chunk, _encoding, callback) {
+              size += chunk.length;
+              hash.update(chunk);
+              callback(null, chunk);
+            },
+          }),
+          fs.createWriteStream(temp),
+        );
+        const actual = hash.digest("hex");
+        if (actual !== sha256) throw new Error("Together download failed its checksum");
+        await fs.promises.rename(temp, dest);
+        return { path: dest, sha256: actual, size };
+      } catch (error) {
+        fs.rmSync(temp, { force: true });
+        throw error;
       }
     });
 

@@ -33,6 +33,8 @@ export function TogetherDialog() {
   const remote = useTogether((state) => state.state);
   const latency = useTogether((state) => state.latency);
   const missingKey = useTogether((state) => state.missingKey);
+  const files = useTogether((state) => state.files);
+  const transfers = useTogether((state) => state.transfers);
   const closeDialog = useTogether((state) => state.closeDialog);
   const setServerUrl = useTogether((state) => state.setServerUrl);
   const setName = useTogether((state) => state.setName);
@@ -55,6 +57,8 @@ export function TogetherDialog() {
         (track.title === remoteTrack.title && track.artist === remoteTrack.artist))
     : undefined;
   const missing = remoteTrack ? missingKey === remoteTrack.key : false;
+  const transfer = remoteTrack ? transfers[remoteTrack.key] : undefined;
+  const fileReady = remoteTrack ? files.some((file) => file.key === remoteTrack.key) : false;
 
   useEffect(() => {
     if (open) setCopied(false);

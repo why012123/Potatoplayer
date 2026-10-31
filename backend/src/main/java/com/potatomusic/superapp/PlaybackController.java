@@ -54,6 +54,7 @@ public final class PlaybackController {
     private List<String> queue = new ArrayList<>();
     private int queueIndex = -1;
     private String currentId;
+    private Track transientTrack;
     private boolean playing;
     private double time;
     private double duration;
@@ -181,6 +182,7 @@ public final class PlaybackController {
     }
 
     public synchronized Map<String, Object> play(String trackId, List<String> requestedQueue, double startAt) {
+        transientTrack = null;
         Track track = host.findTrack(trackId);
         if (track == null) {
             throw new IllegalArgumentException("Unknown track: " + trackId);
@@ -202,6 +204,46 @@ public final class PlaybackController {
         queue = new ArrayList<>(nextQueue);
         persistQueue();
         beginCurrent(Math.max(0, startAt), true);
+        return state();
+    }
+
+    /**
+     * Play a file outside the scanned library. Used by Together for a track
+     * downloaded into the room cache; the file is deliberately not indexed as
+     * part of the user's library.
+     */
+    public synchronized Map<String, Object> playTemp(
+            String path,
+            String trackId,
+            String title,
+            String artist,
+            String album,
+            double duration,
+            double startAt) {
+        java.nio.file.Path file = java.nio.file.Path.of(path).toAbsolutePath().normalize();
+        if (!java.nio.file.Files.isRegularFile(file)) {
+            throw new IllegalArgumentException("Temporary track file is missing");
+        }
+        String id = trackId == null || trackId.isBlank() ? "together:" + file.getFileName() : trackId;
+        Track track = new Track();
+        track.id = id;
+        track.path = file.toString();
+        track.title = title == null || title.isBlank() ? file.getFileName().toString() : title;
+        track.artist = artist == null ? "" : artist;
+        track.album = album == null ? "" : album;
+        track.duration = (int) Math.max(0, Math.round(duration));
+        track.addedAt = System.currentTimeMillis();
+        try {
+            track.fileSize = java.nio.file.Files.size(file);
+        } catch (java.io.IOException ignored) {
+            track.fileSize = 0;
+        }
+        transientTrack = track;
+        currentId = id;
+        queue = new ArrayList<>();
+        queue.add(id);
+        queueIndex = 0;
+        beginCurrent(Math.max(0, startAt), false);
         return state();
     }
 
@@ -442,7 +484,7 @@ public final class PlaybackController {
 
     private void beginCurrent(double startAt, boolean countPlay) {
         String id = queueIndex >= 0 && queueIndex < queue.size() ? queue.get(queueIndex) : currentId;
-        Track track = host.findTrack(id);
+        Track track = transientTrack != null && transientTrack.id.equals(id) ? transientTrack : host.findTrack(id);
         if (track == null) {
             stopAtEnd();
             return;
