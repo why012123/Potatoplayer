@@ -7,7 +7,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.cjs",
-    "dev": "node --watch server.cjs"
+    "dev": "node --watch server.cjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"

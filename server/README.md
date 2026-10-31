@@ -26,6 +26,7 @@ Environment:
 | `HOST` | `0.0.0.0` | Bind address |
 | `MAX_MEMBERS` | `8` | Room size limit |
 | `MAX_FILE_MB` | `300` | Per-file upload limit |
+| `MAX_ROOM_MB` | `2048` | Total cached bytes per room |
 | `FILE_DIR` | `./data` | Ephemeral room-file cache |
 
 Health check: `GET /health`.
@@ -46,10 +47,14 @@ path, so no re-encoding happens.
 
 The cache is intentionally ephemeral:
 
+- a room can hold at most `MAX_ROOM_MB` of cached audio (default 2 GB);
 - files are deleted 10 minutes after a room becomes empty;
 - restarting the relay deletes `FILE_DIR` and every room;
 - there is no public file listing;
 - only connected room members can upload or download.
+
+Uploads stop with HTTP 413 as soon as the room quota is exceeded, so a member
+cannot fill the disk by opening several rooms.
 
 ## Put it behind HTTPS
 

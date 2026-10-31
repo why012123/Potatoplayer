@@ -18,6 +18,8 @@ const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || "0.0.0.0";
 const MAX_MEMBERS = Math.max(2, Math.min(16, Number(process.env.MAX_MEMBERS || 8)));
 const MAX_FILE_BYTES = Math.max(1, Math.min(2048, Number(process.env.MAX_FILE_MB || 300))) * 1024 * 1024;
+const MAX_ROOM_BYTES =
+  Math.max(1, Math.min(8192, Number(process.env.MAX_ROOM_MB || 2048))) * 1024 * 1024;
 const ROOM_TTL = 1000 * 60 * 10;
 const FILE_ROOT = path.resolve(process.env.FILE_DIR || path.join(__dirname, "data"));
 const MAX_CHAT = 120;
@@ -222,6 +224,11 @@ async function uploadFile(room, key, req, res) {
     req.resume();
     return json(res, 413, { error: "File is larger than the relay limit" });
   }
+  const used = [...room.files.values()].reduce((sum, file) => sum + (file.size || 0), 0);
+  if (declared > 0 && used + declared > MAX_ROOM_BYTES) {
+    req.resume();
+    return json(res, 413, { error: "Room file quota exceeded" });
+  }
 
   room.dir ??= path.join(FILE_ROOT, room.id);
   await fs.promises.mkdir(room.dir, { recursive: true });
@@ -233,6 +240,10 @@ async function uploadFile(room, key, req, res) {
       size += chunk.length;
       if (size > MAX_FILE_BYTES) {
         callback(Object.assign(new Error("File is larger than the relay limit"), { code: "TOO_LARGE" }));
+        return;
+      }
+      if (used + size > MAX_ROOM_BYTES) {
+        callback(Object.assign(new Error("Room file quota exceeded"), { code: "TOO_LARGE" }));
         return;
       }
       hash.update(chunk);
@@ -334,7 +345,14 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/health") {
-    json(res, 200, { ok: true, rooms: rooms.size, maxFileBytes: MAX_FILE_BYTES, now: now(), uptime: process.uptime() });
+    json(res, 200, {
+      ok: true,
+      rooms: rooms.size,
+      maxFileBytes: MAX_FILE_BYTES,
+      maxRoomBytes: MAX_ROOM_BYTES,
+      now: now(),
+      uptime: process.uptime(),
+    });
     return;
   }
   if (url.pathname === "/") {
@@ -386,7 +404,13 @@ wss.on("connection", (ws) => {
     alive: true,
     chatTimes: [],
   };
-  send(ws, { type: "hello", serverNow: now(), maxMembers: MAX_MEMBERS, maxFileBytes: MAX_FILE_BYTES });
+  send(ws, {
+    type: "hello",
+    serverNow: now(),
+    maxMembers: MAX_MEMBERS,
+    maxFileBytes: MAX_FILE_BYTES,
+    maxRoomBytes: MAX_ROOM_BYTES,
+  });
 
   ws.on("pong", () => {
     ws.meta.alive = true;
@@ -430,6 +454,10 @@ wss.on("connection", (ws) => {
       ws.meta.roomId = room.id;
       room.members.set(ws.meta.id, { id: ws.meta.id, name, ws, token: ws.meta.token });
       room.emptyAt = 0;
+      // A room whose host dropped can be left without a host. The first member
+      // to (re)join claims it, so automatic reconnect cannot strand the room.
+      const claimedHost = !room.hostId;
+      if (claimedHost) room.hostId = ws.meta.id;
       send(ws, {
         type: "welcome",
         selfId: ws.meta.id,
@@ -439,6 +467,7 @@ wss.on("connection", (ws) => {
       });
       announce(room);
       if (message.type === "join") systemChat(room, `${name} 加入了房间`);
+      if (claimedHost) systemChat(room, `${name} 成为房主`);
       return;
     }
 
@@ -542,7 +571,9 @@ heartbeat.unref();
 server.listen(PORT, HOST, () => {
   console.log(`[together] listening on http://${HOST}:${PORT}`);
   console.log(`[together] websocket ws://${HOST}:${PORT}/ws`);
-  console.log(`[together] room files ${FILE_ROOT} · max ${MAX_FILE_BYTES} bytes`);
+  console.log(
+    `[together] room files ${FILE_ROOT} · max ${MAX_FILE_BYTES} bytes/file · ${MAX_ROOM_BYTES} bytes/room`,
+  );
 });
 
 function shutdown() {
