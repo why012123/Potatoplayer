@@ -13,6 +13,7 @@
     "build:media-helper": "node scripts/build-media-helper.cjs",
     "build:renderer": "npm run build:lyric3d && vite build",
     "build:backend": "node scripts/build-backend.cjs",
+    "build:potatohq": "make -C engines/potatoHQ",
     "build": "npm run build:backend && npm run build:renderer && npm run build:media-helper",
     "prestart": "npm run build:renderer && node scripts/ensure-backend.cjs && npm run build:media-helper && node scripts/ensure-ultra.cjs",
     "start": "node scripts/run-electron.cjs .",

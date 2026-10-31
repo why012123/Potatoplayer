@@ -92,6 +92,8 @@ public final class EngineFactory {
         if (env != null && !env.isBlank() && Files.isExecutable(Path.of(env))) return env;
         String cwd = System.getProperty("user.dir", ".");
         List<String> candidates = List.of(
+                cwd + "/engines/potatoHQ/build/potatohq",
+                cwd + "/../engines/potatoHQ/build/potatohq",
                 cwd + "/potatoHQ/build/potatohq",
                 cwd + "/../potatoHQ/build/potatohq",
                 cwd + "/resources/audio-engines/potatohq",
