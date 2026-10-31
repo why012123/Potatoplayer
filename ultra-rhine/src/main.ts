@@ -17,6 +17,7 @@ import "@kitlangton/rolling-number/styles.css";
 import "./style.css";
 import "./quality-settings.css";
 import "./responsive.css";
+import "./floating-ui.css";
 import { viewportLayout, openingLayout } from "./viewport-layout";
 import { assetUrl } from "./asset-url";
 import { initPwa, pwaSettingsMarkup } from "./pwa";

@@ -22,6 +22,15 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
   assert.equal(await page.evaluate(() => rhine.stats().mode), 'detail');
   const after = await page.evaluate(async () => (await potato.invoke('bootstrap')).playback);
   assert.equal(after.trackId, before.trackId); assert.equal(after.playing, before.playing);
+  const layout = await page.evaluate(() => {
+   const detail = document.querySelector('.detail-content');
+   const dock = document.querySelector('.music-transport');
+   detail.scrollTop = detail.scrollHeight;
+   return { bottom: detail.getBoundingClientRect().bottom, dockTop: dock.getBoundingClientRect().top,
+    actionsBottom: document.querySelector('.detail-actions').getBoundingClientRect().bottom };
+  });
+  assert.ok(layout.bottom < layout.dockTop, 'Details must clear the playback dock');
+  assert.ok(layout.actionsBottom <= layout.bottom + 1, 'Detail actions must remain accessible');
   await page.screenshot({ path: path.join(root, 'ultra-rhine/dist/music-detail.png') });
   await page.locator('[data-action="model-viewer"]').click();
   await page.waitForFunction(() => { const el=document.querySelector('.model-viewer'); return el && JSON.parse(el.dataset.stats || '{}').ready; });

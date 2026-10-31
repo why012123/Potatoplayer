@@ -1,0 +1,102 @@
+/* Static elevation keeps the archive readable without extra WebGL passes or live blur. */
+.music-terminal {
+  --float-face: var(--theme-panel, #edebe4);
+  --float-edge: color-mix(in srgb, var(--theme-ink, #20251e) 14%, transparent);
+  --float-light: rgba(255, 255, 255, .65);
+  --float-shadow: 0 20px 42px -18px rgba(24, 30, 22, .32), 0 5px 12px -5px rgba(24, 30, 22, .18), inset 0 1px 0 var(--float-light);
+}
+[data-dark-surface="true"] .music-terminal,
+.music-terminal[data-dark-surface="true"] { --float-light: rgba(255,255,255,.12); }
+.music-terminal :is(.music-transport, .system-nav, .column-navigation, .archive-counter, .detail-content, .viewer-parts, .viewer-actions, .terminal-modal) {
+  background: linear-gradient(150deg, var(--float-light), transparent 45%), var(--float-face);
+  border: 1px solid var(--float-edge);
+  box-shadow: var(--float-shadow);
+  border-radius: 14px;
+}
+.music-terminal .music-transport {
+  bottom: 30px;
+  border-top: 1px solid var(--float-light);
+  border-radius: 22px;
+  box-shadow: 0 28px 48px -18px rgba(24,30,22,.38), 0 8px 16px -8px rgba(24,30,22,.22), inset 0 1px 0 var(--float-light);
+}
+.music-terminal .transport-art { border-radius: 10px; box-shadow: 0 5px 12px rgba(0,0,0,.18); }
+.music-terminal .system-nav { padding: 12px 18px; gap: 28px; }
+.music-terminal .column-navigation { padding: 12px 16px; gap: 18px; }
+.music-terminal .archive-counter { padding: 16px 22px; }
+.music-terminal .archive-counter > div { margin-top: 8px; font-size: 46px; }
+/* Keep the leader line in the scene; give only its information area a raised surface. */
+.music-terminal .archive-callout { width: 820px; padding: 26px 30px; border-radius: 16px; border: 1px solid var(--float-edge); background: linear-gradient(135deg,var(--float-light),transparent 65%),var(--float-face); box-shadow: var(--float-shadow); }
+.music-terminal .file-title { max-width: 100%; overflow-wrap: anywhere; }
+.music-terminal .detail-content { padding: 26px; }
+.music-terminal .viewer-parts { padding: 22px; width: 270px; }
+.music-terminal .viewer-actions { padding: 10px; }
+.music-terminal .terminal-modal { border-radius: 18px; box-shadow: 0 38px 90px -24px rgba(0,0,0,.4), inset 0 1px 0 var(--float-light); }
+.music-terminal :is(.transport-buttons button, .column-navigation button, .viewer-back, .back-button, .viewer-open) {
+  border-radius: 9px;
+  border: 1px solid var(--float-edge);
+  background: var(--float-face);
+  box-shadow: 0 3px 6px -3px rgba(0,0,0,.25), inset 0 1px 0 var(--float-light);
+}
+.music-terminal :is(.viewer-back, .back-button) { padding: 12px 16px; }
+.music-terminal .transport-buttons .transport-play { background: var(--theme-ink,#20251e); color: var(--theme-paper,#eeece4); border-radius: 12px; box-shadow: 0 5px 12px -4px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.18); }
+.music-terminal :is(.transport-buttons button, .column-navigation button, .viewer-open):active { box-shadow: inset 0 2px 5px rgba(0,0,0,.18); }
+.music-terminal :is(.transport-buttons button, .column-navigation button):hover:not(:disabled) { outline: 1px solid var(--theme-accent,#9b7247); outline-offset: 2px; }
+.music-terminal :is([data-layout="compact"], [data-layout="portrait"]) .archive-callout { padding: 18px; }
+.music-terminal :is([data-layout="compact"], [data-layout="portrait"]) .detail-content { padding: 18px; }
+
+/* Rhine instrumentation: suspended sheets, registration marks and signal rails. */
+.music-terminal {
+  --float-face: color-mix(in srgb, var(--theme-panel,#edebe4) 94%, #d9e8e5);
+  --float-edge: color-mix(in srgb, var(--theme-ink,#20251e) 30%, transparent);
+  --signal: #477d75;
+  --float-shadow: 0 18px 30px -22px rgba(20,42,38,.55), 5px 5px 0 -4px var(--signal), inset 0 1px 0 var(--float-light);
+}
+.music-terminal :is(.music-transport,.system-nav,.column-navigation,.archive-counter,.archive-callout,.detail-content,.viewer-parts,.viewer-actions,.terminal-modal) {
+  border-radius: 2px;
+  background: linear-gradient(115deg,var(--float-light),transparent 42%),var(--float-face);
+  border: 1px solid var(--float-edge);
+  border-top-color: var(--signal);
+  box-shadow: var(--float-shadow);
+}
+.music-terminal :is(.archive-callout,.music-transport)::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background: linear-gradient(var(--signal),var(--signal)) left top/24px 2px no-repeat,
+    linear-gradient(var(--signal),var(--signal)) left top/2px 18px no-repeat,
+    linear-gradient(var(--signal),var(--signal)) right bottom/24px 2px no-repeat,
+    linear-gradient(var(--signal),var(--signal)) right bottom/2px 18px no-repeat;
+}
+.music-terminal .archive-callout { padding: 24px 30px; border-left: 3px solid var(--signal); }
+.music-terminal .archive-callout::after {
+  content: ""; position: absolute; right: 20px; top: -12px; width: 100px; height: 5px;
+  background: repeating-linear-gradient(90deg,var(--signal) 0 1px,transparent 1px 8px); pointer-events: none;
+}
+.music-terminal .eyebrow { font-family: monospace; letter-spacing: 2px; }
+.music-terminal .callout-rule { margin-top: 28px; background: var(--float-edge); }
+.music-terminal .read-file { margin-top: 30px; border-left: 2px solid var(--signal); padding: 8px 16px; }
+.music-terminal .file-summary { width: auto; gap: 20px; }
+.music-terminal .file-summary > span:first-child { overflow-wrap: anywhere; }
+.music-terminal :is(.transport-art,.transport-buttons button,.column-navigation button,.viewer-back,.back-button,.viewer-open) { border-radius: 2px; box-shadow: inset 0 1px 0 var(--float-light); }
+.music-terminal .transport-buttons .transport-play { border-radius: 2px; border-bottom: 3px solid #8bbeb1; box-shadow: 0 4px 12px -8px var(--signal); }
+.music-terminal .music-transport { border-left: 3px solid var(--signal); }
+.music-terminal .transport-volume { border-left: 1px solid var(--float-edge); padding-left: 22px; }
+.music-terminal .music-transport input { accent-color: var(--signal); }
+.music-terminal .music-transport input[type="range"] { appearance: none; height: 3px; background: var(--float-edge); cursor: pointer; }
+.music-terminal .music-transport input[type="range"]::-webkit-slider-thumb { appearance: none; width: 8px; height: 16px; border: 1px solid var(--float-face); border-radius: 0; background: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
+.music-terminal .transport-track small { color: var(--signal); font-family: monospace; }
+.music-terminal .tiny-label { font-family: monospace; color: var(--signal); }
+/* Reserve the dock's full height plus clearance, including padded panel borders. */
+.music-terminal .detail-content {
+  bottom: 174px;
+  max-height: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--signal) transparent;
+  padding: 24px 26px;
+}
+.music-terminal :is([data-layout="compact"],[data-layout="portrait"]) .detail-content { bottom: 174px; max-height: none; }
+.music-terminal .detail-actions { position: sticky; bottom: -24px; background: var(--float-face); padding: 16px 0; border-top: 1px solid var(--float-edge); z-index: 2; }
