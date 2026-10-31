@@ -10,12 +10,17 @@ export function MiniPlayer() {
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
+  const tempTrack = useAppStore((state) => state.tempTrack);
   const setOpen = useAppStore((state) => state.setRightPanelOpen);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const playTrack = useAppStore((state) => state.playTrack);
-  const track = tracks.find((item) => item.id === (playback?.trackId ?? previewTrackId));
+  const currentId = playback?.trackId ?? previewTrackId;
+  const track =
+    tracks.find((item) => item.id === currentId) ??
+    (tempTrack && tempTrack.id === currentId ? tempTrack : undefined);
   if (open || !track) return null;
   const active = playback?.trackId === track.id;
+  const isTemp = tempTrack?.id === track.id;
   const progress = active && playback.duration ? (playback.time / playback.duration) * 100 : 0;
 
   return (
@@ -44,7 +49,8 @@ export function MiniPlayer() {
         type="button"
         className="mini-player__play"
         aria-label={active && playback.playing ? tr("Pause", "暂停") : tr("Play", "播放")}
-        onClick={() => (active ? void togglePlay() : void playTrack(track, tracks.map((item) => item.id)))}
+        disabled={!active && isTemp}
+        onClick={() => (active ? void togglePlay() : isTemp ? undefined : void playTrack(track, tracks.map((item) => item.id)))}
       >
         {active && playback.playing ? (
           <Pause size={18} fill="currentColor" strokeWidth={0} />

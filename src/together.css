@@ -297,6 +297,167 @@
   background: color-mix(in srgb, #c45d53 8%, transparent);
   color: #9c3f38;
 }
+
+.together-status.is-reconnecting {
+  color: #8a6329;
+  border-color: color-mix(in srgb, #b98a3b 36%, transparent);
+  background: color-mix(in srgb, #d6a64c 10%, transparent);
+}
+.together-reconnect {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, #b98a3b 30%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, #d6a64c 8%, transparent);
+  color: #8a6329;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.together-room__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+.together-room__error button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+}
+.together-room__error button:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.together-transfers {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.together-transfers__list {
+  display: grid;
+  gap: 5px;
+  max-height: 166px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.together-transfer {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 1px solid var(--line-dark);
+  border-radius: 10px;
+  background: var(--glass);
+}
+.together-transfer.is-error {
+  border-color: color-mix(in srgb, #b94e45 30%, transparent);
+}
+.together-transfer__icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  flex: none;
+}
+.together-transfer__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.together-transfer__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.together-transfer__line strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+}
+.together-transfer__line em {
+  flex: none;
+  font-style: normal;
+  font-size: 8px;
+  color: var(--muted);
+}
+.together-transfer__bar {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.together-transfer__bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.18s linear;
+}
+.together-transfer__bar.is-indeterminate span {
+  width: 34%;
+  animation: together-transfer-slide 1.25s ease-in-out infinite;
+}
+@keyframes together-transfer-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(330%);
+  }
+}
+.together-transfer__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  color: var(--muted);
+}
+.together-transfer__action {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+}
+.together-transfer__action:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.together-transfer__done {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: #3e7a50;
+  flex: none;
+}
+
 .together-leave {
   display: inline-flex;
   align-items: center;
@@ -410,7 +571,10 @@
   }
   .together-side .together-code,
   .together-side .together-now,
-  .together-side .together-missing {
+  .together-side .together-missing,
+  .together-side .together-transfers,
+  .together-side .together-reconnect,
+  .together-side .together-room__error {
     grid-column: 1 / -1;
   }
   .together-leave {

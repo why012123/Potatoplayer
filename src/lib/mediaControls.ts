@@ -107,10 +107,13 @@ export function useMediaControls() {
   }, [dispatch]);
 
   const tracks = useAppStore((state) => state.tracks);
+  const tempTrack = useAppStore((state) => state.tempTrack);
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const currentId = playback?.trackId ?? previewTrackId;
-  const track = tracks.find((item) => item.id === currentId);
+  const track =
+    tracks.find((item) => item.id === currentId) ??
+    (tempTrack && tempTrack.id === currentId ? tempTrack : undefined);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;

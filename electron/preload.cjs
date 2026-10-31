@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld("potato", {
   coverData: (target) => ipcRenderer.invoke("cover:data", target),
   togetherUpload: (options) => ipcRenderer.invoke("together:upload", options),
   togetherDownload: (options) => ipcRenderer.invoke("together:download", options),
+  cancelTogetherTransfer: (id) => ipcRenderer.invoke("together:cancel-transfer", id),
+  onTogetherProgress: (listener) => {
+    const handler = (_event, progress) => listener(progress);
+    ipcRenderer.on("together:progress", handler);
+    return () => ipcRenderer.removeListener("together:progress", handler);
+  },
   openUltra: () => ipcRenderer.invoke("ultra:open"),
   rendererReady: () => ipcRenderer.send("app:renderer-ready"),
   platform: process.platform,

@@ -73,6 +73,8 @@ interface AppStore {
   vizBars: number[];
   dailyMix: DailyMix | null;
   playback: PlaybackState | null;
+  /** A Together room file that plays without being indexed into the library. */
+  tempTrack: Track | null;
   scanning: boolean;
   scanProgress: ScanProgress | null;
   viewHistory: View[];
@@ -115,6 +117,8 @@ interface AppStore {
   setSortMode: (mode: SortMode) => void;
   setPreviewTrack: (id: string) => void;
   playTrack: (track: Track, queue?: string[], startAt?: number) => Promise<void>;
+  playTempFile: (track: Track, startAt?: number) => Promise<boolean>;
+  setTempTrack: (track: Track | null) => void;
   togglePlay: () => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
@@ -403,6 +407,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   vizBars: [],
   dailyMix: null,
   playback: null,
+  tempTrack: null,
   scanning: false,
   scanProgress: null,
   viewHistory: [view],
@@ -798,7 +803,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   playTrack: async (track, queue, startAt = 0) => {
-    set({ previewTrackId: track.id });
+    set({ previewTrackId: track.id, tempTrack: null });
     void get().ensureLyrics(track.id);
     try {
       await bridge().invoke("playback.play", {
@@ -810,6 +815,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().pushToast(lx("Could not play this track", "无法播放这首歌曲"), friendlyError(error), "error");
     }
   },
+
+  playTempFile: async (track, startAt = 0) => {
+    set({ previewTrackId: track.id, tempTrack: track });
+    try {
+      await bridge().invoke("playback.playTemp", {
+        path: track.path,
+        trackId: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        startAt,
+      });
+      return true;
+    } catch (error) {
+      set((state) => (state.tempTrack?.id === track.id ? { tempTrack: null } : {}));
+      get().pushToast(lx("Could not play the room track", "无法播放房间里的歌曲"), friendlyError(error), "error");
+      return false;
+    }
+  },
+
+  setTempTrack: (track) => set({ tempTrack: track }),
 
   togglePlay: async () => {
     const { playback, previewTrackId, tracks } = get();
@@ -1568,7 +1595,10 @@ export function currentView(): View {
 export function displayTrack(): Track | undefined {
   const state = useAppStore.getState();
   const id = state.playback?.trackId ?? state.previewTrackId;
-  return state.tracks.find((track) => track.id === id);
+  return (
+    state.tracks.find((track) => track.id === id) ??
+    (state.tempTrack && state.tempTrack.id === id ? state.tempTrack : undefined)
+  );
 }
 
 export function viewKey(view: View): string {

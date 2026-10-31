@@ -49,8 +49,12 @@ export interface TogetherNeed {
 export interface TogetherTransfer {
   key: string;
   direction: "up" | "down";
-  state: "waiting" | "working" | "ready" | "error";
+  state: "waiting" | "working" | "ready" | "error" | "canceled";
   message?: string;
+  title?: string;
+  loaded?: number;
+  total?: number;
+  nonce?: number;
 }
 
 export interface TogetherRoom {
@@ -87,6 +91,7 @@ interface TogetherStore {
   needs: TogetherNeed[];
   transfers: Record<string, TogetherTransfer>;
   tempPlayingKey: string | null;
+  reconnecting: boolean;
   openDialog: () => void;
   closeDialog: () => void;
   setServerUrl: (value: string) => void;
@@ -98,6 +103,8 @@ interface TogetherStore {
   publishPlayback: (state: { track: TogetherTrack | null; playing: boolean; position: number }) => void;
   requestFile: (key: string, track: TogetherTrack | null) => void;
   setTransfer: (key: string, transfer: TogetherTransfer | null) => void;
+  cancelTransfer: (key: string) => void;
+  retryTransfer: (key: string) => void;
   setTempPlayingKey: (key: string | null) => void;
   clearError: () => void;
 }
@@ -146,7 +153,12 @@ export function normalizeServerUrl(raw: string): string {
 
 let socket: WebSocket | null = null;
 let pingTimer: number | null = null;
+let reconnectTimer: number | null = null;
+let reconnectAttempt = 0;
+let resumeRoom: { roomId: string; name: string } | null = null;
+let closingIntentionally = false;
 let pending: { type: "create" | "join"; roomId?: string } | null = null;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 function send(payload: unknown) {
   if (!socket || socket.readyState !== 1) return;
@@ -199,7 +211,25 @@ function emptyRoom() {
     needs: [],
     transfers: {},
     tempPlayingKey: null,
+    reconnecting: false,
   };
+}
+
+function clearReconnect() {
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+/** Stop in-flight file work before the room credentials disappear. */
+function cancelActiveTransfers(transfers: Record<string, TogetherTransfer>) {
+  if (typeof window === "undefined" || typeof window.potato?.cancelTogetherTransfer !== "function") return;
+  for (const transfer of Object.values(transfers)) {
+    if (transfer.state === "working") {
+      void window.potato.cancelTogetherTransfer(transfer.key).catch(() => undefined);
+    }
+  }
 }
 
 function handleMessage(raw: string) {
@@ -223,9 +253,14 @@ function handleMessage(raw: string) {
     if (!room || !selfId) return;
     const self = room.members.find((member) => member.id === selfId);
     const serverNow = Number(room.serverNow || message.serverNow) || Date.now();
+    resumeRoom = { roomId: room.id, name: self?.name || store.name };
+    reconnectAttempt = 0;
+    closingIntentionally = false;
+    clearReconnect();
     useTogether.setState({
       status: "connected",
       error: null,
+      reconnecting: false,
       selfId,
       roomId: room.id,
       hostId: room.hostId,
@@ -285,9 +320,13 @@ function handleMessage(raw: string) {
     if (!file?.key || !file.sha256) return;
     const current = useTogether.getState();
     const files = current.files.filter((item) => item.key !== file.key);
+    const transfers = { ...current.transfers };
+    const stale = transfers[file.key];
+    if (stale && (stale.state === "error" || stale.state === "canceled")) delete transfers[file.key];
     useTogether.setState({
       files: [...files, file],
       needs: current.needs.filter((item) => item.key !== file.key),
+      transfers,
     });
     return;
   }
@@ -322,13 +361,31 @@ function handleMessage(raw: string) {
   }
 
   if (type === "left") {
+    closingIntentionally = true;
+    resumeRoom = null;
+    reconnectAttempt = 0;
+    cancelActiveTransfers(useTogether.getState().transfers);
+    clearReconnect();
     stopSocket();
     useTogether.setState({ ...emptyRoom(), error: null });
     return;
   }
 
   if (type === "error") {
-    useTogether.setState({ error: String(message.message || "联机请求失败") });
+    const detail = String(message.message || "联机请求失败");
+    if (store.reconnecting || store.status === "connecting") {
+      // A failed create/join/rejoin must not fall through to the generic
+      // "connection dropped" path and erase the reason the relay gave us.
+      closingIntentionally = true;
+      resumeRoom = null;
+      reconnectAttempt = 0;
+      cancelActiveTransfers(store.transfers);
+      clearReconnect();
+      stopSocket();
+      useTogether.setState({ ...emptyRoom(), status: "error", error: detail });
+      return;
+    }
+    useTogether.setState({ error: detail });
   }
 }
 
@@ -353,6 +410,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
   needs: [],
   transfers: {},
   tempPlayingKey: null,
+  reconnecting: false,
 
   openDialog: () => set({ open: true }),
   closeDialog: () => set({ open: false }),
@@ -366,14 +424,32 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     set({ name: value });
   },
 
-  createRoom: () => get().status !== "connecting" && connect("create"),
-  joinRoom: (code) => get().status !== "connecting" && connect("join", code),
+  createRoom: () => {
+    if (get().status === "connecting" && !get().reconnecting) return;
+    closingIntentionally = false;
+    resumeRoom = null;
+    clearReconnect();
+    connect("create");
+  },
+  joinRoom: (code) => {
+    if (get().status === "connecting" && !get().reconnecting) return;
+    closingIntentionally = false;
+    resumeRoom = null;
+    clearReconnect();
+    connect("join", code);
+  },
   leaveRoom: () => {
+    closingIntentionally = true;
+    resumeRoom = null;
+    reconnectAttempt = 0;
+    cancelActiveTransfers(get().transfers);
+    clearReconnect();
     if (get().status === "connected") send({ type: "leave" });
     stopSocket();
     set({ ...emptyRoom(), error: null });
   },
   sendChat: (text) => {
+    if (get().status !== "connected") return;
     const body = text.trim().slice(0, 500);
     if (body) send({ type: "chat", text: body });
   },
@@ -398,52 +474,80 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     else delete transfers[key];
     set({ transfers });
   },
+  cancelTransfer: (key) => {
+    const current = get().transfers[key];
+    if (!current) return;
+    if (typeof window.potato?.cancelTogetherTransfer === "function") {
+      void window.potato.cancelTogetherTransfer(key).catch(() => undefined);
+    }
+    set({
+      transfers: { ...get().transfers, [key]: { ...current, state: "canceled", message: "已取消" } },
+    });
+  },
+  retryTransfer: (key) => {
+    const transfers = { ...get().transfers };
+    delete transfers[key];
+    set({ transfers });
+  },
   setTempPlayingKey: (key) => set({ tempPlayingKey: key }),
 }));
 
-function connect(type: "create" | "join", roomId?: string) {
+function connect(type: "create" | "join", roomId?: string, resume = false) {
   const state = useTogether.getState();
   const url = normalizeServerUrl(state.serverUrl);
   const name = state.name.trim() || "听众";
   remember(SERVER_KEY, url);
   remember(NAME_KEY, name);
   stopSocket();
+  clearReconnect();
   pending = { type, roomId };
+  const keepRoom = resume && Boolean(state.roomId);
   useTogether.setState({
     status: "connecting",
     error: null,
+    reconnecting: resume,
     serverUrl: url,
     name,
     selfId: null,
-    roomId: null,
-    hostId: null,
-    members: [],
-    chat: [],
-    state: null,
-    missingKey: null,
     selfToken: null,
-    files: [],
-    needs: [],
+    missingKey: null,
     transfers: {},
     tempPlayingKey: null,
+    ...(keepRoom
+      ? {}
+      : {
+          roomId: null,
+          hostId: null,
+          members: [],
+          chat: [],
+          state: null,
+          files: [],
+          needs: [],
+        }),
   });
 
   let next: WebSocket;
   try {
     next = new WebSocket(url);
   } catch {
-    useTogether.setState({ status: "error", error: "服务器地址无效" });
+    closingIntentionally = true;
+    resumeRoom = null;
+    reconnectAttempt = 0;
+    clearReconnect();
+    useTogether.setState({ ...emptyRoom(), status: "error", error: "服务器地址无效" });
     return;
   }
   socket = next;
 
   next.onopen = () => {
     if (!pending) return;
-    send({ type: pending.type, name, roomId: pending.roomId });
+    const request = pending;
+    pending = null;
+    send({ type: request.type, name, roomId: request.roomId });
   };
   next.onmessage = (event) => handleMessage(String(event.data));
   next.onerror = () => {
-    if (useTogether.getState().status === "connecting") {
+    if (!useTogether.getState().reconnecting && useTogether.getState().status === "connecting") {
       useTogether.setState({ status: "error", error: "无法连接联机服务器" });
     }
   };
@@ -451,20 +555,84 @@ function connect(type: "create" | "join", roomId?: string) {
     if (socket !== next) return;
     socket = null;
     stopPing();
-    if (useTogether.getState().status === "connected" || useTogether.getState().status === "connecting") {
-      useTogether.setState({
-        status: "error",
-        error: "连接已断开，请重新加入房间",
-        selfId: null,
-        roomId: null,
-        hostId: null,
-        members: [],
-        selfToken: null,
-        files: [],
-        needs: [],
-        transfers: {},
-        tempPlayingKey: null,
-      });
+    if (closingIntentionally || !resumeRoom) {
+      if (useTogether.getState().status === "connected" || useTogether.getState().status === "connecting") {
+        cancelActiveTransfers(useTogether.getState().transfers);
+        useTogether.setState({
+          ...emptyRoom(),
+          status: "error",
+          error: "连接已断开，请重新加入房间",
+        });
+      }
+      return;
     }
+    scheduleReconnect();
   };
 }
+
+function scheduleReconnect() {
+  if (!resumeRoom || closingIntentionally) return;
+  cancelActiveTransfers(useTogether.getState().transfers);
+  if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+    closingIntentionally = true;
+    resumeRoom = null;
+    clearReconnect();
+    stopSocket();
+    useTogether.setState({
+      ...emptyRoom(),
+      status: "error",
+      error: "连接已断开，自动重连失败",
+    });
+    return;
+  }
+  const delay = Math.min(8000, 700 * 2 ** reconnectAttempt);
+  reconnectAttempt += 1;
+  stopPing();
+  useTogether.setState({
+    status: "connecting",
+    reconnecting: true,
+    error: null,
+    selfId: null,
+    selfToken: null,
+    missingKey: null,
+    transfers: {},
+    tempPlayingKey: null,
+  });
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    if (!resumeRoom || closingIntentionally) return;
+    connect("join", resumeRoom.roomId, true);
+  }, delay);
+}
+
+let transferSequence = 0;
+export function nextTransferNonce(): number {
+  transferSequence += 1;
+  return transferSequence;
+}
+
+let progressBound = false;
+function bindTransferProgress() {
+  if (progressBound || typeof window === "undefined") return;
+  if (typeof window.potato?.onTogetherProgress !== "function") return;
+  progressBound = true;
+  window.potato.onTogetherProgress((payload) => {
+    if (!payload?.id) return;
+    const current = useTogether.getState();
+    const transfer = current.transfers[payload.id];
+    if (!transfer || transfer.direction !== payload.direction || transfer.state !== "working") return;
+    const total = Math.max(0, Number(payload.total) || 0);
+    const loaded = Math.max(0, Number(payload.loaded) || 0);
+    useTogether.setState({
+      transfers: {
+        ...current.transfers,
+        [payload.id]: {
+          ...transfer,
+          loaded,
+          total: total || transfer.total,
+        },
+      },
+    });
+  });
+}
+bindTransferProgress();
