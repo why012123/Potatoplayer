@@ -1,8 +1,8 @@
 {
   "name": "potatoplayer-together-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Room relay for Potatoplayer Together: membership, chat and playback clock only",
+  "description": "Room relay for Potatoplayer Together: membership, chat, playback clock and temporary member-uploaded file cache",
   "main": "server.cjs",
   "type": "commonjs",
   "scripts": {

@@ -1,8 +1,12 @@
 # Potatoplayer Together server
 
 A small WebSocket relay for the **Together** room feature. It stores room
-membership, chat and the host's playback clock in memory. It does **not**
-store, download or relay audio.
+membership, chat, the host's playback clock and a short-lived cache for tracks
+that a room member already owns.
+
+It never downloads from NetEase, QQ Music or any other music service. A client
+must upload an existing local file; other members of the same room can then
+download that cached copy.
 
 ## Run
 
@@ -21,8 +25,31 @@ Environment:
 | `PORT` | `8787` | HTTP + WebSocket port |
 | `HOST` | `0.0.0.0` | Bind address |
 | `MAX_MEMBERS` | `8` | Room size limit |
+| `MAX_FILE_MB` | `300` | Per-file upload limit |
+| `FILE_DIR` | `./data` | Ephemeral room-file cache |
 
 Health check: `GET /health`.
+
+## Room files
+
+Each member receives a random token at `welcome`. File requests require it:
+
+```text
+POST /rooms/:code/files?key=...    upload a local file
+GET  /rooms/:code/files?key=...    download a cached file (Range supported)
+Authorization: Bearer <member token>
+```
+
+Files are content-addressed by SHA-256 on disk. The client verifies the hash
+again after download and plays the copy through the backend's temporary-track
+path, so no re-encoding happens.
+
+The cache is intentionally ephemeral:
+
+- files are deleted 10 minutes after a room becomes empty;
+- restarting the relay deletes `FILE_DIR` and every room;
+- there is no public file listing;
+- only connected room members can upload or download.
 
 ## Put it behind HTTPS
 
@@ -35,12 +62,15 @@ https://together.example.com  ->  http://127.0.0.1:8787
 
 Then clients enter `wss://together.example.com/ws`.
 
-## What it does not do
+Cloudflare's free HTTP proxy limits a single upload to about 100 MB. If you
+need larger FLAC files, use Caddy/nginx directly instead of Cloudflare's proxy,
+or raise `MAX_FILE_MB` only when the path supports it.
 
-- No accounts; a six-character room code is the only access control.
-- No persistence; restarting the process clears rooms.
-- No audio transfer. Every client plays its own local copy. If a guest does
-  not own a track, the client shows it as missing instead of downloading it.
+## Security and copyright
 
-The audio-transfer phase is intentionally separate: it needs explicit
-ownership/authorization and a storage policy, not just a relay.
+- A six-character room code plus a per-member token is the only access control.
+  Do not treat it as an account system.
+- The server is a private relay, not a public music library.
+- Only upload files you own or have explicit permission to share. The server
+  does not verify ownership and is not a license to redistribute music.
+- TLS is required in front of this process for internet use.
