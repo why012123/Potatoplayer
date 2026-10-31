@@ -214,7 +214,7 @@ try {
     // Run across a complete row cycle, checking physical direction at the seam.
     const loop = await stats(page);
     for (let i = 0; i < 8; i++)
-      await page.locator('[data-action="next"]').click();
+      await page.keyboard.press("ArrowDown");
     assert.equal((await stats(page)).selected, loop.selected);
     assert.equal(
       (await stats(page)).selectedCell.row,

@@ -41,7 +41,7 @@ try {
       null,
       { timeout: 60000 },
     );
-    await page.locator('[data-action="next"]').click();
+    await page.keyboard.press("ArrowDown");
     await page.waitForTimeout(2200);
     const cdp = mobile ? await context.newCDPSession(page) : null;
     const landscape = mobile && width > height;

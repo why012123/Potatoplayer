@@ -99,7 +99,6 @@ $("#stage").innerHTML = `
     <div class="archive-callout"><div class="eyebrow">INTERNAL DATABASE <span>／</span> <span id="archive-category">机构档案</span></div><button class="file-title" data-action="open">FILE NUMBER: <span id="selected-id">X-<span id="selected-code">001</span></span><span class="file-open">↗</span></button><div class="callout-rule"><i></i></div><div class="file-summary"><span id="selected-title">莱茵生命</span><span id="selected-clearance">BUSINESS AREA</span></div><button class="read-file" data-action="open">TRACK DETAILS <span>→</span></button></div>
     <div id="hover-label" class="hover-label" hidden>X-<span id="hover-code">001</span> / <span id="hover-title"></span></div>
     <div class="archive-counter"><span class="tiny-label">ARCHIVE / SELECT</span><div><span id="selected-number">01</span><i>/</i><span class="count-total">12</span></div></div>
-    <div class="archive-navigation"><button data-action="prev" aria-label="上一个档案">↑</button><div id="file-ticks" class="file-ticks"></div><button data-action="next" aria-label="下一个档案">↓</button></div>
     <div class="column-navigation"><button data-action="column-prev" aria-label="上一列">←</button><div><span id="column-number">COLUMN <span id="column-index">03</span> / <span id="column-total">05</span></span><strong id="column-name">机构档案</strong></div><button data-action="column-next" aria-label="下一列">→</button></div>
     <div class="archive-hint"><kbd>←</kbd> <kbd>→</kbd> 切换列 <span>／</span> <kbd>↑</kbd> <kbd>↓</kbd> 前后档案 <span>／</span> <kbd>ENTER</kbd> 读取</div>
   </section>
@@ -478,13 +477,6 @@ window.visualViewport?.addEventListener("resize", fit);
 window.visualViewport?.addEventListener("scroll", fit);
 matchMedia("(pointer: coarse)").addEventListener("change", fit);
 fit();
-$("#file-ticks").innerHTML = columnFiles(fileLocation(selected).lane)
-  .map((index) => `<button data-select="${index}"></button>`)
-  .join("");
-const fileTicks = [
-  ...$("#file-ticks").querySelectorAll<HTMLButtonElement>("button"),
-];
-
 function setMode(next: Mode) {
   if (workbench?.enabled && next === "detail") next = "archive";
   const previousMode = mode;
@@ -617,7 +609,6 @@ function updateSelection(navigation?: ArchiveNavigation) {
   $(".count-total").textContent = String(files.length).padStart(2, "0");
   const columnTotal = $("#column-total");
   if (columnTotal) columnTotal.textContent = String(archiveColumns.length).padStart(2, "0");
-  $("#file-ticks").hidden = files.length > 16;
   columnCounter.update({
     value: lane + 1,
     animated: motionActive("rollingNumbers") && mode === "archive",
@@ -632,15 +623,6 @@ function updateSelection(navigation?: ArchiveNavigation) {
   });
   $<HTMLButtonElement>('[data-action="column-prev"]').disabled = false;
   $<HTMLButtonElement>('[data-action="column-next"]').disabled = false;
-  fileTicks.forEach((button, slot) => {
-    const index = files[slot],
-      record = records[index];
-    button.dataset.select = String(index);
-    button.setAttribute("aria-label", `选择档案 ${record.id} ${record.title}`);
-    button.title = `${record.id} · ${record.title}`;
-    button.classList.toggle("selected", index === selected);
-    button.setAttribute("aria-pressed", String(index === selected));
-  });
   $("#saved-count").textContent = String(saved.size).padStart(2, "0");
 }
 function replayBoot(forcePreview = false) {
@@ -1037,8 +1019,6 @@ document.addEventListener("click", (e) => {
     setMode("archive");
     audio.play("confirm");
   }
-  if (action === "prev") stepFile(-1);
-  if (action === "next") stepFile(1);
   if (action === "column-prev") stepColumn(-1);
   if (action === "column-next") stepColumn(1);
   if (action === "open") openFile();

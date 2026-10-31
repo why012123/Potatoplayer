@@ -17,7 +17,7 @@
 [data-dark-surface="true"] :is(.wb-nav button[aria-pressed="true"], .detail-tabs button.active, .settings-list strong, .detail-content h2, .detail-content h3, .detail-content strong, .result-row, .quality-heading h3, .quality-label) { color: var(--theme-ink); }
 [data-dark-surface="true"] :is(.wb-storage, a, .workbench button:hover, .relay-entry:hover) { color: var(--theme-accent); }
 [data-dark-surface="true"] :is(.wb-kicker, .wb-today, .wb-title, .wb-task, .wb-check, .wb-timer-buttons button, .wb-settings, .wb-settings button, .theme-settings, .theme-choices button, .modal-top, .settings-list label, .settings-bottom, .settings-shortcuts, .detail-tabs, .result-header, .result-row, .quality-grid, .quality-heading, .quality-range, .viewer-parts p, .viewer-footer, .viewer-surface button, .relay-entry, .relay-actions button, .category-filters button) { border-color: var(--theme-line); }
-[data-dark-surface="true"] :is(.wb-rule, .callout-rule, .file-ticks button::before, .wb-nav button::before, .relay-time) { background: var(--theme-line); }
+[data-dark-surface="true"] :is(.wb-rule, .callout-rule, .wb-nav button::before, .relay-time) { background: var(--theme-line); }
 [data-dark-surface="true"] :is(.wb-rule i, .powered i, .tab-indicator, .status-light, .relay-time i) { background: var(--theme-ink); }
 [data-dark-surface="true"] .wb-nav button[aria-pressed="true"]::before { background: var(--theme-ink); }
 [data-dark-surface="true"] .wb-nav button:hover::before { background: var(--theme-accent); }

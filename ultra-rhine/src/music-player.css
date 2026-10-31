@@ -15,6 +15,6 @@
 .transport-volume { display:grid;gap:12px;font-size:12px;letter-spacing:2px; }
 .music-terminal .system-footer,.music-terminal .powered,.music-terminal .archive-hint { visibility:hidden; }
 .music-terminal .archive-counter { bottom:180px; }
-.music-terminal .archive-navigation,.music-terminal .column-navigation { bottom:185px; }
+.music-terminal .column-navigation { bottom:185px; }
 .music-terminal .detail-content { max-height:620px;overflow-y:auto;padding-right:16px; }
 .music-transport button:focus-visible,.music-transport input:focus-visible { outline:2px solid var(--theme-accent);outline-offset:4px; }

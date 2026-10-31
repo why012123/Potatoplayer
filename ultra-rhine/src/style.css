@@ -517,23 +517,6 @@ button {
   font-size: 22px;
   color: #726f67;
 }
-.archive-navigation {
-  position: absolute;
-  left: 504px;
-  bottom: 131px;
-  display: flex;
-  align-items: center;
-  gap: 33px;
-}
-.archive-navigation > button {
-  width: 46px;
-  height: 46px;
-  font-size: 28px;
-  transition: background 0.3s;
-}
-.archive-navigation > button:hover {
-  background: #e4d5c1;
-}
 .column-navigation {
   position: absolute;
   left: 1005px;
@@ -577,42 +560,6 @@ button {
   font-variant-numeric: tabular-nums;
   --rn-blur: 0.35;
   --rn-edge-fade: 0.08em;
-}
-.file-ticks[hidden] {
-  display: none;
-}
-.file-ticks {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.file-ticks button {
-  width: 14px;
-  height: 40px;
-  position: relative;
-}
-.file-ticks button:before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 14px;
-  width: 2px;
-  height: 12px;
-  background: #aaa59a;
-  transition:
-    height 0.4s,
-    background 0.4s,
-    top 0.4s;
-}
-.file-ticks button.selected:before {
-  height: 33px;
-  top: 3px;
-  background: #24261f;
-}
-.file-ticks button:hover:before {
-  height: 24px;
-  top: 8px;
-  background: #a27849;
 }
 .archive-hint {
   position: absolute;
@@ -1640,7 +1587,6 @@ button {
   opacity: 1;
 }
 [data-mode="boot"] .archive-counter,
-[data-mode="boot"] .archive-navigation,
 [data-mode="boot"] .archive-hint {
   opacity: 0;
 }

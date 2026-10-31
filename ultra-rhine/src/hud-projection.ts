@@ -29,7 +29,7 @@ export function hudQuadMatrix(width: number, height: number, quad: HudPoint[]): 
 type HudPanel = { node: HTMLElement; width: number; height: number; origin: HudPoint; corners: HudPoint[];
   transformOrigin: HudPoint; inlineTransform: string; animated: boolean };
 const bootPanels = ".access-text, .boot-logo, .auth-status, .scan, .welcome";
-const panels = ".brand, .system-nav, .system-footer > span, .system-footer > button, .powered, .wb-overview, .wb-module, .wb-nav > button, .archive-callout, .archive-counter, .archive-navigation, .column-navigation, .archive-hint, .detail-content, .back-button, .object-caption, .relay-entry, .relay-heading, .relay-actions";
+const panels = ".brand, .system-nav, .system-footer > span, .system-footer > button, .powered, .wb-overview, .wb-module, .wb-nav > button, .archive-callout, .archive-counter, .column-navigation, .archive-hint, .detail-content, .back-button, .object-caption, .relay-entry, .relay-heading, .relay-actions";
 
 export class HudProjection {
   private nodes: HTMLElement[];

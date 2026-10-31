@@ -34,7 +34,7 @@ for(const [name,width,height,mobile] of cases.filter(([name])=>!process.env.REVI
  await page.waitForFunction(()=>window.rhine?.stats().ready&&!document.querySelector('#loading'),null,{timeout:60000});
  await page.waitForFunction(()=>window.rhine.stats().extraction>=.395,null,{timeout:60000});await page.waitForTimeout(300);
  const entry={name,viewport:{width,height},errors};report.push(entry);
- entry.archive=await inside(page,['.brand','.system-nav','.read-file','.archive-navigation','.column-navigation','.archive-counter'],width,height);
+ entry.archive=await inside(page,['.brand','.system-nav','.read-file','.column-navigation','.archive-counter'],width,height);
  await page.screenshot({path:resolve(output,`${name}-archive-final.png`)});
  const before=await stats(page);
  if(mobile){
@@ -51,7 +51,7 @@ for(const [name,width,height,mobile] of cases.filter(([name])=>!process.env.REVI
  }
  // Eight steps traverse the seam without changing the remembered content.
  const loop=await stats(page);
- for(let i=0;i<8;i++){await page.locator('[data-action="next"]').click();await page.waitForTimeout(65)}
+ for(let i=0;i<8;i++){await page.keyboard.press('ArrowDown');await page.waitForTimeout(65)}
  assert.equal((await stats(page)).selected,loop.selected);
  assert.equal((await stats(page)).selectedCell.row,loop.selectedCell.row+8);
  await page.waitForTimeout(2000);
