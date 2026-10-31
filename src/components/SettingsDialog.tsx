@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useState, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
 import {
   AudioLines,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useAppStore } from "@/store";
+import { GraphicsControls } from "@/components/GraphicsControls";
 import { Modal } from "@/components/Modal";
 import { SpatialPad } from "@/components/SpatialPad";
 import { IconButton } from "@/components/IconButton";
@@ -123,8 +125,8 @@ function Segment<T extends string>({
   );
 }
 
-export function SettingsDialog() {
-  const open = useAppStore((state) => state.settingsOpen);
+export function SettingsPage() {
+  const [personalization, setPersonalization] = useState(false);
   const setOpen = useAppStore((state) => state.setSettingsOpen);
   const libraryRoot = useAppStore((state) => state.libraryRoot);
   const dataDir = useAppStore((state) => state.dataDir);
@@ -132,7 +134,6 @@ export function SettingsDialog() {
   const tracks = useAppStore((state) => state.tracks);
   const scanning = useAppStore((state) => state.scanning);
   const scanProgress = useAppStore((state) => state.scanProgress);
-  const reducedMotion = useAppStore((state) => state.reducedMotion);
   const playbackEngine = useAppStore((state) => state.playbackEngine);
   const setPlaybackEngine = useAppStore((state) => state.setPlaybackEngine);
   const engines = useAppStore((state) => state.engines);
@@ -153,30 +154,18 @@ export function SettingsDialog() {
   const setCrossfeedStrength = useAppStore((state) => state.setCrossfeedStrength);
   const [pendingEngine, setPendingEngine] = useState<"potatohq" | "mpv" | null>(null);
   const setOutputMode = useAppStore((state) => state.setOutputMode);
-  const setReducedMotion = useAppStore((state) => state.setReducedMotion);
-  const theme = useAppStore((state) => state.theme);
-  const setTheme = useAppStore((state) => state.setTheme);
   const appearance = useAppStore((state) => state.appearance);
-  const setAppearance = useAppStore((state) => state.setAppearance);
-  const setStylePreset = useAppStore((state) => state.setStylePreset);
   const setLanguage = useAppStore((state) => state.setLanguage);
-  const resetAppearance = useAppStore((state) => state.resetAppearance);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
   const rescan = useAppStore((state) => state.rescan);
   const tr = useTr();
 
   const close = () => setOpen(false);
   const pct = scanProgress?.total ? Math.round((scanProgress.done / scanProgress.total) * 100) : 0;
-  const accent = ACCENT_CHOICES.find((item) => item.id === appearance.accent) ?? ACCENT_CHOICES[0];
-
-  const patch = <K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]) => {
-    setAppearance({ [key]: value } as Pick<AppearancePreferences, K>);
-  };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <Modal onClose={close} className="settings-dialog" labelledBy="settings-title">
+    <>
+        <div className="page settings-page">
           <div className="settings-head">
             <div>
               <div className="modal__eyebrow">
@@ -213,248 +202,9 @@ export function SettingsDialog() {
               </div>
             </Section>
 
-            <Section
-              icon={<Palette size={16} />}
-              title={tr("Appearance", "外观")}
-              detail={tr("A visual language of glass, paper and light.", "玻璃、纸张与光线的视觉语言。")}
-            >
-              <div className="studio-preview" aria-hidden="true">
-                <span className="studio-preview__disc"><Disc3 size={22} /></span>
-                <div className="studio-preview__copy">
-                  <span>{tr("YOUR LISTENING ROOM", "你的聆听室")}</span>
-                  <strong>{tr("Make it feel like yours.", "让它更像你。")}</strong>
-                  <em>
-                    {tr(
-                      `${appearance.style === "editorial" ? "Editorial" : "Classic"} · ${theme === "dark" ? "Dark" : "Light"} · ${accent.en}`,
-                      `${appearance.style === "editorial" ? "编辑纸感" : "经典玻璃"} · ${theme === "dark" ? "深色" : "浅色"} · ${accent.zh}`,
-                    )}
-                  </em>
-                </div>
-                <span className="studio-preview__play"><Play size={14} fill="currentColor" strokeWidth={0} /></span>
-              </div>
-
-              <div className="theme-choice" role="group" aria-label={tr("Theme", "主题")}>
-                <button
-                  type="button"
-                  className={theme === "light" ? "is-active" : ""}
-                  aria-pressed={theme === "light"}
-                  onClick={() => setTheme("light")}
-                >
-                  <Sun size={17} />
-                  <span>
-                    <strong>{tr("Light", "浅色")}</strong>
-                    <em>{tr("Warm paper and daylight glass", "暖纸与日光玻璃")}</em>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={theme === "dark" ? "is-active" : ""}
-                  aria-pressed={theme === "dark"}
-                  onClick={() => setTheme("dark")}
-                >
-                  <Moon size={17} />
-                  <span>
-                    <strong>{tr("Dark", "深色")}</strong>
-                    <em>{tr("Soft charcoal and low light", "暖炭与低光")}</em>
-                  </span>
-                </button>
-              </div>
-
-              <div className="style-preset-grid">
-                <button
-                  type="button"
-                  className={clsx("style-preset", appearance.style === "editorial" && "is-active")}
-                  aria-pressed={appearance.style === "editorial"}
-                  onClick={() => setStylePreset("editorial")}
-                >
-                  <span className="style-preset__art style-preset__art--editorial">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span className="style-preset__copy">
-                    <span className="style-preset__eyebrow">
-                      {tr("ATELIER", "编辑")}
-                      <em>{tr("NEW", "新")}</em>
-                    </span>
-                    <strong>{tr("Editorial", "新版视图")}</strong>
-                    <em>{tr("Paper surfaces, serif headlines, quieter chrome.", "暖纸表面、衬线标题、克制的界面。")}</em>
-                  </span>
-                  {appearance.style === "editorial" && <Check size={15} className="style-preset__check" />}
-                </button>
-                <button
-                  type="button"
-                  className={clsx("style-preset", appearance.style === "classic" && "is-active")}
-                  aria-pressed={appearance.style === "classic"}
-                  onClick={() => setStylePreset("classic")}
-                >
-                  <span className="style-preset__art style-preset__art--classic">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span className="style-preset__copy">
-                    <span className="style-preset__eyebrow">
-                      {tr("CLASSIC GLASS", "经典")}
-                      <em>{tr("ORIGINAL", "原版")}</em>
-                    </span>
-                    <strong>{tr("Classic", "经典视图")}</strong>
-                    <em>{tr("The original warm iOS glass and pill controls.", "原来的暖色 iOS 玻璃与胶囊控件。")}</em>
-                  </span>
-                  {appearance.style === "classic" && <Check size={15} className="style-preset__check" />}
-                </button>
-              </div>
-
-              <div className="studio-panel">
-                <div className="studio-row">
-                  <div className="studio-row__label">
-                    <Palette size={14} />
-                    <span>
-                      <strong>{tr("Accent", "强调色")}</strong>
-                      <em>{tr("Follow the cover or pick a fixed note.", "跟随封面，或选择一个固定色调。")}</em>
-                    </span>
-                  </div>
-                  <div className="accent-swatches" role="group" aria-label={tr("Accent", "强调色")}>
-                    {ACCENT_CHOICES.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={clsx("accent-swatch", appearance.accent === item.id && "is-active")}
-                        style={
-                          item.id === "cover"
-                            ? { background: "conic-gradient(from 220deg, var(--cover-primary), var(--cover-secondary), var(--accent), var(--cover-primary))" }
-                            : { background: `linear-gradient(135deg, ${item.primary}, ${item.secondary})` }
-                        }
-                        title={tr(item.en, item.zh)}
-                        aria-label={tr(item.en, item.zh)}
-                        aria-pressed={appearance.accent === item.id}
-                        onClick={() => patch("accent", item.id)}
-                      >
-                        {appearance.accent === item.id && <Check size={12} />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="studio-row">
-                  <div className="studio-row__label">
-                    <Type size={14} />
-                    <span>
-                      <strong>{tr("Headline font", "标题字体")}</strong>
-                      <em>{tr("The voice of page titles and the featured record.", "页面标题与精选唱片的字体气质。")}</em>
-                    </span>
-                  </div>
-                  <Segment<DisplayFont>
-                    label={tr("Headline font", "标题字体")}
-                    value={appearance.display}
-                    options={[
-                      { value: "serif", label: tr("Serif", "衬线") },
-                      { value: "sans", label: tr("Sans", "无衬线") },
-                    ]}
-                    onChange={(value) => patch("display", value)}
-                  />
-                </div>
-
-                <div className="studio-row">
-                  <div className="studio-row__label">
-                    <SlidersHorizontal size={14} />
-                    <span>
-                      <strong>{tr("Corners", "圆角")}</strong>
-                      <em>{tr("Soft edges or a more precise outline.", "柔和的边缘，或更利落的轮廓。")}</em>
-                    </span>
-                  </div>
-                  <Segment<CornerStyle>
-                    label={tr("Corners", "圆角")}
-                    value={appearance.corners}
-                    options={[
-                      { value: "soft", label: tr("Soft", "柔和") },
-                      { value: "crisp", label: tr("Crisp", "利落") },
-                    ]}
-                    onChange={(value) => patch("corners", value)}
-                  />
-                </div>
-
-                <div className="studio-row">
-                  <div className="studio-row__label">
-                    <Feather size={14} />
-                    <span>
-                      <strong>{tr("Density", "密度")}</strong>
-                      <em>{tr("More air, or more music on screen.", "更多留白，或一屏放下更多音乐。")}</em>
-                    </span>
-                  </div>
-                  <Segment<Density>
-                    label={tr("Density", "密度")}
-                    value={appearance.density}
-                    options={[
-                      { value: "comfortable", label: tr("Airy", "舒展") },
-                      { value: "compact", label: tr("Compact", "紧凑") },
-                    ]}
-                    onChange={(value) => patch("density", value)}
-                  />
-                </div>
-
-                <div className="studio-row">
-                  <div className="studio-row__label">
-                    <Sparkles size={14} />
-                    <span>
-                      <strong>{tr("Atmosphere", "氛围")}</strong>
-                      <em>{tr("How much of the album cover bleeds into the room.", "封面色彩渗入界面的程度。")}</em>
-                    </span>
-                  </div>
-                  <Segment<Atmosphere>
-                    label={tr("Atmosphere", "氛围")}
-                    value={appearance.atmosphere}
-                    options={[
-                      { value: "rich", label: tr("Rich", "浓郁") },
-                      { value: "still", label: tr("Still", "安静") },
-                    ]}
-                    onChange={(value) => patch("atmosphere", value)}
-                  />
-                </div>
-              </div>
-
-              <div className="studio-foot">
-                <span>
-                  {tr(
-                    "Every choice is saved automatically on this machine.",
-                    "每一项选择都会自动保存在这台设备上。",
-                  )}
-                </span>
-                <button type="button" className="text-button" onClick={resetAppearance}>
-                  <RotateCcw size={13} /> {tr("Reset style", "恢复默认风格")}
-                </button>
-              </div>
+            <Section icon={<Palette size={16} />} title={tr("Personalization", "个性化")} detail={tr("Appearance, rendering quality and animation — independently adjustable.", "外观、渲染画质和动画，分别自由调整。") }>
+              <button className="button button--dark" onClick={() => setPersonalization(true)}><Palette size={16} />{tr("Personalization", "个性化")}</button>
             </Section>
-
-            <Section
-              icon={<Sparkles size={16} />}
-              title={tr("Motion", "动效")}
-              detail={tr("Make the interface feel a little quieter.", "让界面安静一点。")}
-            >
-              <button
-                type="button"
-                role="switch"
-                aria-checked={reducedMotion}
-                className="settings-toggle-row"
-                onClick={() => setReducedMotion(!reducedMotion)}
-              >
-                <div>
-                  <strong>{tr("Reduce motion", "减少动态效果")}</strong>
-                  <span>
-                    {tr(
-                      "Shortens page transitions and disables ambient movement.",
-                      "缩短页面转场，并关闭环境动画。",
-                    )}
-                  </span>
-                </div>
-                <span className={`switch ${reducedMotion ? "is-on" : ""}`}>
-                  <i />
-                </span>
-              </button>
-            </Section>
-
-
-
             <Section
               icon={<AudioLines size={16} />}
               title={tr("Playback engine", "播放引擎")}
@@ -780,8 +530,9 @@ export function SettingsDialog() {
               <span className="settings-about__badge">{tr("Local first", "本地优先")}</span>
             </section>
           </div>
-        </Modal>
-      )}
+        </div>
+      {createPortal(<>
+      <AnimatePresence>{personalization && <PersonalizationDialog onClose={() => setPersonalization(false)} />}</AnimatePresence>
       <AnimatePresence>
         {pendingEngine && (
           <Modal
@@ -833,6 +584,252 @@ export function SettingsDialog() {
           </Modal>
         )}
       </AnimatePresence>
-    </AnimatePresence>
+      </>, document.querySelector(".app")!)}
+    </>
   );
+}
+
+function PersonalizationDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = document.querySelector<HTMLElement>(".personalization-dialog");
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]') ?? []);
+    focusable()[0]?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); onClose(); }
+      if (e.key === "Tab") {
+        const items = focusable(), first = items[0], last = items.at(-1);
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    };
+    window.addEventListener("keydown", key, true);
+    return () => { window.removeEventListener("keydown", key, true); previous?.focus(); };
+  }, []);
+  const theme = useAppStore(s => s.theme);
+  const setTheme = useAppStore(s => s.setTheme);
+  const appearance = useAppStore(s => s.appearance);
+  const setAppearance = useAppStore(s => s.setAppearance);
+  const setStylePreset = useAppStore(s => s.setStylePreset);
+  const resetAppearance = useAppStore(s => s.resetAppearance);
+  const tr = useTr();
+  const accent = ACCENT_CHOICES.find(item => item.id === appearance.accent) ?? ACCENT_CHOICES[0];
+  const patch = <K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]) => setAppearance({ [key]: value });
+  return <Modal onClose={onClose} className="settings-dialog personalization-dialog" labelledBy="personalization-title">
+    <div className="settings-head"><div><h2 id="personalization-title">{tr("Personalization", "个性化")}</h2><p>{tr("Changes apply instantly and save automatically.", "即时预览，自动保存。")}</p></div><IconButton label={tr("Close personalization", "关闭个性化")} onClick={onClose}><X size={18} /></IconButton></div>
+    <div className="settings-scroll"><GraphicsControls />
+            <Section
+              icon={<Palette size={16} />}
+              title={tr("Appearance", "外观")}
+              detail={tr("A visual language of glass, paper and light.", "玻璃、纸张与光线的视觉语言。")}
+            >
+              <div className="studio-preview" aria-hidden="true">
+                <span className="studio-preview__disc"><Disc3 size={22} /></span>
+                <div className="studio-preview__copy">
+                  <span>{tr("YOUR LISTENING ROOM", "你的聆听室")}</span>
+                  <strong>{tr("Make it feel like yours.", "让它更像你。")}</strong>
+                  <em>
+                    {tr(
+                      `${appearance.style === "editorial" ? "Editorial" : "Classic"} · ${theme === "dark" ? "Dark" : "Light"} · ${accent.en}`,
+                      `${appearance.style === "editorial" ? "编辑纸感" : "经典玻璃"} · ${theme === "dark" ? "深色" : "浅色"} · ${accent.zh}`,
+                    )}
+                  </em>
+                </div>
+                <span className="studio-preview__play"><Play size={14} fill="currentColor" strokeWidth={0} /></span>
+              </div>
+
+              <div className="theme-choice" role="group" aria-label={tr("Theme", "主题")}>
+                <button
+                  type="button"
+                  className={theme === "light" ? "is-active" : ""}
+                  aria-pressed={theme === "light"}
+                  onClick={() => setTheme("light")}
+                >
+                  <Sun size={17} />
+                  <span>
+                    <strong>{tr("Light", "浅色")}</strong>
+                    <em>{tr("Warm paper and daylight glass", "暖纸与日光玻璃")}</em>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={theme === "dark" ? "is-active" : ""}
+                  aria-pressed={theme === "dark"}
+                  onClick={() => setTheme("dark")}
+                >
+                  <Moon size={17} />
+                  <span>
+                    <strong>{tr("Dark", "深色")}</strong>
+                    <em>{tr("Soft charcoal and low light", "暖炭与低光")}</em>
+                  </span>
+                </button>
+              </div>
+
+              <div className="style-preset-grid">
+                <button
+                  type="button"
+                  className={clsx("style-preset", appearance.style === "editorial" && "is-active")}
+                  aria-pressed={appearance.style === "editorial"}
+                  onClick={() => setStylePreset("editorial")}
+                >
+                  <span className="style-preset__art style-preset__art--editorial">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span className="style-preset__copy">
+                    <span className="style-preset__eyebrow">
+                      {tr("ATELIER", "编辑")}
+                      <em>{tr("NEW", "新")}</em>
+                    </span>
+                    <strong>{tr("Editorial", "新版视图")}</strong>
+                    <em>{tr("Paper surfaces, serif headlines, quieter chrome.", "暖纸表面、衬线标题、克制的界面。")}</em>
+                  </span>
+                  {appearance.style === "editorial" && <Check size={15} className="style-preset__check" />}
+                </button>
+                <button
+                  type="button"
+                  className={clsx("style-preset", appearance.style === "classic" && "is-active")}
+                  aria-pressed={appearance.style === "classic"}
+                  onClick={() => setStylePreset("classic")}
+                >
+                  <span className="style-preset__art style-preset__art--classic">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span className="style-preset__copy">
+                    <span className="style-preset__eyebrow">
+                      {tr("CLASSIC GLASS", "经典")}
+                      <em>{tr("ORIGINAL", "原版")}</em>
+                    </span>
+                    <strong>{tr("Classic", "经典视图")}</strong>
+                    <em>{tr("The original warm iOS glass and pill controls.", "原来的暖色 iOS 玻璃与胶囊控件。")}</em>
+                  </span>
+                  {appearance.style === "classic" && <Check size={15} className="style-preset__check" />}
+                </button>
+              </div>
+
+              <div className="studio-panel">
+                <div className="studio-row">
+                  <div className="studio-row__label">
+                    <Palette size={14} />
+                    <span>
+                      <strong>{tr("Accent", "强调色")}</strong>
+                      <em>{tr("Follow the cover or pick a fixed note.", "跟随封面，或选择一个固定色调。")}</em>
+                    </span>
+                  </div>
+                  <div className="accent-swatches" role="group" aria-label={tr("Accent", "强调色")}>
+                    {ACCENT_CHOICES.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={clsx("accent-swatch", appearance.accent === item.id && "is-active")}
+                        style={
+                          item.id === "cover"
+                            ? { background: "conic-gradient(from 220deg, var(--cover-primary), var(--cover-secondary), var(--accent), var(--cover-primary))" }
+                            : { background: `linear-gradient(135deg, ${item.primary}, ${item.secondary})` }
+                        }
+                        title={tr(item.en, item.zh)}
+                        aria-label={tr(item.en, item.zh)}
+                        aria-pressed={appearance.accent === item.id}
+                        onClick={() => patch("accent", item.id)}
+                      >
+                        {appearance.accent === item.id && <Check size={12} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="studio-row">
+                  <div className="studio-row__label">
+                    <Type size={14} />
+                    <span>
+                      <strong>{tr("Headline font", "标题字体")}</strong>
+                      <em>{tr("The voice of page titles and the featured record.", "页面标题与精选唱片的字体气质。")}</em>
+                    </span>
+                  </div>
+                  <Segment<DisplayFont>
+                    label={tr("Headline font", "标题字体")}
+                    value={appearance.display}
+                    options={[
+                      { value: "serif", label: tr("Serif", "衬线") },
+                      { value: "sans", label: tr("Sans", "无衬线") },
+                    ]}
+                    onChange={(value) => patch("display", value)}
+                  />
+                </div>
+
+                <div className="studio-row">
+                  <div className="studio-row__label">
+                    <SlidersHorizontal size={14} />
+                    <span>
+                      <strong>{tr("Corners", "圆角")}</strong>
+                      <em>{tr("Soft edges or a more precise outline.", "柔和的边缘，或更利落的轮廓。")}</em>
+                    </span>
+                  </div>
+                  <Segment<CornerStyle>
+                    label={tr("Corners", "圆角")}
+                    value={appearance.corners}
+                    options={[
+                      { value: "soft", label: tr("Soft", "柔和") },
+                      { value: "crisp", label: tr("Crisp", "利落") },
+                    ]}
+                    onChange={(value) => patch("corners", value)}
+                  />
+                </div>
+
+                <div className="studio-row">
+                  <div className="studio-row__label">
+                    <Feather size={14} />
+                    <span>
+                      <strong>{tr("Density", "密度")}</strong>
+                      <em>{tr("More air, or more music on screen.", "更多留白，或一屏放下更多音乐。")}</em>
+                    </span>
+                  </div>
+                  <Segment<Density>
+                    label={tr("Density", "密度")}
+                    value={appearance.density}
+                    options={[
+                      { value: "comfortable", label: tr("Airy", "舒展") },
+                      { value: "compact", label: tr("Compact", "紧凑") },
+                    ]}
+                    onChange={(value) => patch("density", value)}
+                  />
+                </div>
+
+                <div className="studio-row">
+                  <div className="studio-row__label">
+                    <Sparkles size={14} />
+                    <span>
+                      <strong>{tr("Atmosphere", "氛围")}</strong>
+                      <em>{tr("How much of the album cover bleeds into the room.", "封面色彩渗入界面的程度。")}</em>
+                    </span>
+                  </div>
+                  <Segment<Atmosphere>
+                    label={tr("Atmosphere", "氛围")}
+                    value={appearance.atmosphere}
+                    options={[
+                      { value: "rich", label: tr("Rich", "浓郁") },
+                      { value: "still", label: tr("Still", "安静") },
+                    ]}
+                    onChange={(value) => patch("atmosphere", value)}
+                  />
+                </div>
+              </div>
+
+              <div className="studio-foot">
+                <span>
+                  {tr(
+                    "Every choice is saved automatically on this machine.",
+                    "每一项选择都会自动保存在这台设备上。",
+                  )}
+                </span>
+                <button type="button" className="text-button" onClick={resetAppearance}>
+                  <RotateCcw size={13} /> {tr("Reset style", "恢复默认风格")}
+                </button>
+              </div>
+            </Section>
+
+</div></Modal>;
 }

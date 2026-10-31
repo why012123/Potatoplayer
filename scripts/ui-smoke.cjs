@@ -75,19 +75,22 @@ function delay(ms) {
   // Exercise the new appearance studio and language switch before the core
   // playback flow. CSS class hooks stay stable across both languages.
   await page.locator(".topbar-avatar").click();
-  await page.waitForSelector(".settings-dialog");
+  await page.waitForSelector(".settings-page");
+  await page.locator(".language-choice .settings-choice").nth(1).click();
+  await page.waitForTimeout(350);
+  assert.equal(await page.locator("#settings-title").innerText(), "设置");
+  await page.locator(".language-choice .settings-choice").nth(0).click();
+  await page.waitForTimeout(350);
+  await page.getByRole("button", { name: "Personalization", exact: true }).click();
+  await page.waitForSelector(".personalization-dialog");
   await page.locator(".style-preset").nth(1).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.style), "classic");
   await page.locator(".style-preset").nth(0).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.style), "editorial");
-  await page.locator(".language-choice .settings-choice").nth(1).click();
-  await page.waitForTimeout(250);
-  assert.equal(await page.locator("#settings-title").innerText(), "设置");
-  await page.locator(".language-choice .settings-choice").nth(0).click();
-  await page.waitForTimeout(250);
-  assert.equal(await page.locator("#settings-title").innerText(), "Settings");
+  await page.getByRole("button", { name: "Close personalization" }).click();
+  await page.waitForSelector(".personalization-dialog", { state: "detached" });
   await page.getByRole("button", { name: "Close settings" }).click();
-  await page.waitForSelector(".settings-dialog", { state: "detached" });
+  await page.waitForSelector(".settings-page", { state: "detached" });
   console.log("[ui] appearance presets and language switch responded");
 
   await page.getByRole("button", { name: "Songs", exact: true }).click();

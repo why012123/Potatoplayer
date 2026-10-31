@@ -1,5 +1,5 @@
 import { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import clsx from "clsx";
 import { AlertTriangle, Disc3, RefreshCw } from "lucide-react";
 import { useAppStore, viewKey } from "@/store";
@@ -10,7 +10,7 @@ import { NowPlaying } from "@/components/NowPlaying";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { BriefDock } from "@/components/BriefDock";
 import { CommandPalette } from "@/components/CommandPalette";
-import { SettingsDialog } from "@/components/SettingsDialog";
+import { SettingsPage } from "@/components/SettingsDialog";
 import { PromptDialog } from "@/components/PromptDialog";
 import { AddToPlaylistDialog } from "@/components/AddToPlaylistDialog";
 import { TrackMenu } from "@/components/TrackMenu";
@@ -37,6 +37,7 @@ import { DownloadTasks } from "@/components/DownloadTasks";
 import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
 import { BilibiliMvDialog } from "@/components/BilibiliMvDialog";
+import { useAmbientImage } from "@/lib/useAmbientImage";
 import { applyTheme } from "@/lib/theme";
 import { useMediaControls } from "@/lib/mediaControls";
 import { applyAppearance, resolveAccent } from "@/lib/appearance";
@@ -150,6 +151,10 @@ export default function App() {
   const activeCover =
     tracks.find((track) => track.id === (playback?.trackId ?? previewTrackId))?.coverPath ?? null;
 
+  const ambientImage = useAmbientImage(activeCover, appearance.graphics.coverBackground && !brief, appearance.graphics.backgroundDetail);
+  const systemReducedMotion = useReducedMotion();
+  const motionReduced = reducedMotion || systemReducedMotion || appearance.animationLevel !== "full";
+
   useEffect(() => {
     void initialize();
   }, [initialize]);
@@ -225,7 +230,6 @@ export default function App() {
       }
       if (event.key === "Escape") {
         if (state.commandOpen) state.setCommandOpen(false);
-        else if (state.settingsOpen) state.setSettingsOpen(false);
         else if (state.prompt) state.closePrompt();
         else if (state.eqOpen) state.setEqOpen(false);
         else if (state.mvTrackId) state.setMvTrackId(null);
@@ -320,6 +324,8 @@ export default function App() {
   const page = (() => {
     if (searchQuery.trim()) return <SearchPage />;
     switch (view.kind) {
+      case "settings":
+        return <SettingsPage />;
       case "songs":
         return <SongsPage />;
       case "albums":
@@ -357,19 +363,19 @@ export default function App() {
   })();
 
   return (
-    <MotionConfig reducedMotion={reducedMotion ? "always" : "user"}>
-      <div className={clsx("app", theme === "dark" && "theme-dark", reducedMotion && "reduce-motion", brief && "brief", !windowActive && "is-window-blurred")}>
+    <MotionConfig skipAnimations={appearance.animationLevel === "off" || !windowActive} reducedMotion={motionReduced ? "always" : "user"}>
+      <div className={clsx("app", theme === "dark" && "theme-dark", motionReduced && "reduce-motion", brief && "brief", !windowActive && "is-window-blurred")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
-          {activeCover && (
+          {ambientImage && (
             <motion.div
-              key={activeCover}
+              key={ambientImage}
               className="ambient__art"
-              style={{ backgroundImage: `url("${coverUrl(activeCover)}")` }}
+              style={{ backgroundImage: `url("${ambientImage}")` }}
               initial={{ opacity: 0, scale: 1.08 }}
               animate={{ opacity: 0.7, scale: 1.16 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 1.15, ease: "easeInOut" }}
+              transition={{ duration: appearance.backgroundTransition && !motionReduced && windowActive ? 1.15 : 0, ease: "easeInOut" }}
             />
           )}
         </AnimatePresence>
@@ -393,7 +399,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: reducedMotion ? 0.08 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    transition={{ duration: !appearance.pageTransitions || appearance.animationLevel === "off" ? 0 : motionReduced ? 0.08 : 0.28, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <PageBoundary>{page}</PageBoundary>
                   </motion.div>
@@ -414,7 +420,7 @@ export default function App() {
       <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>
 
       <CommandPalette />
-      <SettingsDialog />
+
       <TaxonomyManager />
       <EqualizerDialog />
       <BilibiliMvDialog />

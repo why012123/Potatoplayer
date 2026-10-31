@@ -5,10 +5,12 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 #root .app.brief {
-  --brief-paper: #f1ece3;
-  --brief-ink: #17130f;
+  --brief-paper: #f5f4ed;
+  --brief-signal: #dcf52b;
+  --brief-signal-ink: #141510;
+  --brief-ink: #141510;
   --brief-muted: #6b6258;
-  --brief-line: #29231d;
+  --brief-line: #141510;
   --text: var(--brief-ink);
   --muted: var(--brief-muted);
   --faint: #8a8074;
@@ -19,8 +21,8 @@
 }
 
 #root .app.brief.theme-dark {
-  --brief-paper: #151311;
-  --brief-ink: #f2ece1;
+  --brief-paper: #161713;
+  --brief-ink: #f5f4ed;
   --brief-muted: #b9ad9e;
   --brief-line: #e6dccd;
   --faint: #8f8375;
@@ -266,10 +268,10 @@
 }
 
 #root .app.brief .page-header h1 {
-  font-family: var(--font-display, var(--font));
+  font-family: var(--font);
   font-size: clamp(52px, 6.6vw, 92px);
-  font-weight: 620;
-  line-height: 0.88;
+  font-weight: 850;
+  line-height: 1;
   letter-spacing: -0.065em;
 }
 
@@ -378,10 +380,10 @@
 
 #root .app.brief .hero h1 {
   color: var(--brief-paper);
-  font-family: var(--font-display, var(--font));
+  font-family: var(--font);
   font-size: clamp(38px, 4.6vw, 64px);
-  font-weight: 620;
-  line-height: 0.92;
+  font-weight: 850;
+  line-height: 1.05;
   letter-spacing: -0.06em;
   text-shadow: none;
 }
@@ -902,4 +904,107 @@
   border-radius: 2px;
   background: var(--brief-paper);
   box-shadow: none;
+}
+
+/* Brief / poster edition: ink, acid yellow, oversized type, hard geometry. */
+#root .app.brief .topbar { border-bottom: 3px solid var(--brief-ink); }
+#root .app.brief .brief-brand__word { font-size: 26px; font-weight: 900; }
+#root .app.brief .brief-brand em {
+  color: var(--brief-signal-ink);
+  background: var(--brief-signal);
+  border: 2px solid var(--brief-ink);
+  font-size: 10px;
+  letter-spacing: .08em;
+  padding: 5px 8px;
+}
+#root .app.brief .brief-brand__mark { width: 36px; height: 36px; }
+#root .app.brief .topbar__search { border-width: 2px; }
+#root .app.brief .topbar__search:focus-within { box-shadow: 4px 4px 0 var(--brief-ink); }
+#root .app.brief .page-header { border-top: 0; padding-top: 4px; margin-bottom: 26px; gap: 24px; }
+#root .app.brief .page-header h1 { font-size: clamp(56px, 7vw, 104px); letter-spacing: -.065em; }
+#root .app.brief .page-header__copy { min-width: 0; }
+#root .app.brief .page-header .eyebrow { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--brief-ink); }
+#root .app.brief .page-header .eyebrow::before { display: none; }
+#root .app.brief .page-header p { color: var(--brief-ink); }
+#root .app.brief .button { min-height: 38px; font-weight: 750; border-width: 2px; }
+#root .app.brief .button--dark { color: var(--brief-paper); background: var(--brief-ink); }
+#root .app.brief .button--glass:hover { background: var(--brief-signal); color: var(--brief-signal-ink); }
+#root .app.brief .hero {
+  min-height: 360px;
+  padding: 36px;
+  border: 3px solid var(--brief-ink);
+  color: var(--brief-signal-ink);
+  background: var(--brief-signal);
+  margin-bottom: 0;
+}
+#root .app.brief .hero__backdrop { border-left: 3px solid var(--brief-signal-ink); background-position: center; }
+#root .app.brief .hero h1 {
+  color: var(--brief-signal-ink);
+  font-size: clamp(36px, 4.3vw, 66px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+#root .app.brief :is(.hero__eyebrow, .hero__artist, .hero__copy > p) { color: var(--brief-signal-ink); }
+#root .app.brief .hero__eyebrow { font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+#root .app.brief .hero__artist:hover { color: var(--brief-signal-ink); text-decoration: underline; }
+#root .app.brief .hero .button--dark { color: var(--brief-signal); background: var(--brief-signal-ink); border-color: var(--brief-signal-ink); }
+#root .app.brief .hero .button--glass,
+#root .app.brief .hero__heart { color: var(--brief-signal-ink); border: 2px solid var(--brief-signal-ink); background: transparent; }
+#root .app.brief .hero__heart.is-favorite { background: var(--brief-signal-ink); color: var(--brief-signal); }
+#root .app.brief .hero__heart:hover { background: var(--brief-signal-ink); color: var(--brief-signal); }
+#root .app.brief .stat-strip {
+  border: 3px solid var(--brief-ink);
+  border-top: 0;
+  padding: 18px 24px;
+  gap: 24px;
+}
+#root .app.brief .stat-strip strong { font-size: clamp(16px, 1.7vw, 25px); font-weight: 850; letter-spacing: -.04em; }
+#root .app.brief .stat-strip span { color: var(--brief-muted); font-size: 9px; font-weight: 700; }
+#root .app.brief .stat-strip > i { background: var(--brief-ink); opacity: 1; }
+#root .app.brief .section-header { border-top: 3px solid var(--brief-ink); padding-top: 16px; }
+#root .app.brief .section-header h2 { font-size: 26px; font-weight: 850; }
+#root .app.brief .taxonomy-overview { border-width: 2px; }
+#root .app.brief .track-table__head { color: var(--brief-paper); background: var(--brief-ink); border-width: 2px; }
+#root .app.brief .track-table__head button { color: inherit; }
+#root .app.brief .track-row:hover { background: var(--brief-signal); color: var(--brief-signal-ink); }
+#root .app.brief .track-row:hover :is(.track-row__artist, .track-row__time) { color: var(--brief-signal-ink); }
+#root .app.brief .media-card__text strong { font-weight: 800; }
+#root .app.brief .media-card__cover { border: 2px solid var(--brief-ink); box-shadow: none; }
+#root .app.brief .mini-player { border: 2px solid var(--brief-ink); box-shadow: 5px 5px 0 var(--brief-ink); }
+#root .app.brief .brief-dock {
+  border: 2px solid var(--brief-ink);
+  padding: 6px 8px;
+  box-shadow: 5px 5px 0 var(--brief-ink);
+}
+#root .app.brief .brief-dock__label { color: var(--brief-ink); font-size: 10px; font-weight: 850; }
+#root .app.brief .brief-dock__item { height: 38px; font-weight: 750; font-size: 11px; color: var(--brief-ink); }
+#root .app.brief .brief-dock__item.is-active { color: var(--brief-signal-ink); background: var(--brief-signal); outline: 1px solid var(--brief-ink); }
+#root .app.brief .now-playing { border-width: 2px; box-shadow: 7px 7px 0 var(--brief-ink); }
+#root .app.brief .lyric-line { border-radius: 0; }
+#root .app.brief .lyric-line.is-active { color: var(--brief-signal-ink); background: var(--brief-signal); }
+#root .app.brief :is(button, input, select):focus-visible { outline: 3px solid var(--brief-ink); outline-offset: 3px; }
+@media (max-width: 1050px) {
+  #root .app.brief .page-header { flex-wrap: wrap; }
+  #root .app.brief .hero { padding: 26px; }
+  #root .app.brief .stat-strip { gap: 14px; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  #root .app.brief .hero { min-height: 300px; }
+  #root .app.brief .brief-dock { max-width: calc(100vw - 36px); }
+}
+
+/* List controls remain solid ink/paper even when classic presets are active. */
+#root .app.brief :is(.library-controls, .list-toolbar, .sort-control, .taxonomy-filterbar, .filter-chips) {
+  color: var(--brief-ink);
+  background: var(--brief-paper);
+  border-color: var(--brief-line);
+  box-shadow: none;
+}
+#root .app.brief .track-row:hover {
+  --text: var(--brief-signal-ink);
+  --muted: #3d421b;
+  --faint: #535a22;
 }

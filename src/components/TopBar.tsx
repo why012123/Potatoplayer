@@ -49,6 +49,8 @@ export function TopBar() {
   const viewLabel = (() => {
     if (searchQuery.trim()) return tr("Search", "搜索");
     switch (currentView.kind) {
+      case "settings":
+        return tr("Settings", "设置");
       case "home":
         return tr("Home", "首页");
       case "songs":

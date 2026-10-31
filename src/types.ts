@@ -151,6 +151,7 @@ export type ArtistSummary = {
 };
 
 export type View =
+  | { kind: "settings" }
   | { kind: "home" }
   | { kind: "songs" }
   | { kind: "albums" }

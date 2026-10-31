@@ -1,3 +1,4 @@
+import { mountMusicPlayer, playMusicSelection } from "./music-player";
 import { createRollingClock } from "./rolling-clock";
 import { InspectionOverlay } from "./inspection-overlay";
 import { DocumentDecryption } from "./document-decryption";
@@ -80,7 +81,7 @@ $("#stage").innerHTML = `
   <div id="boot-background" class="boot-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
   <header class="brand">${brandHeading}</header>
   <nav class="system-nav" aria-label="系统导航">
-    <button data-action="search"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <span class="key">/</span></button>
+    <button data-action="search"><span class="nav-glyph">⌕</span> MUSIC LIBRARY <span class="key">/</span></button>
     <button data-action="saved" aria-label="查看收藏档案" title="收藏档案">＋ SAVED <span id="saved-count">00</span></button>
     <button class="settings-button" data-action="settings" aria-label="系统设置" title="系统设置"><span class="settings-glyph" aria-hidden="true">◷</span><span class="settings-label">设置</span></button>
   </nav>
@@ -95,7 +96,7 @@ $("#stage").innerHTML = `
   <svg id="inspection-marks" viewBox="0 0 1920 1080" aria-hidden="true"><path id="inspection-lines"/><g id="inspection-corners"></g><circle id="inspection-point" r="1.8"/></svg>
   <div id="inspection-text" aria-hidden="true">CONFIDENTIALITY:<strong>GENERAL BUSINESS USE</strong></div>
   <section id="archive-ui" class="archive-ui" aria-label="档案选择">
-    <div class="archive-callout"><div class="eyebrow">INTERNAL DATABASE <span>／</span> <span id="archive-category">机构档案</span></div><button class="file-title" data-action="open">FILE NUMBER: <span id="selected-id">X-<span id="selected-code">001</span></span><span class="file-open">↗</span></button><div class="callout-rule"><i></i></div><div class="file-summary"><span id="selected-title">莱茵生命</span><span id="selected-clearance">BUSINESS AREA</span></div><button class="read-file" data-action="open">ACCESS FILE <span>→</span></button></div>
+    <div class="archive-callout"><div class="eyebrow">INTERNAL DATABASE <span>／</span> <span id="archive-category">机构档案</span></div><button class="file-title" data-action="open">FILE NUMBER: <span id="selected-id">X-<span id="selected-code">001</span></span><span class="file-open">↗</span></button><div class="callout-rule"><i></i></div><div class="file-summary"><span id="selected-title">莱茵生命</span><span id="selected-clearance">BUSINESS AREA</span></div><button class="read-file" data-action="open">TRACK DETAILS <span>→</span></button></div>
     <div id="hover-label" class="hover-label" hidden>X-<span id="hover-code">001</span> / <span id="hover-title"></span></div>
     <div class="archive-counter"><span class="tiny-label">ARCHIVE / SELECT</span><div><span id="selected-number">01</span><i>/</i><span class="count-total">12</span></div></div>
     <div class="archive-navigation"><button data-action="prev" aria-label="上一个档案">↑</button><div id="file-ticks" class="file-ticks"></div><button data-action="next" aria-label="下一个档案">↓</button></div>
@@ -103,8 +104,8 @@ $("#stage").innerHTML = `
     <div class="archive-hint"><kbd>←</kbd> <kbd>→</kbd> 切换列 <span>／</span> <kbd>↑</kbd> <kbd>↓</kbd> 前后档案 <span>／</span> <kbd>ENTER</kbd> 读取</div>
   </section>
   <section id="detail-ui" class="detail-ui" aria-label="档案内容" hidden>
-    <button class="back-button" data-action="back">← <span>ARCHIVE OVERVIEW</span><small>ESC</small></button>
-    <div class="object-caption"><span id="object-id">NO.001</span><div>INTERNAL DATABASE</div><small>DRAG TO INSPECT <span>↔</span></small><button class="viewer-open" data-action="model-viewer">360° 查看文档模型 <span>↗</span></button></div>
+    <button class="back-button" data-action="back">← <span>MUSIC LIBRARY</span><small>ESC</small></button>
+    <div class="object-caption"><span id="object-id">NO.001</span><div>INTERNAL DATABASE</div><small>DRAG TO INSPECT <span>↔</span></small><button class="viewer-open" data-action="model-viewer">360° 查看 CD / 开盒 <span>↗</span></button></div>
     <article id="detail-content" class="detail-content"></article>
   </section>
   <div class="powered">POWERED BY <b>RHINE LAB</b><i></i></div>
@@ -185,6 +186,7 @@ const storedPrefs = readLocal<
     reduced: boolean;
     quality: boolean;
     rendering: RenderQuality;
+    frameRate: number;
     superPerformance: boolean;
     colorTheme: "light" | "dark";
     motion: StoredMotion;
@@ -209,8 +211,9 @@ const prefs = {
   motionPreset: initialMotionPreset,
   quality: storedPrefs.quality ?? true,
   superPerformance: storedPrefs.superPerformance ?? false,
+  frameRate: [30, 60].includes(storedPrefs.frameRate ?? 0) ? storedPrefs.frameRate! : 30,
   rendering: normalizeQuality(
-    storedPrefs.rendering,
+    storedPrefs.rendering ?? (window.potato ? qualityPresets.balanced : undefined),
     storedPrefs.quality !== false,
   ),
   colorTheme: storedPrefs.colorTheme === "dark" ? "dark" : "light",
@@ -296,7 +299,7 @@ $("#viewport").append(loading);
 $("#stage").inert = true;
 $(".mobile-entry").inert = true;
 const entry =
-  !isWallpaper && !reviewEntry && (prefs.sound || prefs.music)
+  !window.potato && !isWallpaper && !reviewEntry && (prefs.sound || prefs.music)
     ? new StartupGate({
         root: loading,
         unlock: () => audio.unlock(),
@@ -657,18 +660,6 @@ function replayBootAfterModal(forcePreview: boolean) {
 }
 function openFile() {
   if (!ready) return;
-  const record = records[selected];
-  const trackId = record.trackId;
-  const bridge = window.potato;
-  if (trackId && bridge) {
-    if (forcedSilent) void bridge.invoke("playback.mute", { muted: true }).catch(() => undefined);
-    const queue = records
-      .map((entry) => entry.trackId)
-      .filter((id): id is string => Boolean(id));
-    void bridge
-      .invoke("playback.play", { trackId, queue, startAt: 0 })
-      .catch(() => undefined);
-  }
   closeModal(() => {
     setMode("detail");
     audio.play("open");
@@ -706,11 +697,11 @@ function renderDetail() {
   <div class="detail-kicker"><span>FILE ${r.id}</span><span>${escapeHtml(r.clearance)}</span></div>
   <h2>${escapeHtml(r.title)}</h2><div class="detail-title-cn">${escapeHtml(r.en)}<span>${escapeHtml(r.category)}</span></div>
   <div class="detail-rule"></div>
-  <dl class="metadata"><div><dt>DEPARTMENT / 科室</dt><dd>${escapeHtml(r.department)}</dd></div><div><dt>COLLECTION / 编目范围</dt><dd>${escapeHtml(r.date)}</dd></div><div><dt>RELATED / 相关人物</dt><dd>${escapeHtml(r.lead)}</dd></div><div><dt>STATUS / 状态</dt><dd><i></i>${r.clearance === "RESTRICTED" ? "目录访问" : "已归档 · 可读取"}</dd></div></dl>
-  <div class="detail-tabs" role="tablist"><button id="tab-overview" class="active" role="tab" aria-controls="tab-panel" aria-selected="true" data-tab="overview">01 <span>概述</span></button><button id="tab-notes" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="notes">02 <span>研究记录</span></button><button id="tab-history" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="history">03 <span>访问日志</span></button><i class="tab-indicator" aria-hidden="true"></i></div>
+  <dl class="metadata"><div><dt>COLLECTION / 分组</dt><dd>${escapeHtml(r.department)}</dd></div><div><dt>ALBUM / 专辑</dt><dd>${escapeHtml(r.date)}</dd></div><div><dt>ARTIST / 歌手</dt><dd>${escapeHtml(r.lead)}</dd></div><div><dt>STATUS / 状态</dt><dd><i></i>${r.clearance === "RESTRICTED" ? "目录访问" : "已归档 · 可读取"}</dd></div></dl>
+  <div class="detail-tabs" role="tablist"><button id="tab-overview" class="active" role="tab" aria-controls="tab-panel" aria-selected="true" data-tab="overview">01 <span>概述</span></button><button id="tab-notes" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="notes">02 <span>曲目信息</span></button><button id="tab-history" role="tab" aria-controls="tab-panel" aria-selected="false" data-tab="history">03 <span>访问日志</span></button><i class="tab-indicator" aria-hidden="true"></i></div>
   <div id="tab-panel" class="tab-panel" role="tabpanel">${overview()}</div>
-  <div class="detail-actions"><button class="solid-button" data-action="play">▶ PLAY / PAUSE<span>播放 / 暂停</span></button><button class="solid-button" data-action="bookmark">${saved.has(r.id) ? "− REMOVE FROM SAVED" : "＋ SAVE ARCHIVE"}<span>${saved.has(r.id) ? "已收藏" : "收藏档案"}</span></button><a class="export-button" href="${assetUrl(`archives/RHINE-LAB-${r.id}.txt`)}" download="RHINE-LAB-${r.id}.txt" aria-label="导出 ${r.id} 档案">EXPORT <span>↓</span></a></div>
-  <div class="detail-footnote"><a href="${escapeHtml(r.source)}" target="_blank" rel="noopener">设定参考 ↗</a><span>${String(selected + 1).padStart(3, "0")} / ${String(records.length).padStart(3, "0")}</span></div>`;
+  <div class="detail-actions"><button class="solid-button" data-action="play">▶ PLAY THIS TRACK<span>播放此曲 / 暂停</span></button><button class="solid-button" data-action="bookmark">${saved.has(r.id) ? "− REMOVE FROM SAVED" : "＋ SAVE ARCHIVE"}<span>${saved.has(r.id) ? "已收藏" : "收藏档案"}</span></button><a class="export-button" href="${assetUrl(`archives/RHINE-LAB-${r.id}.txt`)}" download="RHINE-LAB-${r.id}.txt" aria-label="导出 ${r.id} 档案">EXPORT <span>↓</span></a></div>
+  <div class="detail-footnote"><a href="${escapeHtml(r.source)}" target="_blank" rel="noopener">来源 / 文件 ↗</a><span>${String(selected + 1).padStart(3, "0")} / ${String(records.length).padStart(3, "0")}</span></div>`;
   $("#detail-content").setAttribute("tabindex", "-1");
   $('[data-action="bookmark"]').setAttribute(
     "aria-pressed",
@@ -718,14 +709,14 @@ function renderDetail() {
   );
   documentDecryption.reset(
     $("#detail-content"),
-    !motionActive("documentReveal") ||
+    Boolean(window.potato) || !motionActive("documentReveal") ||
       !scene ||
       scene.decryptionFrame.phase === "clear",
   );
   setTab(activeTab, false);
 }
 function overview() {
-  return `<div class="panel-label">ABSTRACT / 摘要</div><p>${escapeHtml(records[selected].abstract)}</p>`;
+  return `<div class="panel-label">TRACK NOTES / 歌曲备注</div><p>${escapeHtml(records[selected].abstract)}</p>`;
 }
 function setTab(tab: string, sound = true) {
   if (sound && tab === activeTab) return;
@@ -747,7 +738,7 @@ function setTab(tab: string, sound = true) {
     tab === "overview"
       ? overview()
       : tab === "notes"
-        ? `<div class="panel-label">RESEARCH NOTES / 研究记录</div><ol class="research-notes">${r.findings.map((f, i) => `<li><span>${String(i + 1).padStart(2, "0")}</span>${escapeHtml(f)}</li>`).join("")}</ol>`
+        ? `<div class="panel-label">RESEARCH NOTES / 曲目信息</div><ol class="research-notes">${r.findings.map((f, i) => `<li><span>${String(i + 1).padStart(2, "0")}</span>${escapeHtml(f)}</li>`).join("")}</ol>`
         : `<div class="panel-label">ACCESS LOG / 本次访问</div>${accessLog
             .filter((entry) => entry.id === r.id)
             .slice(0, 4)
@@ -816,7 +807,7 @@ function renderModal() {
   if (!modal) return;
   modalTransition?.dispose();
   $("#modal-root").innerHTML =
-    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "ARCHIVE INDEX"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>DEPARTMENT / 科室</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
+    `<div class="modal-backdrop"><section class="terminal-modal ${modal === "settings" ? "settings-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "settings" ? "系统设置" : modal === "saved" ? "收藏档案" : "档案检索"}"><div class="modal-top"><span>RHINE LAB / ${modal === "settings" ? "SYSTEM PREFERENCES" : "ARCHIVE DIRECTORY"}</span><button data-action="close-modal" aria-label="关闭窗口">CLOSE <span>×</span></button></div>${modal === "settings" ? settingsMarkup() : `<h2>${modal === "saved" ? "SAVED ARCHIVES" : "MUSIC LIBRARY"}<small>${modal === "saved" ? "收藏档案" : "内部档案检索"}</small></h2><div class="search-field"><span>⌕</span><input id="archive-search" type="search" autocomplete="off" placeholder="输入档案编号、名称或科室" aria-label="检索档案"/><span class="key">ESC</span></div><div class="category-filters">${categories.map((c, i) => `<button data-filter="${escapeHtml(c)}" class="${i === 0 ? "active" : ""}">${escapeHtml(c)}</button>`).join("")}</div><div class="result-header"><span>FILE / 档案</span><span>COLLECTION / 分组</span><span>ACCESS</span></div><div id="search-results" class="search-results"></div><div class="modal-bottom"><span id="result-count"></span><span>INTERNAL DATABASE <i>●</i> CONNECTED</span></div>`}</section></div>`;
   const backdrop = $(".modal-backdrop");
   backdrop.hidden = true;
   modalTransition = new SurfaceTransition(backdrop, $(".terminal-modal"));
@@ -879,7 +870,7 @@ function motionPreferenceNoteMarkup() {
   return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? "<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>" : "<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>"}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ""}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${window.potato ? `<label class="quality-control"><span>三维帧率上限<small>独立于画质和动画；停止操作后自动降低更新频率</small></span><select id="music-frame-rate" aria-label="三维帧率上限"><option value="30" ${prefs.frameRate === 30 ? "selected" : ""}>30 FPS · 节能</option><option value="60" ${prefs.frameRate === 60 ? "selected" : ""}>60 FPS · 流畅</option></select></label>` : ""}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? "<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>" : "<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>"}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ""}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -909,6 +900,10 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   const el = e.target as HTMLInputElement;
+  if (el.id === "music-frame-rate") {
+    prefs.frameRate = Number(el.value) === 60 ? 60 : 30;
+    savePrefs();
+  }
   if (el.id === "quality-preset" && Object.hasOwn(qualityPresets, el.value)) {
     prefs.rendering = { ...qualityPresets[el.value as QualityPreset] };
     savePrefs();
@@ -1035,7 +1030,7 @@ document.addEventListener("click", (e) => {
   }
   if (action === "sound-preview") audio.play("confirm");
   if (action === "play") {
-    void window.potato?.invoke("playback.toggle").catch(() => undefined);
+    playMusicSelection(selected);
     return;
   }
   if (action === "skip") {
@@ -1131,10 +1126,10 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     return;
   }
-  const typing = e.target instanceof HTMLInputElement;
+  const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement;
   if (e.code === "Space" && !typing && !modal && mode !== "boot") {
     e.preventDefault();
-    void window.potato?.invoke("playback.toggle").catch(() => undefined);
+    void window.potato?.invoke("playback.toggle").catch(() => notify("播放操作未完成"));
     return;
   }
   if (e.key === "Escape") {
@@ -1296,7 +1291,16 @@ let lastTime = 0,
   frameCount = 0,
   frameStart = performance.now(),
   fps = 0;
+let lastMusicFrame = 0;
+let interactionUntil = 0;
+for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
+  document.addEventListener(event, () => { interactionUntil = performance.now() + 2500; }, { passive: true });
 function frame(ms: number) {
+  if (window.potato && mode !== 'boot') {
+    const rate = ms < interactionUntil ? prefs.frameRate : 10;
+    if (ms - lastMusicFrame < 1000 / rate - 1) { requestAnimationFrame(frame); return; }
+    lastMusicFrame = ms;
+  }
   if (!wallpaperFrame(ms)) {
     requestAnimationFrame(frame);
     return;
@@ -1330,7 +1334,7 @@ function frame(ms: number) {
     documentDecryption.update(
       time,
       scene.decryptionFrame,
-      !motionActive("documentReveal"),
+      Boolean(window.potato) || !motionActive("documentReveal"),
     );
     $("#detail-content").style.opacity = String(scene.detailVisibility);
     $("#detail-content").style.translate =
@@ -1576,6 +1580,7 @@ function completeStartup(silent: boolean) {
   if (!reviewParams.has("time")) bootStart += fade / 1000;
   setMode("boot");
   if (
+    (Boolean(window.potato) && !reviewParams.has("time")) ||
     reviewParams.get("scene") === "archive" ||
     (!motionActive("boot") && !reviewParams.has("time"))
   )
@@ -1603,6 +1608,7 @@ function completeStartup(silent: boolean) {
       target.focus({ preventScroll: true });
     }
   }, fade);
+  mountMusicPlayer(() => selected, index => { setMode("archive"); select(index); }, notify);
   requestAnimationFrame(frame);
   // Do not compete with entry audio/font downloads. Full offline installation
   // begins after startup is complete and remains atomic.

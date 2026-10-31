@@ -90,7 +90,6 @@ interface AppStore {
   mvTrackId: string | null;
   rightTab: RightTab;
   commandOpen: boolean;
-  settingsOpen: boolean;
   trackMenu: TrackMenuState | null;
   addToPlaylistTrackId: string | null;
   addToPlaylistTrackIds: string[];
@@ -421,7 +420,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   mvTrackId: null,
   rightTab: "lyrics",
   commandOpen: false,
-  settingsOpen: false,
   trackMenu: null,
   addToPlaylistTrackId: null,
   addToPlaylistTrackIds: [],
@@ -1051,7 +1049,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setRightTab: (tab) => set({ rightTab: tab }),
   setCommandOpen: (open) => set({ commandOpen: open }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setSettingsOpen: (open) => {
+    if (open) { set({ searchQuery: "" }); get().navigate({ kind: "settings" }); }
+    else if (get().viewHistory[get().viewIndex]?.kind === "settings") get().goBack();
+  },
 
   setSpatialEnabled: async (enabled) => {
     const previous = get().spatialEnabled;

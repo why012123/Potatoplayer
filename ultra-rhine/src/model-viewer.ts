@@ -31,6 +31,7 @@ const PARTS = [
 type ModelSource = {
   model: THREE.Group;
   dispose: () => void;
+  setOpen?: (value: number) => void;
   setClarity?: (value: number) => void;
 };
 export class ModelViewer {
@@ -110,18 +111,18 @@ export class ModelViewer {
       <div class="scene-atmosphere viewer-atmosphere" aria-hidden="true"></div>
       <header class="viewer-header">
         <button class="viewer-back" data-viewer="close">← <span>返回档案</span><kbd>ESC</kbd></button>
-        <div class="viewer-heading"><span>RHINE LAB / OBJECT STUDY</span><h2 id="viewer-title">档案模型</h2><p id="viewer-file"></p></div>
+        <div class="viewer-heading"><span>RHINE LAB / OBJECT STUDY</span><h2 id="viewer-title">盒装 CD</h2><p id="viewer-file"></p></div>
         <span class="viewer-index">360<span>°</span></span>
       </header>
       <div class="viewer-surface" role="group" aria-label="玻璃模式"><button data-viewer="clear" aria-pressed="true">清晰</button><button data-viewer="frosted" aria-pressed="false">磨砂</button></div>
-      <aside class="viewer-parts" aria-label="模型装配结构"><div>ASSEMBLY / 装配结构</div>${PARTS.map((p, i) => `<p><span>${String(i + 1).padStart(2, "0")}</span><strong>${p.label}</strong><small>${p.en}</small></p>`).join("")}</aside>
+      <aside class="viewer-parts" aria-label="模型装配结构"><div>ASSEMBLY / 装配结构</div>${[{label:"铰链透明盒盖",en:"HINGED LID"},{label:"专辑封面内页",en:"COVER INSERT"},{label:"光盘与中心卡扣",en:"COMPACT DISC"},{label:"曲目信息盒脊",en:"PRINTED SPINE"}].map((p, i) => `<p><span>${String(i + 1).padStart(2, "0")}</span><strong>${p.label}</strong><small>${p.en}</small></p>`).join("")}</aside>
       <div class="viewer-loading" role="status"><span>正在载入模型…</span><button data-viewer="retry" hidden>重新载入 ↗</button></div>
       <footer class="viewer-footer">
         <div class="viewer-help"><span>拖动旋转</span><span>↑ ↓ ← → 平移</span><span>滚轮缩放</span></div>
-        <div class="viewer-actions"><button data-viewer="explode" aria-pressed="false"><span>＋</span> 拆解档案</button><button data-viewer="assemble" aria-pressed="true"><span>−</span> 一键重组</button></div>
+        <div class="viewer-actions"><button data-viewer="explode" aria-pressed="false"><span>＋</span> 打开盒盖</button><button data-viewer="assemble" aria-pressed="true"><span>−</span> 合上盒盖</button></div>
         <button class="viewer-reset" data-viewer="reset">复位视角 <span>↗</span></button>
       </footer>
-      <div class="viewer-state" aria-live="polite">已组装</div>`;
+      <div class="viewer-state" aria-live="polite">盒盖已合上</div>`;
     parent.appendChild(this.root);
     this.disposeDeviceListener = onInputDevice(() => this.updateHelp());
     this.canvasHost = this.root.querySelector(".viewer-canvas")!;
@@ -277,6 +278,7 @@ export class ModelViewer {
         return;
       }
       this.source = source;
+      if (!source.setOpen) {
       for (const part of PARTS) {
         const group = new THREE.Group();
         group.name = part.id;
@@ -287,6 +289,7 @@ export class ModelViewer {
         group?.add(child);
       }
       for (const group of this.groups.values()) source.model.add(group);
+      }
       source.model.position.set(0, -1.85, 0);
       this.scene.add(source.model);
       applyTextureQuality(source.model, this.renderer, this.quality);
@@ -295,7 +298,7 @@ export class ModelViewer {
       this.controls.enabled = true;
       this.setButtonsDisabled(false);
       this.setExploded(false);
-      this.setStatus("已组装");
+      this.setStatus("盒盖已合上");
       // Render before revealing the canvas so a new model never flashes in.
       this.update(this.lastTime);
       if (this.motion.viewerModelTransition)
@@ -455,7 +458,7 @@ export class ModelViewer {
       .querySelector('[data-viewer="assemble"]')!
       .setAttribute("aria-pressed", String(!value));
     this.setStatus(
-      value ? "正在拆解" : this.spread.value > 0.001 ? "正在重组" : "已组装",
+      value ? "正在打开盒盖" : this.spread.value > 0.001 ? "正在合上盒盖" : "盒盖已合上",
     );
     if (!this.motion.viewerModelTransition)
       this.spread = { value: this.targetSpread, velocity: 0 };
@@ -631,9 +634,10 @@ export class ModelViewer {
         Math.abs(this.spread.velocity) < 0.001
       ) {
         this.spread = { value: this.targetSpread, velocity: 0 };
-        this.setStatus(this.targetSpread ? "已拆解" : "已组装");
+        this.setStatus(this.targetSpread ? "盒盖已打开" : "盒盖已合上");
       }
-      for (const part of PARTS) {
+      if (this.source.setOpen) this.source.setOpen(this.spread.value);
+      else for (const part of PARTS) {
         this.groups.get(part.id)!.position.z = part.depth * this.spread.value;
       }
     }

@@ -1,0 +1,49 @@
+/* Rendering settings are independent of animation settings. */
+:root[data-style] .app:not(.brief) :is(.sidebar, .page-shell, .now-playing) {
+  backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(140%);
+}
+:root[data-control-blur="false"][data-style] .app:not(.brief) :is(.topbar__search, .nav-item__pill, .button--glass, .np-tabs__pill, .icon-button, .topbar__tools) {
+  backdrop-filter: none;
+}
+:root[data-glass="off"][data-style] .app:not(.brief) :is(.sidebar, .page-shell, .now-playing) { backdrop-filter: none; }
+:root[data-shadows="false"] .app *,
+:root[data-shadows="false"] .app *::before,
+:root[data-shadows="false"] .app *::after { box-shadow: none !important; text-shadow: none !important; }
+/* These bitmaps have already been downsampled and blurred once on cover change. */
+:root[data-style] .app:not(.brief) .ambient__art {
+  filter: none !important;
+  will-change: auto;
+}
+:root[data-style] .app:not(.brief) .page-motion { will-change: auto; }
+:root[data-animation="off"] .app *,
+:root[data-animation="off"] .app *::before,
+:root[data-animation="off"] .app *::after { animation: none !important; transition: none !important; }
+.app.is-window-blurred *, .app.is-window-blurred *::before, .app.is-window-blurred *::after { animation-play-state: paused !important; }
+
+/* Settings uses the existing centre scroll area, not a second nested scroller. */
+:root[data-style] .settings-page .settings-scroll { max-height: none; overflow: visible; padding: 0; }
+:root[data-style] .settings-page .settings-head { padding-inline: 0; }
+.settings-page { min-width: 0; }
+.settings-page .language-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.graphics-settings h3 { margin: 0 0 8px; font-size: 17px; }
+.graphics-settings h3 small { color: var(--muted); font-size: 11px; }
+.graphics-settings p { color: var(--muted); line-height: 1.6; font-size: 12px; }
+.graphics-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.graphics-presets .settings-choice { min-width: 0; justify-content: center; padding: 12px; }
+.graphics-presets [aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.graphics-presets em { white-space: normal; line-height: 1.5; }
+.graphics-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-top: 1px solid var(--line-dark); }
+.graphics-row > span:first-child { display: grid; gap: 5px; }
+.graphics-row strong { font-size: 12px; }
+.graphics-row small { color: var(--muted); line-height: 1.5; }
+.graphics-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.graphics-row select { background: var(--glass-strong); border: 1px solid var(--line-dark); padding: 6px; border-radius: 6px; }
+.graphics-slider { display: flex; align-items: center; gap: 8px; }
+.graphics-slider input { width: 120px; accent-color: var(--accent); }
+.graphics-slider output { min-width: 36px; font-variant-numeric: tabular-nums; }
+#root .app.brief .graphics-presets [aria-pressed="true"] { color: var(--brief-signal-ink); background: var(--brief-signal); outline-color: var(--brief-ink); }
+@media (max-width: 680px) { .graphics-presets { grid-template-columns: 1fr; } .graphics-row { flex-wrap: wrap; } }
+/* Fully light rendering also removes blur from temporary sheets and mini-player. */
+:root[data-glass="off"][data-control-blur="false"] .app *,
+:root[data-glass="off"][data-control-blur="false"] .app *::before,
+:root[data-glass="off"][data-control-blur="false"] .app *::after { backdrop-filter: none !important; }

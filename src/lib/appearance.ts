@@ -1,3 +1,4 @@
+import { normalizeGraphics, type GraphicsSettings, type AnimationLevel } from "./graphics";
 import type { Language } from "@/lib/text";
 
 export type UiStyle = "editorial" | "classic";
@@ -15,11 +16,15 @@ export interface AppearancePreferences {
   density: Density;
   atmosphere: Atmosphere;
   language: Language;
+  graphics: GraphicsSettings;
+  animationLevel: AnimationLevel;
+  backgroundTransition: boolean;
+  pageTransitions: boolean;
 }
 
 export const APPEARANCE_KEY = "potato:appearance:v1";
 
-export const EDITORIAL_PRESET: Omit<AppearancePreferences, "language" | "accent"> = {
+export const EDITORIAL_PRESET: Omit<AppearancePreferences, "language" | "accent" | "graphics" | "animationLevel" | "backgroundTransition" | "pageTransitions"> = {
   style: "editorial",
   display: "serif",
   corners: "soft",
@@ -27,7 +32,7 @@ export const EDITORIAL_PRESET: Omit<AppearancePreferences, "language" | "accent"
   atmosphere: "rich",
 };
 
-export const CLASSIC_PRESET: Omit<AppearancePreferences, "language" | "accent"> = {
+export const CLASSIC_PRESET: Omit<AppearancePreferences, "language" | "accent" | "graphics" | "animationLevel" | "backgroundTransition" | "pageTransitions"> = {
   style: "classic",
   display: "sans",
   corners: "soft",
@@ -41,6 +46,10 @@ export const DEFAULT_APPEARANCE: AppearancePreferences = {
   ...CLASSIC_PRESET,
   accent: "cover",
   language: "en",
+  graphics: normalizeGraphics(),
+  animationLevel: "full",
+  backgroundTransition: true,
+  pageTransitions: true,
 };
 
 export const ACCENT_CHOICES: Array<{ id: AccentChoice; en: string; zh: string; primary: string; secondary: string }> = [
@@ -71,6 +80,10 @@ export function normalizeAppearance(input?: Partial<AppearancePreferences> | nul
     atmosphere: atmospheres.has(value.atmosphere as Atmosphere)
       ? (value.atmosphere as Atmosphere)
       : DEFAULT_APPEARANCE.atmosphere,
+    graphics: normalizeGraphics(value.graphics),
+    animationLevel: value.animationLevel === "off" || value.animationLevel === "reduced" ? value.animationLevel : "full",
+    pageTransitions: typeof value.pageTransitions === "boolean" ? value.pageTransitions : true,
+    backgroundTransition: typeof value.backgroundTransition === "boolean" ? value.backgroundTransition : true,
     language: languages.has(value.language as Language) ? (value.language as Language) : DEFAULT_APPEARANCE.language,
   };
 }
@@ -78,8 +91,9 @@ export function normalizeAppearance(input?: Partial<AppearancePreferences> | nul
 export function loadAppearance(): AppearancePreferences {
   try {
     const raw = localStorage.getItem(APPEARANCE_KEY);
-    if (!raw) return normalizeAppearance(DEFAULT_APPEARANCE);
-    return normalizeAppearance(JSON.parse(raw) as Partial<AppearancePreferences>);
+    const parsed = raw ? JSON.parse(raw) as Partial<AppearancePreferences> : {};
+    if (!parsed.animationLevel && localStorage.getItem("potato:reduced-motion") === "1") parsed.animationLevel = "reduced";
+    return normalizeAppearance(parsed);
   } catch {
     return normalizeAppearance(DEFAULT_APPEARANCE);
   }
@@ -96,6 +110,11 @@ export function saveAppearance(value: AppearancePreferences): void {
 export function applyAppearance(value: AppearancePreferences): void {
   try {
     const root = document.documentElement;
+    root.dataset.animation = value.animationLevel;
+    root.dataset.controlBlur = String(value.graphics.controlBlur);
+    root.dataset.shadows = String(value.graphics.shadows);
+    root.dataset.glass = value.graphics.glassBlur > 0 ? "on" : "off";
+    root.style.setProperty("--graphics-blur", `${value.graphics.glassBlur}px`);
     root.dataset.style = value.style;
     root.dataset.accent = value.accent;
     root.dataset.display = value.display;
@@ -118,6 +137,6 @@ export function resolveAccent(
   return { primary: found.primary, secondary: found.secondary };
 }
 
-export function presetFor(style: UiStyle): Omit<AppearancePreferences, "language" | "accent"> {
+export function presetFor(style: UiStyle): Omit<AppearancePreferences, "language" | "accent" | "graphics" | "animationLevel" | "backgroundTransition" | "pageTransitions"> {
   return style === "classic" ? CLASSIC_PRESET : EDITORIAL_PRESET;
 }

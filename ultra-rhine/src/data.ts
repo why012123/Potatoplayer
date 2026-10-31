@@ -20,11 +20,9 @@ export const records: ArchiveRecord[] = content.records;
 export const categories = ["全部档案", ...content.categories];
 export const archiveColumns = content.columns;
 
+const filesByColumn = archiveColumns.map(category => records.flatMap((record, index) => record.category === category ? [index] : []));
 export function columnFiles(lane: number) {
-  return records
-    .map((record, index) => ({ record, index }))
-    .filter(({ record }) => record.category === archiveColumns[lane])
-    .map(({ index }) => index);
+  return filesByColumn[lane] ?? [];
 }
 export function fileLocation(index: number) {
   const lane = archiveColumns.indexOf(records[index].category);

@@ -1,3 +1,4 @@
+import { createCDShell, createCDAssembly, createSpineAtlas, spineGeometry, setSpineUV, drawSpine } from "./cd-case";
 import * as THREE from "three";
 import { ArchiveVisibility } from "./archive-visibility";
 import { ArchiveDrawCoverage, ArchiveShadowCoverage } from "./archive-draw-coverage";
@@ -8,7 +9,6 @@ import { disposeThreeTree } from "./three-resources";
 import { ThemeWave } from "./theme-motion";
 import { themeMaterial, themeEnvironment } from "./theme-material";
 import { RhythmMotion, rhythmDisplacement, quietBands, type MusicBands, type RhythmStyle } from "./archive-play-motion";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createArchiveLighting, type LightingLook } from "./archive-lighting";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -37,7 +37,6 @@ import {
 import { labelMarkSvg } from "./brand";
 import { archiveFraming } from "./viewport-layout";
 import { ArchiveDrag, ArchivePlaneMomentum, type DragAxis, type DragProjection, type DragPosition } from "./archive-drag";
-import { assetUrl as publicAsset } from "./asset-url";
 import { fullMotion, reducedMotion, type MotionPreferences } from "./motion-preferences";
 import {
   archiveWave,
@@ -80,8 +79,6 @@ export class ArchiveScene {
     this.model.clear();
     this.outgoing = [];
     this.instances = [];
-    this.assemblyTemplate?.then(disposeThreeTree).catch(() => {});
-    this.assemblyTemplate = undefined;
     this.light.shadow.map?.dispose();
     for (const pass of this.composer.passes) pass.dispose();
     this.composer.dispose();
@@ -348,12 +345,10 @@ export class ArchiveScene {
     this.composer.addPass(new OutputPass());
     this.bindPointer();
   }
-  async load(assetUrl = publicAsset("assets/archive-cassette.glb")) {
+  async load(_assetUrl?: string) {
     this.labelMark.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelMarkSvg)}`;
     await this.labelMark.decode();
-    const gltf = await new GLTFLoader().loadAsync(
-      assetUrl,
-    );
+    const gltf = { scene: createCDShell() };
     gltf.scene.updateMatrixWorld(true);
     const meshes: THREE.Mesh[] = [];
     gltf.scene.traverse((o) => {
@@ -490,13 +485,13 @@ export class ArchiveScene {
     this.shadowCoverage = new ArchiveShadowCoverage(this.instances.find(mesh => mesh.castShadow)!);
     this.scene.add(this.shadowCoverage.mesh);
     this.labelCanvas.width = 1024;
-    this.labelCanvas.height = 440;
+    this.labelCanvas.height = 64;
     this.labelTexture = new THREE.CanvasTexture(this.labelCanvas);
     this.labelTexture.colorSpace = THREE.SRGBColorSpace;
     this.labelTexture.anisotropy =
       this.renderer.capabilities.getMaxAnisotropy();
     const label = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.99, 0.46),
+      spineGeometry(),
       new THREE.MeshBasicMaterial({
         map: this.labelTexture,
         toneMapped: false,
@@ -504,38 +499,42 @@ export class ArchiveScene {
         depthWrite: false,
       }),
     );
-    label.position.set(-1.36, 3.04, 0.255);
+    // Spine is already positioned in case coordinates.
+    label.name = "cd-spine";
     this.model.add(label);
 
     // A cover sticker sits just in front of the glass, slightly rotated, with
     // its own paper border. The same geometry is shared by the instanced
     // background cards, so each card only costs one extra draw call.
-    this.stickerGeometry = new THREE.PlaneGeometry(1.28, 1.28);
-    this.stickerGeometry.rotateZ(0.035);
-    this.stickerGeometry.translate(1.18, 2.12, 0.268);
+    this.stickerGeometry = new THREE.PlaneGeometry(3.4, 3.4);
+    this.stickerGeometry.translate(.07, 1.85, .218);
     this.stickerPlaceholder = this.makeStickerPlaceholder();
     this.selectedSticker = new THREE.Mesh(
       this.stickerGeometry,
       new THREE.MeshBasicMaterial({
         map: this.stickerPlaceholder,
-        transparent: true,
-        depthWrite: false,
+        transparent: false,
+        depthWrite: true,
         toneMapped: false,
         alphaTest: 0.01,
         polygonOffset: true,
         polygonOffsetFactor: -2,
       }),
     );
+    this.selectedSticker.name = "cd-cover";
+    this.selectedSticker.userData.surface = "CD_Cover_Insert";
     this.selectedSticker.renderOrder = 5;
     this.selectedSticker.visible = false;
     this.model.add(this.selectedSticker);
+    const spineAtlas = createSpineAtlas(records);
+    const spineMaterial = new THREE.MeshBasicMaterial({ map: spineAtlas, toneMapped: false });
     for (let index = 0; index < 72; index++) {
       const mesh = new THREE.Mesh(
         this.stickerGeometry,
         new THREE.MeshBasicMaterial({
           map: this.stickerPlaceholder,
-          transparent: true,
-          depthWrite: false,
+          transparent: false,
+          depthWrite: true,
           toneMapped: false,
           alphaTest: 0.01,
           polygonOffset: true,
@@ -546,9 +545,13 @@ export class ArchiveScene {
       mesh.visible = false;
       mesh.renderOrder = 5;
       this.scene.add(mesh);
+      const spine = new THREE.Mesh(spineGeometry(), spineMaterial);
+      mesh.add(spine);
+      mesh.userData.spine = spine;
       this.stickers.push({ mesh, path: "" });
     }
 
+    disposeThreeTree(gltf.scene);
     this.appearance.prepare(this.model);
     this.appearance.apply(this.model, 0);
     this.drawLabel(0);
@@ -557,74 +560,10 @@ export class ArchiveScene {
     this.loaded = true;
   }
 
-  private assemblyTemplate?: Promise<THREE.Group>;
   async createAssemblyModel() {
-    this.assemblyTemplate ??= new GLTFLoader()
-      .loadAsync(publicAsset("assets/archive-assembly.glb"))
-      .then((gltf) => {
-        gltf.scene.updateMatrixWorld(true);
-        return gltf.scene;
-      })
-      .catch((error) => {
-        this.assemblyTemplate = undefined;
-        throw error;
-      });
-    const template = await this.assemblyTemplate;
-    const model = new THREE.Group();
-    const meshes: THREE.Mesh[] = [];
-    template.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const name = (object.material as THREE.Material).name.replace(
-        /\.\d+$/,
-        "",
-      );
-      const mesh = new THREE.Mesh(
-        object.geometry.clone().applyMatrix4(object.matrixWorld),
-        object.material,
-      );
-      mesh.userData.surface = name;
-      mesh.userData.assemblyPart = object.userData.assemblyPart;
-      model.add(mesh);
-      meshes.push(mesh);
-    });
-    this.appearance.prepare(model);
-    this.appearance.apply(model, 1);
-    this.appearance.setClarity(model, this.modelClarity());
-    this.appearance.setTheme(model, this.themeAmount);
-    const canvas = document.createElement("canvas");
-    canvas.width = this.labelCanvas.width;
-    canvas.height = this.labelCanvas.height;
-    canvas.getContext("2d")!.drawImage(this.labelCanvas, 0, 0);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    const label = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.99, 0.46),
-      new THREE.MeshBasicMaterial({
-        map: texture,
-        toneMapped: false,
-        transparent: true,
-        depthWrite: false,
-      }),
-    );
-    label.position.set(-1.36, 3.04, 0.255);
-    label.userData.assemblyPart = "cover";
-    label.userData.themeAmount = themeMaterial(label.material, "Printed_Canvas");
-    label.userData.themeAmount.value = this.themeAmount;
-    model.add(label);
-    meshes.push(label);
-    return {
-      model,
-      setClarity: (value: number) => this.appearance.setClarity(model, value),
-      dispose: () => {
-        for (const mesh of meshes) {
-          mesh.geometry.dispose();
-          (mesh.material as THREE.Material).dispose();
-        }
-        texture.dispose();
-      },
-    };
+    return createCDAssembly(records[fileAtCell(this.selectedCell)]);
   }
+
   setMode(mode: "hidden" | "archive" | "detail") {
     this.cancelPointer();
     this.setHover(null);
@@ -772,10 +711,13 @@ export class ArchiveScene {
     const changed = !sameCell(cell, this.selectedCell);
     if (this.looping && changed && this.loaded && this.lift.value > 0.0001) {
       const group = this.model.clone(true);
-      const label = group.children[group.children.length - 1] as THREE.Mesh;
+      // Returning cases own their material, but keep the cached artwork alive.
+      const cover = group.getObjectByName("cd-cover") as THREE.Mesh;
+      cover.material = (cover.material as THREE.Material).clone();
+      const label = group.getObjectByName("cd-spine") as THREE.Mesh;
       const canvas = document.createElement("canvas");
       canvas.width = 1024;
-      canvas.height = 440;
+      canvas.height = 64;
       canvas.getContext("2d")!.drawImage(this.labelCanvas, 0, 0);
       const map = new THREE.CanvasTexture(canvas);
       map.colorSpace = THREE.SRGBColorSpace;
@@ -894,14 +836,14 @@ export class ArchiveScene {
     this.roundStickerRect(ctx, 12, 12, 232, 232, 10);
     ctx.stroke();
     if (image) {
-      const size = 208;
+      const size = 256;
       ctx.save();
-      this.roundStickerRect(ctx, 24, 24, size, size, 6);
+      ctx.rect(0, 0, size, size);
       ctx.clip();
       const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
       const width = image.naturalWidth * scale;
       const height = image.naturalHeight * scale;
-      ctx.drawImage(image, 24 + (size - width) / 2, 24 + (size - height) / 2, width, height);
+      ctx.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
       ctx.restore();
     }
     const texture = new THREE.CanvasTexture(canvas);
@@ -973,7 +915,13 @@ export class ArchiveScene {
         slot.path = "";
         continue;
       }
-      const record = records[fileAtCell(candidate.cell)];
+      const recordIndex = fileAtCell(candidate.cell);
+      const spine = slot.mesh.userData.spine as THREE.Mesh;
+      if (spine.userData.recordIndex !== recordIndex) {
+        setSpineUV(spine.geometry, recordIndex, ((spine.material as THREE.MeshBasicMaterial).map!.image as HTMLCanvasElement).height);
+        spine.userData.recordIndex = recordIndex;
+      }
+      const record = records[recordIndex];
       const path = record?.coverPath;
       if (!path) {
         slot.mesh.visible = false;
@@ -993,28 +941,7 @@ export class ArchiveScene {
 
   private drawLabel(index: number) {
     if (!this.labelTexture) return;
-    const c = this.labelCanvas.getContext("2d")!;
-    c.fillStyle = "#e6e2d9";
-    c.fillRect(0, 0, 1024, 440);
-    c.fillStyle = "#171713";
-    c.fillRect(12, 12, 1000, 6);
-    c.fillRect(12, 419, 1000, 3);
-    c.font = "bold 81px MiSans";
-    c.fillText("RHINE LAB, LLC.", 22, 116);
-    c.font = "32px MiSans";
-    c.fillStyle = "#878476";
-    c.fillText("INTERNAL DATABASE", 25, 174);
-    c.fillStyle = "#171713";
-    c.font = "bold 130px MiSans";
-    c.fillText("NO." + String(index + 1).padStart(3, "0"), 22, 360);
-    c.fillRect(782, 32, 221, 39);
-    c.fillStyle = "#eee9de";
-    c.font = "24px MiSans";
-    c.fillText("R L / I S", 809, 61);
-    c.fillStyle = "#171713";
-    c.font = "bold 64px MiSans";
-    c.fillText("INFO", 830, 143);
-    c.drawImage(this.labelMark, 790, 242, 210, 98);
+    drawSpine(this.labelCanvas.getContext("2d")!, records[index]);
     this.labelTexture.needsUpdate = true;
     this.updateSelectedSticker(index);
   }

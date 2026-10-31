@@ -17,13 +17,19 @@ Local modifications:
   Electron's `file://` URL.
 - `scripts/generate-music-archives.mjs` replaces the sample archive with every
   local track, grouped into all named blocks (plus "未分组"), keeps `trackId`
-  and `coverPath` for playback/stickers, and expands the layout to eight
-  scrollable columns while keeping the original five-by-eight viewport.
-- `src/main.ts` starts playback when a file is opened, adds a PLAY/PAUSE button,
-  maps Space to playback, shows the song title as the large heading and the
-  artist below it, and skips PWA registration outside HTTP.
-- `src/scene.ts` adds a cover sticker plane (white border, shadow, slight
-  rotation) in front of the extracted cassette and its detail/assembly model.
+  and `coverPath` for playback, and expands the layout to eight scrollable
+  columns while keeping the original five-by-eight viewport.
+- `src/main.ts` opens directly into the music library in Electron, adds a
+  transport dock, maps Space to playback, shows the song title as the large
+  heading and the artist below it, and skips PWA registration outside HTTP.
+- `src/cd-case.ts` and `src/scene.ts` replace the cassette/cover-sticker layer
+  with a locally generated jewel-case model: hinged lid, printed insert, disc,
+  spine atlas and an open/close animation for the 360° viewer.
+- `src/music-player.ts` is an event-driven transport (no polling or spectrum
+  subscription) sharing playback state with Super.
+- `src/render-quality.ts` adds a balanced preset for Electron; `src/main.ts`
+  adds a 30/60 FPS 3D cap with idle throttling and releases the scene while
+  hidden.
 - Hidden/automation windows use `?silent=1`: app audio off and backend muted.
 - `src/data.ts` records carry an optional `trackId`.
 - `src/potato.d.ts` declares the Electron preload bridge.

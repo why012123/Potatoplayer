@@ -1,0 +1,20 @@
+/* Same paper, ink and calibrated stage coordinates as the Rhine archive. */
+.music-transport { position:absolute; bottom:26px; left:72px; right:72px; height:112px; display:grid; grid-template-columns:76px minmax(200px,1fr) minmax(320px,1.3fr) 180px; gap:24px; align-items:center; padding:16px 24px; background:var(--theme-panel,#edebe4); border:1px solid var(--theme-line,#aaa59a); border-top:3px solid var(--theme-ink,#080a08); color:var(--theme-ink,#080a08); z-index:12; pointer-events:auto; }
+.transport-art { width:76px;height:76px;display:grid;place-items:center;font-size:32px;background:var(--theme-field);overflow:hidden; }
+.transport-art img { width:100%;height:100%;object-fit:cover; }
+.transport-track { text-align:left;min-width:0;display:grid;gap:7px; }
+.transport-track small { font-size:10px;letter-spacing:2px;color:var(--theme-muted); }
+.transport-track strong { font-size:23px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.transport-track span { font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--theme-muted); }
+.transport-buttons { display:flex;justify-content:center;gap:22px;align-items:center; }
+.transport-buttons button { min-width:42px;height:38px;font-size:18px; }
+.transport-buttons .transport-play { background:var(--theme-ink);color:var(--theme-paper);width:64px; }
+.transport-progress { display:flex;align-items:center;gap:12px;margin-top:12px; }
+.transport-progress output { font:12px monospace;min-width:42px; }
+.music-transport input { accent-color:var(--theme-accent,#9b7247);width:100%;min-width:0; }
+.transport-volume { display:grid;gap:12px;font-size:12px;letter-spacing:2px; }
+.music-terminal .system-footer,.music-terminal .powered,.music-terminal .archive-hint { visibility:hidden; }
+.music-terminal .archive-counter { bottom:180px; }
+.music-terminal .archive-navigation,.music-terminal .column-navigation { bottom:185px; }
+.music-terminal .detail-content { max-height:620px;overflow-y:auto;padding-right:16px; }
+.music-transport button:focus-visible,.music-transport input:focus-visible { outline:2px solid var(--theme-accent);outline-offset:4px; }
