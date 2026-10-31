@@ -8,10 +8,12 @@ import {
   Moon,
   Search,
   Sun,
+  Users,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import { useTogether } from "@/lib/together";
 import clsx from "clsx";
 import { IconButton } from "@/components/IconButton";
 
@@ -29,6 +31,8 @@ export function TopBar() {
   const setDownloadPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
   const theme = useAppStore((state) => state.theme);
   const brief = useAppStore((state) => state.brief);
+  const togetherStatus = useTogether((state) => state.status);
+  const togetherRoom = useTogether((state) => state.roomId);
   const toggleBrief = useAppStore((state) => state.toggleBrief);
   const setTheme = useAppStore((state) => state.setTheme);
   const currentView = useAppStore((state) => state.viewHistory[state.viewIndex]);
@@ -209,6 +213,17 @@ export function TopBar() {
           )}
         </AnimatePresence>
         <div className="topbar__tools">
+          <IconButton
+            label={tr("Listen together", "一起听")}
+            variant="ghost"
+            size="sm"
+            onClick={() => useTogether.getState().openDialog()}
+          >
+            <span className={clsx("together-trigger", togetherStatus === "connected" && togetherRoom && "is-live")}>
+              <Users size={16} />
+              {togetherStatus === "connected" && togetherRoom && <i />}
+            </span>
+          </IconButton>
           <IconButton
             label={tr("Download tasks", "下载任务")}
             variant="ghost"

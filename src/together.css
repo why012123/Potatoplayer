@@ -1,0 +1,425 @@
+/* Together rooms: a compact relay dashboard, not a second player. */
+.together-trigger {
+  position: relative;
+  display: inline-flex;
+  place-items: center;
+}
+.together-trigger i {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5cae72;
+  box-shadow: 0 0 0 2px var(--bg, #ece6dc);
+}
+
+.together-dialog {
+  width: min(820px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.together-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex: none;
+}
+.together-head h2 {
+  font-size: 30px;
+}
+.together-head .modal__description {
+  max-width: 560px;
+  margin-bottom: 4px;
+}
+.together-head__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: none;
+}
+.together-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--line-dark);
+  border-radius: 999px;
+  font-size: 9.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.together-status.is-online {
+  color: #3e7a50;
+  border-color: color-mix(in srgb, #4e9b63 35%, transparent);
+  background: color-mix(in srgb, #6fbc82 9%, transparent);
+}
+.together-head__actions .icon-button {
+  width: 30px;
+  height: 30px;
+  font-size: 19px;
+}
+
+.together-setup {
+  display: grid;
+  gap: 13px;
+  margin-top: 16px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.together-field {
+  display: grid;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.together-field > span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.together-field small {
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.together-create {
+  margin-top: 2px;
+}
+.together-create .button {
+  width: 100%;
+  justify-content: center;
+}
+.together-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.together-divider::before,
+.together-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-dark);
+}
+.together-join {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.together-join .text-field {
+  letter-spacing: 0.22em;
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+.together-error {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, #b94e45 34%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, #c45d53 9%, transparent);
+  color: #9c3f38;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.together-footnote {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.together-room {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 22px;
+  min-height: 0;
+  margin-top: 18px;
+  flex: 1;
+}
+.together-side {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+}
+.together-code {
+  display: grid;
+  gap: 3px;
+  padding: 12px 13px;
+  border: 1px solid var(--line-dark);
+  border-radius: 14px;
+  background: var(--glass);
+}
+.together-code > span {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.together-code strong {
+  font-family: var(--mono);
+  font-size: 25px;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+}
+.together-code button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 9px;
+  cursor: pointer;
+}
+.together-code button:hover {
+  color: var(--text);
+}
+.together-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.together-section-label span {
+  margin-left: auto;
+  font-family: var(--mono);
+  letter-spacing: 0;
+}
+.together-members {
+  display: grid;
+  gap: 5px;
+  max-height: 126px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.together-member {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  font-size: 10.5px;
+}
+.together-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--paper, #f8f4ec);
+  background: color-mix(in srgb, var(--accent) 68%, #555);
+  font-size: 9px;
+  font-weight: 700;
+  flex: none;
+}
+.together-member.is-self {
+  font-weight: 700;
+}
+.together-member small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 8.5px;
+  font-weight: 400;
+}
+.together-now {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid var(--line-dark);
+  border-radius: 13px;
+  background: var(--glass);
+}
+.together-now__cover {
+  width: 54px;
+  height: 54px;
+  flex: none;
+}
+.together-now > div:last-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.together-now strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.together-now span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.together-now small {
+  font-size: 8.5px;
+  color: var(--muted);
+}
+.together-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.together-missing {
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, #b5752f 30%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, #ca8b3e 8%, transparent);
+  color: #886028;
+  font-size: 9px;
+  line-height: 1.55;
+}
+.together-leave {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  margin-top: auto;
+  padding: 5px 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+.together-leave:hover {
+  color: #a94c44;
+}
+
+.together-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-left: 21px;
+  border-left: 1px solid var(--line-dark);
+}
+.together-chat .together-section-label {
+  margin-top: 0;
+}
+.together-chat__list {
+  flex: 1;
+  min-height: 210px;
+  max-height: 350px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 2px 8px;
+  scrollbar-width: thin;
+}
+.together-chat__empty {
+  margin: auto;
+  max-width: 230px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+}
+.together-message {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  font-size: 10.5px;
+}
+.together-message__name {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.together-message p {
+  grid-column: 1 / -1;
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.together-message time {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 8px;
+  color: var(--muted);
+}
+.together-message.is-system {
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: center;
+  justify-content: center;
+}
+.together-chat__compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  margin-top: 9px;
+}
+.together-chat__compose .button {
+  min-width: 42px;
+  padding-inline: 12px;
+}
+.together-chat > .together-footnote {
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .together-dialog {
+    width: calc(100vw - 28px);
+    padding: 18px;
+  }
+  .together-head h2 {
+    font-size: 25px;
+  }
+  .together-room {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    overflow-y: auto;
+  }
+  .together-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+  .together-side .together-code,
+  .together-side .together-now,
+  .together-side .together-missing {
+    grid-column: 1 / -1;
+  }
+  .together-leave {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+  .together-chat {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line-dark);
+    padding-top: 13px;
+  }
+  .together-chat__list {
+    min-height: 160px;
+    max-height: 240px;
+  }
+}
