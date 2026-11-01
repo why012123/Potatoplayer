@@ -1,4 +1,4 @@
-import { mountMusicPlayer, playMusicSelection } from "./music-player";
+import { mountMusicPlayer, playMusicSelection, toggleMusicPlayback } from "./music-player";
 import { createRollingClock } from "./rolling-clock";
 import { InspectionOverlay } from "./inspection-overlay";
 import { DocumentDecryption } from "./document-decryption";
@@ -30,7 +30,7 @@ import { ModelViewer } from "./model-viewer";
 import { ContentTransition, SurfaceTransition } from "./ui-transitions";
 import { BootSequence } from "./boot";
 import { loadBootWebfonts } from "./boot-lettering";
-import { wrap, type ArchiveNavigation } from "./archive-loop";
+import { fileAtCell, type ArchiveNavigation } from "./archive-loop";
 import {
   records,
   categories,
@@ -573,9 +573,9 @@ function stepFile(direction: number) {
   );
 }
 function stepColumn(direction: number) {
-  const lane = fileLocation(selected).lane;
-  const next = wrap(lane + direction, archiveColumns.length);
-  select(columnMemory[next], { axis: "lane", direction });
+  const current = scene?.selectionCell ?? fileLocation(selected);
+  const next = { lane: current.lane + direction, row: current.row };
+  select(fileAtCell(next), { axis: "lane", direction });
 }
 function updateSelection(navigation?: ArchiveNavigation) {
   const r = records[selected];
@@ -1089,7 +1089,7 @@ document.addEventListener("click", (e) => {
   }
 });
 document.addEventListener("keydown", (e) => {
-  if (!started) return;
+  if (!started || e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
   if (viewer?.isOpen) return;
   if (playground?.active && !modal) {
     if (e.key === "Escape") {
@@ -1113,13 +1113,17 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     return;
   }
-  const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement;
-  if (e.code === "Space" && !typing && !modal && mode !== "boot") {
+  const target = e.target as HTMLElement;
+  const typing = !!target.closest('input,select,textarea,[contenteditable="true"],[role="textbox"]');
+  const control = !!target.closest('button,a[href],summary,[role="button"]');
+  if (e.code === "Space" && !typing && !control && !modal && mode !== "boot") {
     e.preventDefault();
-    void window.potato?.invoke("playback.toggle").catch(() => notify("播放操作未完成"));
+    if (!e.repeat) toggleMusicPlayback();
     return;
   }
   if (e.key === "Escape") {
+    e.preventDefault();
+    if (e.repeat) return;
     if (modal) closeModal();
     else if (mode === "detail" || (mode === "boot" && ready)) {
       const sound = mode === "detail" ? "back" : "ui-tick";
@@ -1152,6 +1156,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (typing || modal || !ready) return;
+  if (e.repeat && !e.key.startsWith('Arrow')) { e.preventDefault(); return; }
   if (
     (e.target as HTMLElement).dataset.tab &&
     ["ArrowLeft", "ArrowRight"].includes(e.key)
@@ -1173,26 +1178,24 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     openModal("saved");
   }
-  if (e.key === "ArrowLeft" && mode !== "boot") {
+  if (e.key === "ArrowLeft" && mode === "archive") {
     e.preventDefault();
     stepColumn(-1);
   }
-  if (e.key === "ArrowRight" && mode !== "boot") {
+  if (e.key === "ArrowRight" && mode === "archive") {
     e.preventDefault();
     stepColumn(1);
   }
-  if (["ArrowUp", "ArrowDown"].includes(e.key) && mode !== "boot") {
+  if (["ArrowUp", "ArrowDown"].includes(e.key) && mode === "archive") {
     e.preventDefault();
     stepFile(e.key === "ArrowUp" ? -1 : 1);
   }
   if (
     e.key === "Enter" &&
+    !control &&
     (document.activeElement === document.body ||
       document.activeElement?.id === "detail-content" ||
-      ["prev", "next", "column-prev", "column-next"].includes(
-        (document.activeElement as HTMLElement)?.dataset.action ?? "",
-      ) ||
-      (document.activeElement as HTMLElement)?.dataset.select)
+      document.activeElement?.matches('#three-scene canvas'))
   ) {
     e.preventDefault();
     if (mode === "boot") setMode("archive");

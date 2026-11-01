@@ -41,13 +41,21 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
   console.log('[ultra] rapid-switch cover readiness:', { min: Math.min(...coverSamples), average: coverSamples.reduce((a,b)=>a+b,0)/coverSamples.length, final: await page.evaluate(() => rhine.stats().covers) });
   await page.waitForTimeout(1800);
   await page.screenshot({ path: path.join(root, 'ultra-rhine/dist/cd-array.png') });
-  // Cross columns in both directions; rapid moves must keep spines in sync.
+  // Cross columns of different lengths in both directions without moving vertically.
+  const rowBefore = await page.evaluate(() => rhine.stats().selectedCell.row);
   for (const key of [...Array(10).fill('ArrowRight'), ...Array(10).fill('ArrowLeft')]) {
    await page.keyboard.press(key); await page.waitForTimeout(60);
    const stats = await page.evaluate(() => rhine.stats());
+   assert.equal(stats.selectedCell.row, rowBefore);
    assert.equal(stats.spineDataMatches, true);
    assert.equal(stats.genreColorCount, stats.archiveCount);
   }
+  // Enter on a column button keeps its native action instead of opening details.
+  await page.locator('[data-action="column-next"]').focus();
+  const laneBefore = await page.evaluate(() => rhine.stats().selectedCell.lane);
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => rhine.stats().mode), 'archive');
+  assert.equal(await page.evaluate(() => rhine.stats().selectedCell.lane), laneBefore + 1);
   await page.evaluate(() => rhine.select(0)); await page.waitForTimeout(1000);
   // Actual pointer clicks select/open; a drag must never open details.
   const clickPoint = await page.evaluate(() => {
@@ -70,6 +78,11 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
   const before = await page.evaluate(async () => (await potato.invoke('bootstrap')).playback);
   await page.locator('.read-file').click(); await page.waitForTimeout(1500);
   assert.equal(await page.evaluate(() => rhine.stats().mode), 'detail');
+  const detailSelection = await page.evaluate(() => rhine.stats().selected);
+  await page.locator('#detail-content').focus();
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await page.evaluate(() => rhine.stats().mode), 'detail');
+  assert.equal(await page.evaluate(() => rhine.stats().selected), detailSelection);
   const after = await page.evaluate(async () => (await potato.invoke('bootstrap')).playback);
   assert.equal(after.trackId, before.trackId); assert.equal(after.playing, before.playing);
   const layout = await page.evaluate(() => {
@@ -136,16 +149,19 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
   console.log('[ultra] real-engine repeat-one passed twice');
   await page.getByRole('button', { name: '暂停', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[data-command="toggle"]').getAttribute('aria-label') === '播放');
-  // Native range arrows must not browse the CD field; Space toggles playback.
+  // Native range arrows must not browse the CD field; held global Space toggles once.
   const beforeRange = await page.evaluate(() => rhine.stats().selected);
   await page.getByLabel('音量', { exact: true }).focus();
   await page.keyboard.press('ArrowLeft');
   assert.equal(await page.evaluate(() => rhine.stats().selected), beforeRange);
   await page.locator('#three-scene canvas').focus();
-  await page.keyboard.press('Space');
+  await page.keyboard.down('Space'); await page.keyboard.down('Space'); await page.keyboard.up('Space');
   await page.waitForFunction(() => document.querySelector('[data-command="toggle"]').getAttribute('aria-label') === '暂停');
   await page.keyboard.press('Space');
   await page.waitForFunction(() => document.querySelector('[data-command="toggle"]').getAttribute('aria-label') === '播放');
+  await page.keyboard.press('Enter'); await page.waitForTimeout(1000);
+  assert.equal(await page.evaluate(() => rhine.stats().mode), 'detail');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(800);
   await page.getByLabel('播放进度', { exact: true }).fill('12'); await page.getByLabel('播放进度', { exact: true }).dispatchEvent('change');
   await page.waitForTimeout(400);
   assert.ok(Math.abs((await page.evaluate(async () => (await potato.invoke('bootstrap')).playback.time)) - 12) < 2);

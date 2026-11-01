@@ -1227,7 +1227,7 @@ export class ArchiveScene {
     const pointers = new Set<number>();
     let lastTap: { cell: ArchiveCell; x: number; y: number; time: number } | null = null;
     canvas.tabIndex = 0;
-    canvas.setAttribute('aria-label', 'CD 音乐库：单击选择，双击查看详情；方向键浏览，空格播放或暂停');
+    canvas.setAttribute('aria-label', 'CD 音乐库：单击选择，双击查看详情；方向键浏览，Enter 查看详情，空格播放或暂停');
     const hover = (e: Pick<PointerEvent, 'clientX' | 'clientY' | 'pointerType'>) => {
       if (
         e.pointerType !== "mouse" ||

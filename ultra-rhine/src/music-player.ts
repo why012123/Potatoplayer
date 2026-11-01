@@ -63,8 +63,11 @@ export function mountMusicPlayer(selected: () => number, reveal: (index: number)
       else if (state.trackId) notify('这首歌曲尚未收录到 Ultra 音乐库');
     }
   });
-  // Native range keys and button Enter must not also navigate the archive.
-  dock.addEventListener('keydown', event => event.stopPropagation());
+  // Preserve native button/range behavior; Escape can still leave track details.
+  dock.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') event.stopPropagation();
+    if (event.repeat && (event.code === 'Space' || event.key === 'Enter')) event.preventDefault();
+  });
   seek.addEventListener('input', () => { q('.transport-progress output:first-child').textContent = clock(Number(seek.value)); });
   seek.addEventListener('change', () => { void invoke('playback.seek', { seconds: Number(seek.value) }); });
   volume.addEventListener('change', () => { void invoke('playback.volume', { volume: Number(volume.value) }); });
