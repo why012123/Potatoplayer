@@ -187,6 +187,7 @@ const storedPrefs = readLocal<
     quality: boolean;
     rendering: RenderQuality;
     frameRate: number;
+    persistentSpines: boolean;
     superPerformance: boolean;
     colorTheme: "light" | "dark";
     motion: StoredMotion;
@@ -211,6 +212,7 @@ const prefs = {
   motionPreset: initialMotionPreset,
   quality: storedPrefs.quality ?? true,
   superPerformance: storedPrefs.superPerformance ?? false,
+  persistentSpines: storedPrefs.persistentSpines !== false,
   frameRate: [30, 60].includes(storedPrefs.frameRate ?? 0) ? storedPrefs.frameRate! : 30,
   rendering: normalizeQuality(
     storedPrefs.rendering ?? (window.potato ? qualityPresets.balanced : undefined),
@@ -372,6 +374,7 @@ function savePrefs() {
     );
   scene?.setSuperPerformance(superPerformanceEnabled());
   viewer?.setSuperPerformance(superPerformanceEnabled());
+  scene?.setPersistentSpines(prefs.persistentSpines);
   scene?.setQuality(effectiveRenderQuality());
   viewer?.setQuality(effectiveRenderQuality());
   viewer?.setMotion(prefs.motion);
@@ -545,7 +548,9 @@ function setMode(next: Mode) {
     }
   }
 }
+let selectionRevision = 0;
 function select(index: number, navigation?: ArchiveNavigation) {
+  selectionRevision++;
   selected = (index + records.length) % records.length;
   columnMemory[fileLocation(selected).lane] = selected;
   if (mode === "detail") setMode("archive");
@@ -853,7 +858,7 @@ function motionPreferenceNoteMarkup() {
   return `<div id="motion-preference-note" class="motion-preference-note"><p>${motionSummary(prefs.motion)}</p><span>预设：${preset === "full" ? "完整动画" : preset === "reduced" ? "减少动画" : "自定义"} · 选择会保存在本站</span>${allEnabled ? "" : '<button data-action="enable-motion">启用完整动画并重播 ↻</button>'}</div>`;
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${window.potato ? `<label class="quality-control"><span>三维帧率上限<small>独立于画质和动画；停止操作后自动降低更新频率</small></span><select id="music-frame-rate" aria-label="三维帧率上限"><option value="30" ${prefs.frameRate === 30 ? "selected" : ""}>30 FPS · 节能</option><option value="60" ${prefs.frameRate === 60 ? "selected" : ""}>60 FPS · 流畅</option></select></label>` : ""}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? "<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>" : "<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>"}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ""}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${window.potato ? `<label><div><strong>盒脊常驻显示</strong><span>始终显示可见 CD 的歌名、歌手和流派色带；封面仍按需加载。关闭后只显示附近盒脊。</span></div><input type="checkbox" aria-label="盒脊常驻显示" data-pref="persistentSpines" ${prefs.persistentSpines ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}</div>${motionPreferenceNoteMarkup()}${motionSettingsMarkup(prefs.motion, prefs.motionPreset)}${window.potato ? `<label class="quality-control"><span>三维帧率上限<small>独立于画质和动画；停止操作后自动降低更新频率</small></span><select id="music-frame-rate" aria-label="三维帧率上限"><option value="30" ${prefs.frameRate === 30 ? "selected" : ""}>30 FPS · 节能</option><option value="60" ${prefs.frameRate === 60 ? "selected" : ""}>60 FPS · 流畅</option></select></label>` : ""}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? "<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>" : "<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>"}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ""}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -904,7 +909,8 @@ document.addEventListener("change", (e) => {
       key === "sound" ||
       key === "music" ||
       key === "quality" ||
-      key === "superPerformance"
+      key === "superPerformance" ||
+      key === "persistentSpines"
     )
       prefs[key] = el.checked;
     if (key === "sound" || key === "music") saveAudioPrefs();
@@ -1365,6 +1371,9 @@ function bindScene(scene: ArchiveScene, cell?: { lane: number; row: number }) {
     if (mode !== "archive" || modal || viewer?.isOpen) return;
     select(i, cell ? { cell } : undefined);
   };
+  scene.onActivate = () => {
+    if (mode === 'archive' && !modal && !viewer?.isOpen) openFile();
+  };
   scene.onNavigate = (axis, direction) => {
     if (mode !== "archive" || modal || viewer?.isOpen) return;
     if (axis === "lane") stepColumn(direction);
@@ -1589,7 +1598,12 @@ function completeStartup(silent: boolean) {
       target.focus({ preventScroll: true });
     }
   }, fade);
-  mountMusicPlayer(() => selected, index => { setMode("archive"); select(index); }, notify);
+  const initialSelectionRevision = selectionRevision;
+  const revealTrack = (index: number) => { setMode("archive"); select(index); };
+  mountMusicPlayer(() => selected, revealTrack, notify, index => {
+    // A slow bootstrap must not undo browsing that has already started.
+    if (selectionRevision === initialSelectionRevision && mode === 'archive' && !modal) revealTrack(index);
+  });
   requestAnimationFrame(frame);
   // Do not compete with entry audio/font downloads. Full offline installation
   // begins after startup is complete and remains atomic.
@@ -1788,6 +1802,7 @@ Object.assign(window, {
             : 6.76
           : null,
       selected: records[selected].id,
+      selectedTrackId: records[selected].trackId,
       saved: [...saved],
       audio: audio.stats(),
       wallpaper: isWallpaper ? wallpaperHost() : null,

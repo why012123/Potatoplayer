@@ -236,6 +236,21 @@ export class ArchiveScene {
   private loaded = false;
   private labelCanvas = document.createElement("canvas");
   private labelTexture?: THREE.CanvasTexture;
+  private persistentSpines = true;
+  private spineBatch?: THREE.InstancedMesh;
+  private spineRecords?: THREE.InstancedBufferAttribute;
+  private spineUpdates?: InstanceUpdates;
+  private spineColors?: THREE.InstancedBufferAttribute;
+  private spineColorUpdates?: InstanceUpdates;
+  private readonly genreColors = records.map(record => new THREE.Color(
+    /^#[0-9a-f]{6}$/i.test(record.genreColor || '') ? record.genreColor! : '#87908b',
+  ).toArray());
+  setPersistentSpines(enabled: boolean) {
+    this.persistentSpines = enabled;
+    if (this.spineBatch) this.spineBatch.visible = enabled;
+    for (const slot of this.stickers) (slot.mesh.userData.spine as THREE.Mesh).visible = !enabled;
+    this.renderState.invalidate();
+  }
   private stickerGeometry?: THREE.PlaneGeometry;
   private stickers: Array<{
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -256,6 +271,7 @@ export class ArchiveScene {
   private aoKernelSize = 32;
   private displayHeight = 0;
   private layoutKind = "";
+  onActivate?: () => void;
   onSelect?: (index: number, cell?: ArchiveCell) => void;
   onHover?: (index: number | null) => void;
   onNavigate?: (axis: "row" | "lane", direction: number) => void;
@@ -529,7 +545,41 @@ export class ArchiveScene {
     this.selectedSticker.visible = false;
     this.model.add(this.selectedSticker);
     const spineAtlas = createSpineAtlas(records);
+    spineAtlas.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
     const spineMaterial = new THREE.MeshBasicMaterial({ map: spineAtlas, toneMapped: false });
+    // One atlas and one instanced draw for every visible box, independent of cover I/O.
+    const batchMaterial = spineMaterial.clone();
+    const atlasHeight = (spineAtlas.image as HTMLCanvasElement).height;
+    batchMaterial.onBeforeCompile = shader => {
+      shader.vertexShader = 'attribute float spineRecord;\nattribute vec3 spineColor;\nvarying vec3 vSpineColor;\nvarying vec2 vSpineUv;\n' + shader.vertexShader;
+      shader.fragmentShader = 'varying vec3 vSpineColor;\nvarying vec2 vSpineUv;\n' + shader.fragmentShader;
+      // Genre identification is geometry data, never gated by atlas sampling,
+      // cover requests, or texture mip levels on a narrow/oblique spine.
+      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
+        #include <map_fragment>
+        if (vSpineUv.x >= 0.84) diffuseColor.rgb = vSpineColor;
+      `);
+      shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', `
+        #include <uv_vertex>
+        vSpineUv = uv;
+        vSpineColor = spineColor;
+        vMapUv = vec2((mod(spineRecord, 4.0) + vMapUv.x) / 4.0,
+          1.0 - (floor(spineRecord / 4.0) + 1.0 - vMapUv.y) * 32.0 / ${atlasHeight.toFixed(1)});
+      `);
+    };
+    batchMaterial.customProgramCacheKey = () => `cd-spines-color-first-${atlasHeight}`;
+    this.spineBatch = new THREE.InstancedMesh(spineGeometry(), batchMaterial, this.instanceCapacity);
+    this.spineBatch.instanceMatrix = this.instances[0].instanceMatrix;
+    this.spineBatch.frustumCulled = false;
+    this.spineBatch.count = 0;
+    this.spineBatch.visible = this.persistentSpines;
+    this.spineRecords = new THREE.InstancedBufferAttribute(new Float32Array(this.instanceCapacity), 1).setUsage(THREE.DynamicDrawUsage);
+    this.spineBatch.geometry.setAttribute('spineRecord', this.spineRecords);
+    this.spineUpdates = new InstanceUpdates(this.spineRecords);
+    this.spineColors = new THREE.InstancedBufferAttribute(new Float32Array(this.instanceCapacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.spineBatch.geometry.setAttribute('spineColor', this.spineColors);
+    this.spineColorUpdates = new InstanceUpdates(this.spineColors);
+    this.scene.add(this.spineBatch);
     for (let index = 0; index < 72; index++) {
       const mesh = new THREE.Mesh(
         this.stickerGeometry,
@@ -550,6 +600,7 @@ export class ArchiveScene {
       const spine = new THREE.Mesh(spineGeometry(), spineMaterial);
       mesh.add(spine);
       mesh.userData.spine = spine;
+      spine.visible = !this.persistentSpines;
       this.stickers.push({ mesh, path: "" });
     }
 
@@ -701,6 +752,7 @@ export class ArchiveScene {
       this.pendingPulse.row -= shift.row;
     }
   }
+  get selectionCell(): ArchiveCell { return { ...this.selectedCell }; }
   select(index: number, navigation?: ArchiveNavigation) {
     if (!this.navigatingDrag) this.cancelPointer();
     this.setHover(null);
@@ -995,6 +1047,20 @@ export class ArchiveScene {
       inst.dispose();
       inst.instanceMatrix = matrix;
     }
+    if (this.spineBatch) {
+      this.spineBatch.dispose();
+      this.spineBatch.instanceMatrix = matrix;
+      const previous = this.spineRecords;
+      this.spineRecords = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
+      if (previous) this.spineRecords.array.set(previous.array);
+      this.spineBatch.geometry.setAttribute('spineRecord', this.spineRecords);
+      this.spineUpdates = new InstanceUpdates(this.spineRecords);
+      const previousColors = this.spineColors;
+      this.spineColors = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
+      if (previousColors) this.spineColors.array.set(previousColors.array);
+      this.spineBatch.geometry.setAttribute('spineColor', this.spineColors);
+      this.spineColorUpdates = new InstanceUpdates(this.spineColors);
+    }
     const previousTheme = this.themeAttribute;
     this.themeAttribute = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
     if (previousTheme) this.themeAttribute.array.set(previousTheme.array);
@@ -1159,6 +1225,9 @@ export class ArchiveScene {
     let wheelTotal = 0,
       wheelTime = 0;
     const pointers = new Set<number>();
+    let lastTap: { cell: ArchiveCell; x: number; y: number; time: number } | null = null;
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-label', 'CD 音乐库：单击选择，双击查看详情；方向键浏览，空格播放或暂停');
     const hover = (e: Pick<PointerEvent, 'clientX' | 'clientY' | 'pointerType'>) => {
       if (
         e.pointerType !== "mouse" ||
@@ -1195,6 +1264,7 @@ export class ArchiveScene {
     };
     this.cancelPointer = () => {
       cancelled = true;
+      lastTap = null;
       this.stopMomentum();
       pointers.clear();
       wheelTotal = 0;
@@ -1229,6 +1299,7 @@ export class ArchiveScene {
     canvas.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (!this.canBrowse() && !this.canInspect) return;
+      canvas.focus({ preventScroll: true });
       this.pendingHover = null;
       pointers.add(e.pointerId);
       if (pointers.size > 1) {
@@ -1295,6 +1366,7 @@ export class ArchiveScene {
       if (!cancelled && browse && this.canBrowse()) {
         moveArchive(e);
         if (this.archiveDrag.active) {
+          lastTap = null;
           if (this.motion.dragMomentum) {
             this.archiveMomentum = {
               time: performance.now() / 1000,
@@ -1305,8 +1377,16 @@ export class ArchiveScene {
             };
           }
         } else if (!moved) {
-          const cell = this.pickCell(e.clientX, e.clientY);
-          if (cell) this.onSelect?.(fileAtCell(cell), cell);
+          // The first tap lifts/moves the box under the cursor. A second tap
+          // at the same screen position belongs to that original selection.
+          const activate = lastTap && e.timeStamp - lastTap.time < 400 &&
+            Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 12;
+          const cell = activate ? lastTap!.cell : this.pickCell(e.clientX, e.clientY);
+          if (cell) {
+            this.onSelect?.(fileAtCell(cell), cell);
+            lastTap = activate ? null : { cell: { ...cell }, x: e.clientX, y: e.clientY, time: e.timeStamp };
+            if (activate) this.onActivate?.();
+          } else lastTap = null;
         }
       }
       reset();
@@ -1893,10 +1973,17 @@ export class ArchiveScene {
       const i = this.drawnCells.length;
       this.ensureInstanceCapacity(i + 1);
       this.drawnCells.push(cell);
+      const recordIndex = fileAtCell(cell);
+      this.spineUpdates?.scalar(i, recordIndex);
+      this.spineColorUpdates?.set(i * 3, this.genreColors[recordIndex]);
       this.themeUpdates?.scalar(i, this.theme.sample(cell, time));
       this.matrixUpdates!.set(i * 16, this.dummy.matrix.elements);
     }
     const countChanged = this.instances[0].count !== this.drawnCells.length;
+    if (this.spineBatch) this.spineBatch.count = this.drawnCells.length;
+    const spineChanged = this.spineUpdates?.commit();
+    const colorsChanged = this.spineColorUpdates?.commit();
+    if (spineChanged || colorsChanged) this.renderState.invalidate();
     const visibleMatricesChanged = this.matrixUpdates!.commit();
     const shadowMatricesChanged = this.shadowCoverage?.commit() ?? false;
     const matricesChanged = visibleMatricesChanged || shadowMatricesChanged;
@@ -2050,6 +2137,14 @@ export class ArchiveScene {
       presentation: this.presence,
       triangles: this.renderer.info.render.triangles,
       archiveCount: this.drawnCells.length,
+      persistentSpines: this.persistentSpines,
+      genreColorCount: this.spineBatch?.visible ? this.spineBatch.count : 0,
+      spineDataMatches: this.drawnCells.every((cell, i) => {
+        const recordIndex = fileAtCell(cell);
+        return this.spineRecords?.array[i] === recordIndex && this.genreColors[recordIndex].every(
+          (value, component) => this.spineColors?.array[i * 3 + component] === Math.fround(value));
+      }),
+      residentSpineCount: this.spineBatch?.visible ? this.spineBatch.count : 0,
       archiveCandidates: this.cells.length,
       archiveCulled: this.cells.length - this.drawnCells.length,
       archiveCapacity: this.instanceCapacity,

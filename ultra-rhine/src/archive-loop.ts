@@ -49,7 +49,7 @@ export function selectionCell(
       navigation?.axis === "lane"
         ? current.lane + navigation.direction
         : nearestOccurrence(next.lane, current.lane, archiveColumns.length),
-    row,
+    row: navigation?.axis === "lane" ? current.row : row,
   };
 }
 

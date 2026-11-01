@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { columnFiles, fileLocation } from "../src/data.ts";
+import { archiveColumns, columnFiles, fileLocation } from "../src/data.ts";
 import {
   fileAtCell,
   selectionCell,
@@ -11,25 +11,24 @@ import {
   wrap,
 } from "../src/archive-loop.ts";
 
-// The same eight files and five column categories recur on both sides of zero.
+// Columns have different lengths; all rows wrap independently on both sides of zero.
 for (let lane = -23; lane <= 23; lane++) {
-  const files = columnFiles(wrap(lane, 5));
+  const files = columnFiles(wrap(lane, archiveColumns.length));
   for (let row = -35; row <= 35; row++) {
-    assert.equal(fileAtCell({ lane, row }), files[wrap(row - 12, 8)]);
+    assert.equal(fileAtCell({ lane, row }), files[wrap(row - 12, files.length)]);
   }
 }
 let checks = 0;
 for (const direction of [-1, 1]) {
   let cell = { lane: 2, row: 12 };
   let index = fileAtCell(cell);
-  const memory = Array.from({ length: 5 }, (_, lane) => columnFiles(lane)[0]);
   for (let step = 0; step < 10000; step++) {
     const axis = step % 17 < 10 ? "row" : "lane";
     const lane = fileLocation(index).lane;
     if (axis === "row") {
       const files = columnFiles(lane);
       index = files[wrap(files.indexOf(index) + direction, files.length)];
-    } else index = memory[wrap(lane + direction, 5)];
+    } else index = fileAtCell({ lane: cell.lane + direction, row: cell.row });
     const next = selectionCell(index, cell, { axis, direction });
     assert.equal(
       next[axis] - cell[axis],
@@ -41,7 +40,7 @@ for (const direction of [-1, 1]) {
       index,
       "Selected physical cell must contain the requested document",
     );
-    memory[fileLocation(index).lane] = index;
+    if (axis === "lane") assert.equal(next.row, cell.row, "Changing columns preserves vertical scroll");
     cell = next;
     checks++;
   }
@@ -67,7 +66,7 @@ for (const center of [
 for (let i = 0; i < 160; i++) {
   assert.deepEqual(
     poolCell(i),
-    { lane: Math.floor(i / 32), row: i % 32 },
+    { lane: Math.floor(i / LOOP_ROWS), row: i % LOOP_ROWS },
     "Reference-animation instance order is preserved",
   );
 }

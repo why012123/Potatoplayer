@@ -38,6 +38,7 @@ public final class PlaybackController {
     }
 
     private final Host host;
+    private final java.util.function.Supplier<PlaybackEngine> engineFactory;
     private final ScheduledExecutorService ticker = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "playback-ticker");
         t.setDaemon(true);
@@ -69,7 +70,12 @@ public final class PlaybackController {
     private boolean shuttingDown;
 
     public PlaybackController(Host host) {
+        this(host, () -> EngineFactory.create(host.settings().playbackEngine));
+    }
+
+    PlaybackController(Host host, java.util.function.Supplier<PlaybackEngine> engineFactory) {
         this.host = host;
+        this.engineFactory = engineFactory;
         this.repeat = normalizeRepeat(host.settings().repeat);
         this.shuffle = host.settings().shuffle;
         this.volumeBeforeMute = host.settings().volume;
@@ -79,7 +85,7 @@ public final class PlaybackController {
 
     public synchronized PlaybackEngine engine() {
         if (engine == null) {
-            PlaybackEngine created = EngineFactory.create(host.settings().playbackEngine);
+            PlaybackEngine created = engineFactory.get();
             String fallback = EngineFactory.lastFallbackReason();
             if (fallback != null) {
                 host.emit("toast", Map.of("kind", "error", "message", fallback));
@@ -238,11 +244,8 @@ public final class PlaybackController {
     public synchronized Map<String, Object> next(boolean automatic) {
         syncTime();
         if (automatic && "one".equals(repeat) && currentId != null) {
-            engine().seek(0);
-            engine().resume();
-            time = 0;
-            playing = true;
-            emitState();
+            // EOF can close the decoder/output; seeking an ended stream cannot restart it.
+            beginCurrent(0, true);
             return state();
         }
         if (queue.isEmpty()) {
@@ -350,6 +353,7 @@ public final class PlaybackController {
     public synchronized Map<String, Object> setRepeat(String mode) {
         repeat = normalizeRepeat(mode);
         host.settings().repeat = repeat;
+        schedulePreload();
         host.scheduleSave();
         emitState();
         return state();
@@ -499,9 +503,10 @@ public final class PlaybackController {
 
     /** The queue entry that follows the current one, honouring repeat/shuffle. */
     private String nextTrackIdForGapless() {
-        if (queue.isEmpty() || currentId == null || shuffle) return null;
+        if (queue.isEmpty() || currentId == null) return null;
         if ("one".equals(repeat)) return currentId;
-        int index = queue.indexOf(currentId);
+        if (shuffle) return null;
+        int index = queueIndex;
         if (index < 0) return null;
         int following = index + 1;
         if (following >= queue.size()) {
@@ -512,7 +517,7 @@ public final class PlaybackController {
 
     private void schedulePreload() {
         PlaybackEngine e = engine;
-        if (e == null || !e.supportsGapless()) return;
+        if (e == null || !loaded || !e.supportsGapless()) return;
         String nextId = nextTrackIdForGapless();
         Track track = nextId == null ? null : host.findTrack(nextId);
         e.setNext(track == null ? "" : track.path);
@@ -530,6 +535,12 @@ public final class PlaybackController {
                 }
             }
             if (track == null) return;
+            // A native decoder may already have consumed the old preload when
+            // repeat-one was enabled. Correct that late hand-off immediately.
+            if ("one".equals(repeat) && currentId != null && !currentId.equals(track.id)) {
+                beginCurrent(0, true);
+                return;
+            }
             currentId = track.id;
             int index = queue.indexOf(track.id);
             if (index >= 0) queueIndex = index;
@@ -553,7 +564,7 @@ public final class PlaybackController {
 
     private void handleFinished() {
         synchronized (this) {
-            if (shuttingDown) {
+            if (shuttingDown || !loaded || !playing) {
                 return;
             }
             playing = false;
@@ -685,6 +696,7 @@ public final class PlaybackController {
     private void persistQueue() {
         host.settings().lastQueue = new ArrayList<>(queue);
         host.settings().lastQueueIndex = queueIndex;
+        schedulePreload();
         host.scheduleSave();
     }
 

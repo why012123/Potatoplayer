@@ -5,10 +5,11 @@ type State = { trackId: string | null; playing: boolean; time: number; duration:
 type Track = { id: string; title: string; artist: string; album: string; coverPath?: string };
 const clock = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, '0')}`;
 
+export let toggleMusicPlayback: () => void = () => {};
 export let playMusicSelection: (index: number) => void = () => {};
 
 /** Event-driven transport: no polling, animation loop or spectrum subscription. */
-export function mountMusicPlayer(selected: () => number, reveal: (index: number) => void, notify: (message: string) => void) {
+export function mountMusicPlayer(selected: () => number, reveal: (index: number) => void, notify: (message: string) => void, initialReveal = reveal) {
   const bridge = window.potato;
   if (!bridge) return;
   document.body.classList.add('music-terminal');
@@ -22,7 +23,8 @@ export function mountMusicPlayer(selected: () => number, reveal: (index: number)
   const volume = q<HTMLInputElement>('.transport-volume input');
   const tracks = new Map<string, Track>();
   let state: State = { trackId: null, playing: false, time: 0, duration: 0, volume: .8, muted: false };
-  let lastTrack: string | null | undefined, coverToken = 0, revision = 0;
+  let lastTrack: string | null | undefined, coverToken = 0;
+  let pendingState: Partial<State> = {}, bootstrapped = false;
   const invoke = (method: string, params?: Record<string, unknown>) => bridge.invoke(method, params).catch(() => notify('播放操作未完成，请检查音频引擎或文件是否可用'));
   const paint = () => {
     if (document.hidden) return;
@@ -47,15 +49,18 @@ export function mountMusicPlayer(selected: () => number, reveal: (index: number)
       const img = new Image(); img.alt = ''; img.src = url; art.replaceChildren(img);
     }).catch(() => undefined);
   };
+  toggleMusicPlayback = () => {
+    if (state.trackId) void invoke('playback.toggle');
+    else playMusicSelection(selected());
+  };
   dock.addEventListener('click', event => {
     const command = (event.target as Element).closest<HTMLElement>('[data-command]')?.dataset.command;
-    if (command === 'toggle' && !state.trackId) {
-      const trackId = records[selected()]?.trackId;
-      if (trackId) void invoke('playback.play', { trackId, queue: records.flatMap(r => r.trackId ? [r.trackId] : []), startAt: 0 });
-    } else if (command) void invoke(`playback.${command}`);
+    if (command === 'toggle') toggleMusicPlayback();
+    else if (command) void invoke(`playback.${command}`);
     if ((event.target as Element).closest('.transport-track')) {
       const index = records.findIndex(r => r.trackId === state.trackId);
       if (index >= 0) reveal(index);
+      else if (state.trackId) notify('这首歌曲尚未收录到 Ultra 音乐库');
     }
   });
   // Native range keys and button Enter must not also navigate the archive.
@@ -65,8 +70,9 @@ export function mountMusicPlayer(selected: () => number, reveal: (index: number)
   volume.addEventListener('change', () => { void invoke('playback.volume', { volume: Number(volume.value) }); });
   const unsubscribe = bridge.onEvent(({ event, data }) => {
     if (event === 'playback.state' || event === 'playback.time' || event === 'playback.track') {
-      revision++;
-      state = { ...state, ...(event === 'playback.track' ? (data as { state: State }).state : data as Partial<State>) };
+      const update = event === 'playback.track' ? (data as { state: State }).state : data as Partial<State>;
+      if (!bootstrapped) pendingState = { ...pendingState, ...update };
+      state = { ...state, ...update };
       paint();
     }
   });
@@ -76,10 +82,12 @@ export function mountMusicPlayer(selected: () => number, reveal: (index: number)
     if (trackId === state.trackId) void invoke('playback.toggle');
     else void invoke('playback.play', { trackId, queue: records.flatMap(r => r.trackId ? [r.trackId] : []), startAt: 0 });
   };
-  const initialRevision = revision;
   void bridge.invoke<{ playback: State; tracks: Track[] }>('bootstrap').then(data => {
     data.tracks.forEach(track => tracks.set(track.id, track));
-    if (revision === initialRevision) state = data.playback;
+    state = { ...data.playback, ...pendingState };
+    bootstrapped = true;
+    const index = records.findIndex(record => record.trackId === state.trackId);
+    if (index >= 0) initialReveal(index);
     lastTrack = undefined; paint();
   }).catch(() => notify('无法连接音乐库，请检查播放器后端'));
   document.addEventListener('visibilitychange', paint);

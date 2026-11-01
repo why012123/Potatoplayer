@@ -21,6 +21,7 @@ public final class BackendSelfTest {
         testEqMergeAndPreamp();
         testListeningStats();
         testBilibiliParsing();
+        testPlaybackRepeat();
         System.out.println("BackendSelfTest: " + passed + " checks passed.");
     }
 
@@ -289,6 +290,112 @@ public final class BackendSelfTest {
         check("https://i0.hdslb.com/bfs/archive/a.jpg".equals(item.get("coverUrl")), "bilibili cover is normalized");
         check(((Number) item.get("durationSeconds")).intValue() == 62, "bilibili duration is parsed");
         check("https://www.bilibili.com/video/BV1xx411c7mD".equals(item.get("url")), "bilibili video url is built");
+    }
+
+    private static void testPlaybackRepeat() throws Exception {
+        Track a = new Track(); a.id = "a"; a.path = "/music/a.flac"; a.duration = 10;
+        Track b = new Track(); b.id = "b"; b.path = "/music/b.flac"; b.duration = 10;
+        Track c = new Track(); c.id = "c"; c.path = "/music/c.flac"; c.duration = 10;
+        Settings settings = new Settings();
+        List<Track> tracks = List.of(a, b, c);
+        PlaybackController.Host host = new PlaybackController.Host() {
+            private final EqStore eq = new EqStore();
+            public Track findTrack(String id) { return tracks.stream().filter(t -> t.id.equals(id)).findFirst().orElse(null); }
+            public List<Track> tracks() { return tracks; }
+            public Settings settings() { return settings; }
+            public EqStore eqStore() { return eq; }
+            public String neteaseIdFor(String path) { return null; }
+            public void emit(String event, Object data) { }
+            public void markPlayed(Track track) { track.playCount++; }
+            public void recordListening(Track track, double seconds) { }
+            public void scheduleSave() { }
+        };
+        // An EOF closes this decoder: seek/resume cannot reopen it. Both gapless
+        // and non-gapless engines must restart indefinitely and keep queue semantics.
+        for (boolean gapless : List.of(false, true)) {
+            settings.repeat = "off"; settings.shuffle = false;
+            FakePlayback engine = new FakePlayback(gapless);
+            PlaybackController player = new PlaybackController(host, () -> engine);
+            try {
+                player.play("a", List.of("a", "b", "c"), 0);
+                if (gapless) check(b.path.equals(engine.next), "initial next file preloaded");
+                player.setRepeat("one");
+                if (gapless) check(a.path.equals(engine.next), "enabling repeat replaces old preload immediately");
+                for (int loop = 0; loop < 3; loop++) {
+                    int count = engine.plays;
+                    engine.open = false;
+                    engine.listener.onFinished();
+                    awaitPlayback(() -> engine.plays > count && Boolean.TRUE.equals(player.state().get("playing")));
+                    check("a".equals(player.state().get("trackId")) && engine.open, "EOF reopens the same track");
+                    check(((Number) player.state().get("time")).doubleValue() == 0, "repeat restarts at zero");
+                }
+                player.setShuffle(true);
+                if (gapless) check(a.path.equals(engine.next), "repeat-one takes precedence over shuffle");
+                player.setShuffle(false);
+                player.setQueue(List.of("a", "b", "c"));
+                if (gapless) {
+                    int count = engine.plays;
+                    engine.listener.onAdvanced(b.path);
+                    awaitPlayback(() -> engine.plays > count);
+                    check("a".equals(player.state().get("trackId")), "late old preload cannot escape repeat-one");
+                    int playCount = a.playCount;
+                    engine.listener.onAdvanced(a.path);
+                    awaitPlayback(() -> { player.state(); return a.playCount > playCount; });
+                    player.setRepeat("off");
+                    check(b.path.equals(engine.next), "disabling repeat updates preload");
+                    player.setQueue(List.of("a", "c", "b"));
+                    check(c.path.equals(engine.next), "queue edits refresh preload");
+                }
+                player.setRepeat("one");
+                player.setQueue(List.of("a", "b", "c"));
+                player.next(false);
+                check("b".equals(player.state().get("trackId")), "manual next still skips under repeat-one");
+                player.play("c", List.of("a", "b", "c"), 0);
+                player.setRepeat("all");
+                if (gapless) check(a.path.equals(engine.next), "repeat-all preloads queue head at end");
+                player.setRepeat("off");
+                if (gapless) check(engine.next.isEmpty(), "repeat-off clears final preload");
+                engine.listener.onFinished();
+                awaitPlayback(() -> Boolean.FALSE.equals(player.state().get("playing")));
+                check(!engine.open, "repeat-off stops at queue end");
+            } finally { player.shutdown(); }
+        }
+    }
+
+    private static void awaitPlayback(java.util.function.BooleanSupplier done) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+        while (!done.getAsBoolean() && System.nanoTime() < deadline) Thread.sleep(5);
+        check(done.getAsBoolean(), "playback callback completed");
+    }
+
+    private static final class FakePlayback implements PlaybackEngine {
+        final boolean gapless;
+        volatile int plays;
+        volatile boolean open;
+        volatile String next = "";
+        Listener listener;
+        FakePlayback(boolean gapless) { this.gapless = gapless; }
+        public String id() { return "test"; }
+        public void setListener(Listener value) { listener = value; }
+        public boolean available() { return true; }
+        public String error() { return null; }
+        public void play(String path) { open = true; plays++; }
+        public void pause() { }
+        public void resume() { }
+        public void stop() { open = false; }
+        public void seek(double seconds) { }
+        public double time() { return 0; }
+        public double length() { return 10; }
+        public boolean isPlaying() { return open; }
+        public void setVolume(double volume) { }
+        public boolean eqAvailable() { return false; }
+        public void applyEq(EqPreset preset, boolean on) { }
+        public List<Float> eqFrequencies() { return List.of(); }
+        public List<String> eqFactoryPresetNames() { return List.of(); }
+        public EqCurve eqFactoryPreset(String name) { return null; }
+        public void release() { open = false; }
+        public boolean supportsGapless() { return gapless; }
+        public void setNext(String path) { next = path; }
     }
 
     private static void check(boolean condition, String message) {

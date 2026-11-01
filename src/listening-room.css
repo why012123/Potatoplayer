@@ -131,3 +131,91 @@
 }
 
 :root[data-style] .app:not(.brief) .page--home > .hero { margin-bottom: 18px; }
+
+/* Inner pages use the same neutral glass as the shell. Older editorial tokens
+   were still painting warm, almost opaque rectangles inside that glass. */
+:root[data-style] .app:not(.brief) .page-shell {
+  --glass: var(--frost-inset);
+  --surface-soft: rgb(255 255 255 / .24);
+  --surface-quiet: rgb(255 255 255 / .12);
+  --surface-strong: rgb(255 255 255 / .46);
+}
+:root[data-style][data-theme="dark"] .app:not(.brief) .page-shell {
+  --surface-soft: rgb(255 255 255 / .07);
+  --surface-quiet: rgb(255 255 255 / .035);
+  --surface-strong: rgb(255 255 255 / .14);
+}
+:root[data-style] .app:not(.brief) .page-shell .glass {
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-raised);
+  /* The containing shell already diffuses the artwork. No second large blur. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style="classic"] .app:not(.brief) .library-controls.glass {
+  box-shadow: none;
+}
+:root[data-style] .app:not(.brief) .library-controls :is(.list-toolbar, .taxonomy-filterbar) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style="classic"] .app:not(.brief) .library-controls :is(.list-toolbar, .taxonomy-filterbar) {
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-raised);
+}
+:root[data-style] .app:not(.brief) .track-table__head {
+  color: var(--muted);
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight);
+  -webkit-backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(140%);
+  backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(140%);
+}
+:root[data-control-blur="false"][data-style] .app:not(.brief) .track-table__head {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style] .app:not(.brief) :is(.sort-control, .taxonomy-select) {
+  background: var(--frost-inset);
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight);
+}
+:root[data-style] .app:not(.brief) .page--comments {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+:root[data-style] .app:not(.brief) :is(.comments-hero, .comments-page) {
+  border-radius: var(--radius-panel);
+}
+:root[data-style] .app:not(.brief) .comments-page {
+  max-width: none;
+  padding: 4px 24px 20px;
+}
+:root[data-style] .app:not(.brief) .comments-hero {
+  padding: 22px;
+}
+:root[data-style] .app:not(.brief) .comments-source {
+  color: color-mix(in srgb, var(--accent) 58%, var(--text));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--frost-edge));
+  border-radius: var(--radius-small);
+}
+:root[data-style] .app:not(.brief) .comment-item {
+  padding-block: 17px;
+  border-color: var(--line-dark);
+}
+:root[data-style] .app:not(.brief) .comment-item__head { flex-wrap: wrap; gap: 4px 8px; }
+:root[data-style] .app:not(.brief) .comment-item__head strong { font-size: 11.5px; }
+:root[data-style] .app:not(.brief) .comment-item__text { font-size: 12.5px; line-height: 1.75; }
+:root[data-style] .app:not(.brief) :is(.comment-item__head span, .comment-item__liked) { color: var(--muted); }
+:root[data-style] .app:not(.brief) .comment-item__reply {
+  background: var(--surface-quiet);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+:root[data-style] .app:not(.brief) .comment-item__avatar { background: var(--surface-soft); }
+@media (max-width: 620px) {
+  :root[data-style] .app:not(.brief) :is(.comments-hero, .comments-page) { padding-inline: 14px; }
+  :root[data-style] .app:not(.brief) .comments-hero__meta { flex-wrap: wrap; }
+}
