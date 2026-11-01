@@ -58,6 +58,10 @@
   color: var(--accent);
 }
 
+:root[data-style] .app:not(.brief) .now-playing .now-playing__spectrum.is-empty {
+  opacity: 0;
+}
+
 :root[data-style] .app:not(.brief) .now-playing .np-content {
   margin-top: 9px;
 }

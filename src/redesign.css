@@ -178,10 +178,10 @@
 .now-playing__spectrum {
   height: 30px;
   margin: 1px 0 9px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-small);
-  background: color-mix(in srgb, var(--text) 3%, transparent);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: color-mix(in srgb, var(--accent) 72%, var(--text));
   opacity: 0.72;
 }

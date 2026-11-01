@@ -17,7 +17,7 @@ export const SpectrumBars = memo(function SpectrumBars({
       {bars.map((value, index) => (
         <i
           key={index}
-          style={{ transform: `scaleY(${Math.max(0.06, Math.min(1, value))})` }}
+          style={{ transform: `scaleY(${Math.max(0, Math.min(1, value))})` }}
         />
       ))}
     </span>

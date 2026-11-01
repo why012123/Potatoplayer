@@ -24,11 +24,28 @@ import {
 import type { Track } from "@/types";
 import { Cover } from "@/components/Cover";
 import { EqualizerBars } from "@/components/EqualizerBars";
+import { SpectrumBars } from "@/components/SpectrumBars";
 import { Slider } from "@/components/Slider";
 import { IconButton } from "@/components/IconButton";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { formatTime } from "@/lib/format";
+
+const SILENT_BARS = Array.from({ length: 48 }, () => 0);
+
+function NowPlayingSpectrum() {
+  const vizBars = useAppStore((state) => state.vizBars);
+  const capabilities = useAppStore((state) => state.engineCapabilities);
+  if (!capabilities?.visualizer) return null;
+  // Keep the strip mounted between tracks and while paused. Unmounting it
+  // changes the height above the tabs and makes the tab/queue jump.
+  return (
+    <SpectrumBars
+      bars={vizBars.length ? vizBars : SILENT_BARS}
+      className={vizBars.length ? "now-playing__spectrum" : "now-playing__spectrum is-empty"}
+    />
+  );
+}
 
 export function NowPlaying() {
   const tr = useTr();
@@ -247,6 +264,8 @@ export function NowPlaying() {
                 </span>
               </button>
             </motion.div>
+
+            <NowPlayingSpectrum />
 
             <div className="now-playing__meta">
               <div className="now-playing__title-line">
