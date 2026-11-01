@@ -1,0 +1,174 @@
+/* Right rail and collapsed player: one quiet frosted surface.
+   The rail intentionally avoids nested cards — tabs are text, the queue is
+   a list, and the mini player shares the same material as the side panels. */
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs {
+  display: flex;
+  justify-content: flex-start;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 630;
+  letter-spacing: 0;
+  gap: 5px;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button:hover,
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button.is-active {
+  color: var(--text);
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button.is-active::after {
+  content: "";
+  width: 4px;
+  height: 4px;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button em {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 8px;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-tabs button.is-active em {
+  color: var(--accent);
+}
+
+:root[data-style] .app:not(.brief) .now-playing .np-content {
+  margin-top: 9px;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row {
+  height: 42px;
+  padding: 2px 2px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row:hover,
+:root[data-style] .app:not(.brief) .now-playing .queue-row.is-current {
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row__text strong {
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  transition: color 0.16s ease;
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row:hover .queue-row__text strong,
+:root[data-style] .app:not(.brief) .now-playing .queue-row.is-current .queue-row__text strong {
+  color: var(--accent);
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row.is-current .queue-row__index {
+  color: var(--accent);
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row__remove {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+}
+
+:root[data-style] .app:not(.brief) .now-playing .queue-row__remove:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+:root[data-style] .app:not(.brief) .mini-player {
+  right: 22px;
+  bottom: 22px;
+  width: 318px;
+  min-height: 60px;
+  padding: 8px 9px;
+  border: 1px solid var(--frost-edge);
+  border-radius: 16px;
+  background: var(--frost-window);
+  box-shadow: var(--frost-shadow), inset 0 1px 0 var(--frost-highlight);
+  -webkit-backdrop-filter: blur(34px) saturate(160%);
+  backdrop-filter: blur(34px) saturate(160%);
+  color: var(--text);
+}
+
+:root[data-style] .app:not(.brief) .mini-player__open {
+  border-radius: 16px;
+}
+
+:root[data-style] .app:not(.brief) .mini-player__cover {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px !important;
+}
+
+:root[data-style] .app:not(.brief) .mini-player__copy {
+  gap: 2px;
+}
+
+:root[data-style] .app:not(.brief) .mini-player__copy strong {
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+:root[data-style] .app:not(.brief) .mini-player__copy span {
+  font-size: 9.5px;
+}
+
+:root[data-style] .app:not(.brief) .mini-player__progress {
+  height: 2px;
+  margin-top: 5px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+:root[data-style] .app:not(.brief) .mini-player__progress i {
+  background: var(--accent);
+}
+
+:root[data-style] .app:not(.brief) .mini-player__play {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--paper);
+  background: var(--text);
+  box-shadow: 0 5px 12px -5px rgb(0 0 0 / 0.4);
+}
+
+:root[data-style] .app:not(.brief) .mini-player__expand {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--muted);
+  background: transparent;
+}
+
+.mini-player__expand:hover {
+  color: var(--text);
+  background: transparent;
+}

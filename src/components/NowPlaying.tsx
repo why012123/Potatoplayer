@@ -24,23 +24,11 @@ import {
 import type { Track } from "@/types";
 import { Cover } from "@/components/Cover";
 import { EqualizerBars } from "@/components/EqualizerBars";
-import { SpectrumBars } from "@/components/SpectrumBars";
 import { Slider } from "@/components/Slider";
 import { IconButton } from "@/components/IconButton";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { formatTime } from "@/lib/format";
-
-const SILENT_BARS = Array.from({ length: 48 }, () => 0);
-
-function NowPlayingSpectrum() {
-  const vizBars = useAppStore((state) => state.vizBars);
-  const capabilities = useAppStore((state) => state.engineCapabilities);
-  if (!capabilities?.visualizer) return null;
-  // Keep the strip mounted between tracks and while paused. Unmounting it
-  // changes the height above the tabs and makes the tab pill/queue jump.
-  return <SpectrumBars bars={vizBars.length ? vizBars : SILENT_BARS} className="now-playing__spectrum" />;
-}
 
 export function NowPlaying() {
   const tr = useTr();
@@ -260,8 +248,6 @@ export function NowPlaying() {
               </button>
             </motion.div>
 
-            <NowPlayingSpectrum />
-
             <div className="now-playing__meta">
               <div className="now-playing__title-line">
                 <div>
@@ -406,16 +392,10 @@ export function NowPlaying() {
 
             <div className="np-tabs">
               <button type="button" className={clsx(rightTab === "lyrics" && "is-active")} onClick={() => setRightTab("lyrics")}>
-                {rightTab === "lyrics" && (
-                  <motion.span layoutId="np-tab" className="np-tabs__pill" transition={{ duration: 0.18, ease: "easeOut" }} />
-                )}
                 <Mic2 size={14} />
                 {tr("Lyrics", "歌词")}
               </button>
               <button type="button" className={clsx(rightTab === "queue" && "is-active")} onClick={() => setRightTab("queue")}>
-                {rightTab === "queue" && (
-                  <motion.span layoutId="np-tab" className="np-tabs__pill" transition={{ duration: 0.18, ease: "easeOut" }} />
-                )}
                 <ListMusic size={14} />
                 {tr("Up next", "即将播放")}
                 {queue.length > 0 && <em>{queue.length}</em>}
