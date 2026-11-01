@@ -19,6 +19,7 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import type { Track } from "@/types";
 import { Cover } from "@/components/Cover";
@@ -51,6 +52,7 @@ export function NowPlaying() {
   const setImmersive = useAppStore((state) => state.setImmersive);
   const setEqOpen = useAppStore((state) => state.setEqOpen);
   const playTrack = useAppStore((state) => state.playTrack);
+  const removeFromQueue = useAppStore((state) => state.removeFromQueue);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const next = useAppStore((state) => state.next);
   const previous = useAppStore((state) => state.previous);
@@ -104,7 +106,7 @@ export function NowPlaying() {
 
   const lyricRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const queueListRef = useRef<HTMLDivElement | null>(null);
-  const currentQueueRef = useRef<HTMLButtonElement | null>(null);
+  const currentQueueRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     lyricRefs.current = [];
@@ -482,23 +484,42 @@ export function NowPlaying() {
                         {queueTracks.map((item, index) => {
                           const current = item.id === playback?.trackId;
                           return (
-                            <button
-                              type="button"
+                            <div
                               key={`${item.id}-${index}`}
                               ref={current ? (node) => { currentQueueRef.current = node; } : undefined}
                               className={clsx("queue-row", current && "is-current")}
-                              onClick={() => void playTrack(item, queue, 0)}
                             >
-                              <span className="queue-row__index">
+                              <button
+                                type="button"
+                                className="queue-row__hit"
+                                aria-label={tr("Play {title}", "播放 {title}", { title: item.title })}
+                                onClick={() => void playTrack(item, queue, 0)}
+                              />
+                              <span className="queue-row__index" aria-hidden="true">
                                 {current ? <EqualizerBars playing={Boolean(playback?.playing)} /> : index + 1}
                               </span>
-                              <Cover path={item.coverPath} seed={item.id} label={item.title} radius={8} className="queue-row__cover" />
-                              <span className="queue-row__text">
+                              <span className="queue-row__cover-wrap" aria-hidden="true">
+                                <Cover path={item.coverPath} seed={item.id} label={item.title} radius={8} className="queue-row__cover" />
+                              </span>
+                              <span className="queue-row__text" aria-hidden="true">
                                 <strong>{item.title}</strong>
                                 <em>{item.artist}</em>
                               </span>
-                              <span className="queue-row__time">{formatTime(item.duration)}</span>
-                            </button>
+                              <span className="queue-row__end">
+                                <span className="queue-row__time" aria-hidden="true">{formatTime(item.duration)}</span>
+                                {!current && (
+                                  <button
+                                    type="button"
+                                    className="queue-row__remove"
+                                    aria-label={tr("Remove {title} from queue", "从队列移出 {title}", { title: item.title })}
+                                    title={tr("Remove from queue", "移出队列")}
+                                    onClick={() => void removeFromQueue(item.id)}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </span>
+                            </div>
                           );
                         })}
                       </div>

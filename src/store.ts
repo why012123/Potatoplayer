@@ -134,6 +134,7 @@ interface AppStore {
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   enqueue: (trackId: string, next: boolean) => Promise<void>;
   enqueueMany: (trackIds: string[], next: boolean) => Promise<void>;
+  removeFromQueue: (trackId: string) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
   toggleBrief: () => void;
   setImmersive: (open: boolean) => void;
@@ -1022,6 +1023,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().pushToast(next ? lx("Playing next", "接下来播放") : lx("Added to queue", "已加入队列"), undefined, "success");
     } catch (error) {
       get().pushToast(lx("Could not update queue", "无法更新播放队列"), friendlyError(error), "error");
+    }
+  },
+
+  removeFromQueue: async (trackId) => {
+    const playback = get().playback;
+    if (!playback || playback.trackId === trackId || !playback.queue.includes(trackId)) return;
+    const queue = playback.queue.filter((id) => id !== trackId);
+    const removedIndex = playback.queue.indexOf(trackId);
+    const queueIndex =
+      removedIndex >= 0 && removedIndex < playback.queueIndex
+        ? Math.max(0, playback.queueIndex - 1)
+        : playback.queueIndex;
+    // The row disappears immediately; the backend echo confirms the queue.
+    set({ playback: { ...playback, queue, queueIndex } });
+    try {
+      await bridge().invoke("playback.setQueue", { queue });
+    } catch (error) {
+      set((state) =>
+        state.playback
+          ? { playback: { ...state.playback, queue: playback.queue, queueIndex: playback.queueIndex } }
+          : {},
+      );
+      get().pushToast(lx("Could not remove from queue", "无法从队列移出歌曲"), friendlyError(error), "error");
     }
   },
 

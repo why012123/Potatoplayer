@@ -2791,6 +2791,7 @@ img {
 }
 
 .queue-row {
+  position: relative;
   display: grid;
   grid-template-columns: 18px 30px minmax(0, 1fr) 30px;
   gap: 7px;
@@ -2802,6 +2803,28 @@ img {
   text-align: left;
   background: transparent;
   transition: background 0.14s ease;
+}
+
+.queue-row__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.queue-row__hit:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+}
+
+.queue-row > :not(.queue-row__hit) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .queue-row:hover,
@@ -2816,9 +2839,16 @@ img {
   color: var(--faint);
 }
 
+.queue-row__cover-wrap {
+  display: contents;
+}
+
 .queue-row__cover {
+  position: relative;
+  z-index: 1;
   width: 30px;
   height: 30px;
+  pointer-events: none;
 }
 
 .queue-row__text {
@@ -2845,10 +2875,57 @@ img {
   color: var(--muted);
 }
 
+.queue-row__end {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  height: 100%;
+}
+
 .queue-row__time {
   font-size: 8px;
   text-align: right;
   color: var(--faint);
+  transition: opacity 0.12s ease;
+}
+
+.queue-row:hover .queue-row__time,
+.queue-row:focus-within .queue-row__time {
+  opacity: 0;
+}
+
+.queue-row__remove {
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.queue-row:hover .queue-row__remove,
+.queue-row:focus-within .queue-row__remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.queue-row__remove:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 .now-playing__empty {
