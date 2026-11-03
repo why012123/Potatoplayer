@@ -114,6 +114,7 @@ public final class Backend implements PlaybackController.Host {
             out.put("scannedAt", state.scannedAt);
             out.put("coverRoots", store.coverRoots(settings.libraryRoot == null ? null : Path.of(settings.libraryRoot)));
             out.put("dataDir", store.dataDir().toString());
+            out.put("neteaseAliases", netease.aliases());
             out.put("dailyMix", dailyMix.get(state.tracks, state.favorites, statsStore.trackSnapshot()));
             return out;
         }
@@ -1283,6 +1284,8 @@ public final class Backend implements PlaybackController.Host {
             case "netease.loginCookie" -> netease.loginCookie(text(p, "cookie", ""));
             case "netease.logout" -> netease.logout();
             case "netease.search" -> netease.search(text(p, "keywords", ""), (int) number(p, "limit", 30));
+            case "netease.aliases" -> netease.aliases();
+            case "netease.syncAliases" -> netease.syncAliases();
             case "netease.playlists" -> netease.playlists();
             case "netease.playlistDetail" -> netease.playlistDetail(text(p, "playlistId", ""));
             case "netease.daily" -> netease.daily();

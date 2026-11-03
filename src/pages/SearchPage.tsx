@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { ArtistCard, CollectionCard } from "@/components/MediaCards";
 import { buildArtists, buildCollections } from "@/lib/collections";
-import { normalizeSearchText } from "@/lib/search";
+import { normalizeSearchText, trackSearchText } from "@/lib/search";
 import { useTr } from "@/lib/i18n";
 
 export function SearchPage() {
@@ -23,9 +23,7 @@ export function SearchPage() {
       needle
         ? tracks
             .filter((track) =>
-              normalizeSearchText(
-                `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`,
-              ).includes(needle),
+              normalizeSearchText(trackSearchText(track)).includes(needle),
             )
             .slice(0, 40)
         : [],

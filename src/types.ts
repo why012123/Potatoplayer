@@ -18,6 +18,8 @@ export interface Track {
   rating: number;
   neteaseId?: string;
   qqId?: string;
+  /** NetEase aliases/translated names, search-only and not persisted in the library. */
+  aliases?: string[];
   addedAt: number;
   fileSize: number;
 }
@@ -112,6 +114,7 @@ export interface Bootstrap {
   scannedAt: number;
   coverRoots: string[];
   dataDir: string;
+  neteaseAliases?: Record<string, string[]>;
   dailyMix?: DailyMix | null;
 }
 

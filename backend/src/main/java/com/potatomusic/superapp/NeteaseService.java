@@ -17,6 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +39,7 @@ public final class NeteaseService {
     private final Backend host;
     private final Path dataDir;
     private final Path cookieFile;
+    private final Path aliasesFile;
     private final String apiBase;
     private final Path apiDir;
     private final HttpClient http = HttpClient.newBuilder()
@@ -59,6 +61,7 @@ public final class NeteaseService {
         this.host = host;
         this.dataDir = host.dataDir();
         this.cookieFile = dataDir.resolve("netease_cookie.txt");
+        this.aliasesFile = dataDir.resolve("netease_aliases.json");
         this.apiBase = resolveApiBase();
         this.apiDir = resolveApiDir();
         importLegacyCookie();
@@ -278,6 +281,120 @@ public final class NeteaseService {
             }
         } catch (Exception ignored) {
             // Search itself succeeded; a missing cover must not fail the list.
+        }
+    }
+
+    /**
+     * Cache NetEase aliases and translated names for every bound local track.
+     * These are search-only strings; the library and audio files stay untouched.
+     */
+    public Map<String, Object> syncAliases() {
+        requireService();
+        List<String> ids = new ArrayList<>();
+        for (Track track : host.tracks()) {
+            String id = track.neteaseId == null ? "" : track.neteaseId.trim();
+            if (!id.isBlank() && !ids.contains(id)) ids.add(id);
+        }
+        Map<String, List<String>> aliases = aliases();
+        int fetched = 0;
+        for (int start = 0; start < ids.size(); start += 50) {
+            int end = Math.min(ids.size(), start + 50);
+            JsonNode detail = get("/song/detail?ids=" + String.join(",", ids.subList(start, end)), 25);
+            JsonNode songs = detail == null ? null : detail.path("songs");
+            if (songs == null || !songs.isArray()) continue;
+            for (JsonNode song : songs) {
+                String id = song.path("id").asText("");
+                List<String> values = aliasValues(song);
+                if (!id.isBlank() && !values.isEmpty()) {
+                    aliases.put(id, values);
+                    fetched++;
+                }
+            }
+        }
+        writeAliases(aliases);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("syncedAt", System.currentTimeMillis());
+        result.put("count", aliases.size());
+        result.put("tracks", ids.size());
+        result.put("fetched", fetched);
+        result.put("aliases", aliases);
+        return result;
+    }
+
+    public Map<String, List<String>> aliases() {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        if (aliasesFile == null || !Files.isRegularFile(aliasesFile)) return result;
+        try {
+            JsonNode root = Json.MAPPER.readTree(Files.readString(aliasesFile, StandardCharsets.UTF_8));
+            JsonNode map = root.has("aliases") ? root.path("aliases") : root;
+            if (!map.isObject()) return result;
+            var fields = map.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                List<String> values = new ArrayList<>();
+                JsonNode list = entry.getValue();
+                if (list.isArray()) {
+                    for (JsonNode value : list) {
+                        String text = value.asText("").trim();
+                        if (!text.isBlank() && !values.contains(text)) values.add(text);
+                    }
+                }
+                if (!values.isEmpty()) result.put(entry.getKey(), values);
+            }
+        } catch (Exception ignored) {
+            // A damaged alias cache must never stop the player from starting.
+        }
+        return result;
+    }
+
+    private List<String> aliasValues(JsonNode song) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        addAliasArray(values, song.path("alia"));
+        addAliasArray(values, song.path("tns"));
+        addAliasArray(values, song.path("transNames"));
+        addAliasText(values, song.path("alias"));
+        addAliasText(values, song.path("mainTitle"));
+        addAliasText(values, song.path("additionalTitle"));
+        List<String> result = new ArrayList<>();
+        for (String value : values) {
+            String text = value.trim();
+            if (text.isBlank() || text.length() > 160 || result.contains(text)) continue;
+            result.add(text);
+            if (result.size() >= 12) break;
+        }
+        return result;
+    }
+
+    private static void addAliasArray(LinkedHashSet<String> values, JsonNode node) {
+        if (node == null) return;
+        if (node.isArray()) {
+            for (JsonNode item : node) addAliasText(values, item);
+        } else {
+            addAliasText(values, node);
+        }
+    }
+
+    private static void addAliasText(LinkedHashSet<String> values, JsonNode node) {
+        if (node == null || !node.isValueNode()) return;
+        String text = node.asText("").trim();
+        if (!text.isBlank()) values.add(text);
+    }
+
+    private void writeAliases(Map<String, List<String>> aliases) {
+        try {
+            Files.createDirectories(aliasesFile.getParent());
+            Map<String, Object> root = new LinkedHashMap<>();
+            root.put("syncedAt", System.currentTimeMillis());
+            root.put("aliases", aliases);
+            Path temp = aliasesFile.resolveSibling(aliasesFile.getFileName() + ".tmp");
+            Files.writeString(temp, Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root), StandardCharsets.UTF_8);
+            try {
+                Files.move(temp, aliasesFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (Exception atomic) {
+                Files.move(temp, aliasesFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception e) {
+            System.err.println("[netease] unable to save aliases: " + e.getMessage());
         }
     }
 

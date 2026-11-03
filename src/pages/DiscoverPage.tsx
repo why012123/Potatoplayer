@@ -125,6 +125,8 @@ export function DiscoverPage() {
   const quality = useAppStore((state) => state.downloadQuality);
   const setQuality = useAppStore((state) => state.setDownloadQuality);
   const importNeteasePlaylist = useAppStore((state) => state.importNeteasePlaylist);
+  const syncNeteaseAliases = useAppStore((state) => state.syncNeteaseAliases);
+  const neteaseAliases = useAppStore((state) => state.neteaseAliases);
   const ownedIds = useMemo(() => {
     const ids = new Set<string>();
     for (const track of tracks) {
@@ -136,6 +138,7 @@ export function DiscoverPage() {
   const [status, setStatus] = useState<NeteaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [aliasSyncing, setAliasSyncing] = useState(false);
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [downloadBlock, setDownloadBlockState] = useState(() => {
@@ -239,6 +242,15 @@ export function DiscoverPage() {
     setLoading(true);
     void refresh();
   }, [onlineSource, refresh]);
+
+  const syncAliases = async () => {
+    setAliasSyncing(true);
+    try {
+      await syncNeteaseAliases();
+    } finally {
+      setAliasSyncing(false);
+    }
+  };
 
   const startService = async () => {
     setStarting(true);
@@ -662,6 +674,16 @@ export function DiscoverPage() {
               <span>
                 <Cloud size={13} /> {status.apiBase}
               </span>
+              {onlineSource !== "qq" && (
+                <button type="button" className="text-button" onClick={() => void syncAliases()} disabled={aliasSyncing}>
+                  {aliasSyncing ? <LoaderCircle size={13} className="is-spinning" /> : null}
+                  {aliasSyncing
+                    ? tr("Syncing aliases…", "正在同步别名…")
+                    : tr("Sync aliases ({count})", "同步别名（{count}）", {
+                        count: Object.keys(neteaseAliases).length,
+                      })}
+                </button>
+              )}
               <button type="button" className="text-button" onClick={() => void startService()} disabled={starting}>
                 {starting ? tr("Starting…", "正在启动…") : tr("Restart service", "重启服务")}
               </button>

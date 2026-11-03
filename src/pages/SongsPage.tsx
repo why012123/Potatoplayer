@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/Headers";
 import { TrackTable } from "@/components/TrackTable";
 import { formatLongDuration } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
-import { normalizeSearchText } from "@/lib/search";
+import { normalizeSearchText, trackSearchText } from "@/lib/search";
 
 type FilterScope = "all" | "favorites";
 type PlaysFilter = "any" | "never" | "played" | "10" | "50";
@@ -159,9 +159,7 @@ export function SongsPage() {
     if (rawQuery) {
       list = query
         ? list.filter((track) =>
-            normalizeSearchText(
-              `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block}`,
-            ).includes(query),
+            normalizeSearchText(trackSearchText(track)).includes(query),
           )
         : [];
     }

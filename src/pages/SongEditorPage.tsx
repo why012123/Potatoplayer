@@ -28,7 +28,7 @@ import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
 import { formatTime } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
-import { normalizeSearchText } from "@/lib/search";
+import { normalizeSearchText, trackSearchText } from "@/lib/search";
 import { coverUrl } from "@/lib/covers";
 
 type Draft = {
@@ -112,9 +112,7 @@ export function SongEditorPage() {
       if (genreFilter && track.genre !== genreFilter) return false;
       if (!rawQuery) return true;
       if (!needle) return false;
-      return normalizeSearchText(
-        `${track.title} ${track.artist} ${track.album} ${track.block} ${track.genre} ${track.note}`,
-      ).includes(needle);
+      return normalizeSearchText(trackSearchText(track)).includes(needle);
     });
   }, [tracks, query, blockFilter, genreFilter]);
 

@@ -22,7 +22,7 @@ import {
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
-import { normalizeSearchText } from "@/lib/search";
+import { normalizeSearchText, trackSearchText } from "@/lib/search";
 import { isCommitEnter } from "@/lib/keyboard";
 import { Cover } from "@/components/Cover";
 
@@ -96,7 +96,7 @@ export function CommandPalette() {
       .filter(
         (track) =>
           (!rawQuery || Boolean(needle)) &&
-          normalizeSearchText(`${track.title} ${track.artist} ${track.album}`).includes(needle),
+          normalizeSearchText(trackSearchText(track)).includes(needle),
       )
       .slice(0, 7)
       .map((track) => ({

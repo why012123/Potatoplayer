@@ -1,3 +1,5 @@
+import type { Track } from "@/types";
+
 /**
  * Search text normalisation for the local library.
  *
@@ -34,4 +36,9 @@ export function normalizeSearchText(value: string): string {
 export function matchesSearch(query: string, text: string): boolean {
   const needle = normalizeSearchText(query);
   return Boolean(needle) && normalizeSearchText(text).includes(needle);
+}
+
+/** Every local field that may match a library search, including NetEase aliases. */
+export function trackSearchText(track: Track): string {
+  return `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block} ${track.note ?? ""} ${(track.aliases ?? []).join(" ")}`;
 }

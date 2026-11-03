@@ -54,6 +54,7 @@ interface AppStore {
   dataDir: string;
   libraryRoot: string;
   tracks: Track[];
+  neteaseAliases: Record<string, string[]>;
   favorites: string[];
   playlists: Playlist[];
   blocks: Tag[];
@@ -112,6 +113,7 @@ interface AppStore {
   goBack: () => void;
   goForward: () => void;
   setSearchQuery: (query: string) => void;
+  syncNeteaseAliases: (silent?: boolean) => Promise<void>;
   setSortMode: (mode: SortMode) => void;
   setPreviewTrack: (id: string) => void;
   playTrack: (track: Track, queue?: string[], startAt?: number) => Promise<void>;
@@ -358,6 +360,14 @@ function friendlyError(error: unknown): string {
   return String(error);
 }
 
+function withTrackAliases(tracks: Track[], aliases: Record<string, string[]>): Track[] {
+  if (!Object.keys(aliases).length) return tracks;
+  return tracks.map((track) => {
+    const values = track.neteaseId ? aliases[track.neteaseId] : undefined;
+    return { ...track, aliases: values?.length ? values : undefined };
+  });
+}
+
 function pickPreview(
   tracks: Track[],
   favorites: string[],
@@ -385,6 +395,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   dataDir: "",
   libraryRoot: "",
   tracks: [],
+  neteaseAliases: {},
   favorites: [],
   playlists: [],
   blocks: [],
@@ -446,6 +457,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         window.potato.onEvent((event) => useAppStore.getState().handleEvent(event));
       }
       const data = await bridge().invoke<Bootstrap>("bootstrap");
+      const aliases = data.neteaseAliases ?? {};
       const preview = pickPreview(data.tracks, data.favorites, data.settings, data.playback);
       set({
         initialized: true,
@@ -455,7 +467,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         dataDir: data.dataDir,
         dailyMix: data.dailyMix ?? null,
         libraryRoot: data.libraryRoot ?? "",
-        tracks: data.tracks,
+        tracks: withTrackAliases(data.tracks, aliases),
+        neteaseAliases: aliases,
         favorites: data.favorites,
         playlists: data.playlists,
         blocks: data.blocks ?? [],
@@ -478,7 +491,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         scanProgress: data.scanNeeded ? { done: 0, total: data.tracks.length, phase: "preparing" } : null,
       });
       if (preview) void get().ensureLyrics(preview);
-      void warmOnlineServices();
+      void warmOnlineServices().then(() => {
+        // First run: fill the search-only alias cache in the background.
+        if (!Object.keys(get().neteaseAliases).length && get().tracks.some((track) => track.neteaseId)) {
+          void get().syncNeteaseAliases(true);
+        }
+      });
       if (data.scanNeeded) {
         set({ scanning: true });
         try {
@@ -521,7 +539,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const state = get();
         const preview = pickPreview(payload.tracks, payload.favorites, state.settings, state.playback);
         set({
-          tracks: payload.tracks,
+          tracks: withTrackAliases(payload.tracks, state.neteaseAliases),
           favorites: payload.favorites,
           playlists: payload.playlists,
           blocks: payload.blocks ?? state.blocks,
@@ -533,6 +551,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
             : preview,
         });
         if (state.previewTrackId) void get().ensureLyrics(state.previewTrackId);
+        if (!Object.keys(state.neteaseAliases).length && payload.tracks.some((track) => track.neteaseId)) {
+          // The first-launch sync may run before the initial scan finishes.
+          void get().syncNeteaseAliases(true);
+        }
         void get().refreshDailyMix();
         if (payload.legacyImport) {
           get().pushToast(lx("Library imported", "资料库已导入"), lx("{count} songs, covers and ratings from Potato Player.", "已从 Potato Player 导入 {count} 首歌曲、封面与评分。", { count: payload.tracks.length }), "success");
@@ -593,13 +615,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "library.tracks": {
-        set({ tracks: (data as { tracks: Track[] }).tracks });
+        set({ tracks: withTrackAliases((data as { tracks: Track[] }).tracks, get().neteaseAliases) });
         void get().resolvePlaylistImports();
         break;
       }
       case "track.updated": {
         const updated = data as Track;
-        set({ tracks: get().tracks.map((track) => (track.id === updated.id ? updated : track)) });
+        const aliases = get().neteaseAliases;
+        const values = updated.neteaseId ? aliases[updated.neteaseId] : undefined;
+        const next = values?.length ? { ...updated, aliases: values } : updated;
+        set({ tracks: get().tracks.map((track) => (track.id === updated.id ? next : track)) });
         break;
       }
       case "track.played": {
@@ -792,6 +817,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
+  syncNeteaseAliases: async (silent = false) => {
+    try {
+      const result = await bridge().invoke<{ count?: number; aliases?: Record<string, string[]> }>("netease.syncAliases");
+      const aliases = result?.aliases ?? {};
+      set({ neteaseAliases: aliases, tracks: withTrackAliases(get().tracks, aliases) });
+      if (!silent) {
+        const count = result?.count ?? Object.keys(aliases).length;
+        get().pushToast(
+          lx("NetEase aliases synced", "网易云别名已同步"),
+          lx("{count} songs can be searched by alias.", "{count} 首歌曲可以用别名搜索。", { count }),
+          "success",
+        );
+      }
+    } catch (error) {
+      if (!silent) {
+        get().pushToast(lx("Could not sync NetEase aliases", "无法同步网易云别名"), friendlyError(error), "error");
+      }
+    }
+  },
   setSortMode: (mode) => set({ sortMode: mode }),
   setPreviewTrack: (id) => {
     set({ previewTrackId: id });
