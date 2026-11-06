@@ -15,6 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -574,6 +576,7 @@ public final class NeteaseService {
             String title = song.path("name").asText("Unknown title");
             String artist = artistsOf(song);
             String album = albumOf(song);
+            int year = releaseYear(song);
             String coverUrl = coverOf(song);
             emit("download.progress", progress(jobId, neteaseId, title, 0, -1, "resolving"));
             String[] audio = audioUrl(neteaseId, quality);
@@ -605,6 +608,7 @@ public final class NeteaseService {
             binding.title = title;
             binding.artist = artist;
             binding.album = album;
+            binding.year = year;
             binding.coverPath = coverPath;
             binding.quality = quality;
             binding.block = targetBlock;
@@ -618,6 +622,7 @@ public final class NeteaseService {
             done.put("title", title);
             done.put("artist", artist);
             done.put("album", album);
+            done.put("year", year);
             done.put("path", target.toString());
             done.put("coverPath", coverPath == null ? "" : coverPath);
             done.put("source", "netease");
@@ -838,6 +843,23 @@ public final class NeteaseService {
     private static String albumOf(JsonNode song) {
         JsonNode album = song.has("al") ? song.path("al") : song.path("album");
         return album.path("name").asText("");
+    }
+
+    /**
+     * NetEase reports the release date as an epoch-millisecond timestamp on the
+     * song (newer responses) or on the album. Use the Shanghai calendar because
+     * that is the date the service publishes, not the machine's local zone.
+     */
+    static int releaseYear(JsonNode song) {
+        if (song == null) return 0;
+        int explicit = song.path("year").asInt(0);
+        if (explicit >= 1000 && explicit <= 9999) return explicit;
+        long published = song.path("publishTime").asLong(0);
+        if (published <= 0) published = song.path("al").path("publishTime").asLong(0);
+        if (published <= 0) published = song.path("album").path("publishTime").asLong(0);
+        if (published <= 0) return 0;
+        int year = Instant.ofEpochMilli(published).atZone(ZoneId.of("Asia/Shanghai")).getYear();
+        return year >= 1000 && year <= 9999 ? year : 0;
     }
 
     private static String coverOf(JsonNode song) {

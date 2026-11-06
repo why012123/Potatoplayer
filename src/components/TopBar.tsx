@@ -157,7 +157,7 @@ export function TopBar() {
               event.currentTarget.blur();
             }
           }}
-          placeholder={tr("Songs, artists, albums…", "歌曲、艺术家、专辑…")}
+          placeholder={tr("Songs, artists, albums, years…", "歌曲、艺术家、专辑、年份…")}
           aria-label={tr("Search your library", "搜索资料库")}
           spellCheck={false}
         />

@@ -30,6 +30,7 @@ public final class NeteaseBindings {
         public String title;
         public String artist;
         public String album;
+        public int year;
         public String coverPath;
         public String quality;
         public String block;

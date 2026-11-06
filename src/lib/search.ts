@@ -40,5 +40,6 @@ export function matchesSearch(query: string, text: string): boolean {
 
 /** Every local field that may match a library search, including NetEase aliases. */
 export function trackSearchText(track: Track): string {
-  return `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block} ${track.note ?? ""} ${(track.aliases ?? []).join(" ")}`;
+  const year = track.year > 0 ? `${track.year} ${track.year}年` : "";
+  return `${track.title} ${track.artist} ${track.album} ${track.genre} ${track.block} ${track.note ?? ""} ${year} ${(track.aliases ?? []).join(" ")}`;
 }

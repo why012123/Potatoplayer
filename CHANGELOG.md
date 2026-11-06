@@ -14,6 +14,17 @@ All notable changes to Potatoplayer Super are documented here.
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
+## Unreleased — 2026-11-06
+
+### Added
+
+- **年份范围筛选与年份搜索**：歌曲筛选新增发行年份起止区间和年代快捷项，筛选摘要会显示当前年份范围；资料库搜索、命令面板和编辑器搜索都能直接搜年份（如 `2011` 或 `2011年`）。
+- **网易云下载自动导入发行年份**：下载时读取网易云发行时间并写入下载绑定，重新扫描后自动出现在资料库，不需要手动补年份。
+
+### Validation
+
+- 隔离 Electron 测试验证 2010–2012 年份筛选、`2011` / `2011年` 搜索，以及模拟网易云下载后绑定和资料库均得到 2011。
+
 ## Unreleased — 2026-11-01
 
 ### Added

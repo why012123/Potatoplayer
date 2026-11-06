@@ -29,6 +29,8 @@ interface SongFilters {
   added: AddedFilter;
   duration: DurationFilter;
   format: FormatFilter;
+  yearMin: number | null;
+  yearMax: number | null;
   online: OnlineFilter;
   notes: NotesFilter;
   cover: CoverFilter;
@@ -45,6 +47,8 @@ const DEFAULT_FILTERS: SongFilters = {
   added: "any",
   duration: "any",
   format: "any",
+  yearMin: null,
+  yearMax: null,
   online: "any",
   notes: "any",
   cover: "any",
@@ -57,6 +61,20 @@ const LOSSY_EXTENSIONS = new Set(["mp3", "m4a", "aac", "ogg", "opus", "wma"]);
 
 function cloneFilters(filters: SongFilters): SongFilters {
   return { ...filters, blocks: [...filters.blocks], genres: [...filters.genres] };
+}
+
+/** Keep reversed year inputs usable: the applied range is always low-to-high. */
+function normalizeYearFilters(filters: SongFilters): SongFilters {
+  let yearMin = filters.yearMin;
+  let yearMax = filters.yearMax;
+  if (yearMin !== null && (!Number.isFinite(yearMin) || yearMin <= 0)) yearMin = null;
+  if (yearMax !== null && (!Number.isFinite(yearMax) || yearMax <= 0)) yearMax = null;
+  if (yearMin !== null) yearMin = Math.round(yearMin);
+  if (yearMax !== null) yearMax = Math.round(yearMax);
+  if (yearMin !== null && yearMax !== null && yearMin > yearMax) {
+    [yearMin, yearMax] = [yearMax, yearMin];
+  }
+  return { ...filters, yearMin, yearMax };
 }
 
 function matchesSongFilters(track: Track, filters: SongFilters, favoriteIds: Set<string>): boolean {
@@ -73,6 +91,9 @@ function matchesSongFilters(track: Track, filters: SongFilters, favoriteIds: Set
   if ((filters.plays === "10" || filters.plays === "50") && track.playCount < Number(filters.plays)) {
     return false;
   }
+
+  if (filters.yearMin !== null && (track.year <= 0 || track.year < filters.yearMin)) return false;
+  if (filters.yearMax !== null && (track.year <= 0 || track.year > filters.yearMax)) return false;
 
   if (filters.added !== "any") {
     if (!track.addedAt) return false;
@@ -143,6 +164,27 @@ export function SongsPage() {
   const setAddToPlaylistTrackIds = useAppStore((state) => state.setAddToPlaylistTrackIds);
   const enqueueMany = useAppStore((state) => state.enqueueMany);
 
+  const yearBounds = useMemo(() => {
+    let min = 0;
+    let max = 0;
+    for (const track of tracks) {
+      if (track.year <= 0) continue;
+      if (!min || track.year < min) min = track.year;
+      if (track.year > max) max = track.year;
+    }
+    return { min, max };
+  }, [tracks]);
+  const yearPresets = useMemo(() => {
+    if (!yearBounds.min || !yearBounds.max) return [];
+    const first = Math.floor(yearBounds.min / 10) * 10;
+    const last = Math.floor(yearBounds.max / 10) * 10;
+    const presets: Array<{ from: number; to: number }> = [];
+    for (let start = first; start <= last; start += 10) {
+      presets.push({ from: start, to: start + 9 });
+    }
+    return presets;
+  }, [yearBounds]);
+
   const sortLabels: Record<SortMode, string> = {
     title: tr("Title", "标题"),
     artist: tr("Artist", "艺术家"),
@@ -211,6 +253,14 @@ export function SongsPage() {
           : filters.plays === "50"
             ? tr("50+ plays", "播放 50+")
             : "";
+  const yearLabel =
+    filters.yearMin !== null && filters.yearMax !== null
+      ? tr("Year {min}–{max}", "年份 {min}–{max}", { min: filters.yearMin, max: filters.yearMax })
+      : filters.yearMin !== null
+        ? tr("Year {min}+", "{min} 年起", { min: filters.yearMin })
+        : filters.yearMax !== null
+          ? tr("Up to {max}", "{max} 年及以前", { max: filters.yearMax })
+          : "";
   const addedLabel =
     filters.added === "7d"
       ? tr("Added in 7 days", "7 天内添加")
@@ -250,6 +300,7 @@ export function SongsPage() {
   const filterSummary = [
     filters.scope === "favorites" ? tr("Favorites", "收藏") : "",
     ratingLabel,
+    yearLabel,
     playsLabel,
     addedLabel,
     durationLabel,
@@ -266,7 +317,7 @@ export function SongsPage() {
     setFilterOpen(true);
   };
   const applyFilters = () => {
-    setFilters(cloneFilters(draft));
+    setFilters(normalizeYearFilters(cloneFilters(draft)));
     setFilterOpen(false);
   };
   const clearFilters = () => {
@@ -275,10 +326,10 @@ export function SongsPage() {
   const clearAppliedFilters = () => {
     setFilters(cloneFilters(DEFAULT_FILTERS));
   };
-  const draftCount = useMemo(
-    () => tracks.filter((track) => matchesSongFilters(track, draft, favoritesSet)).length,
-    [tracks, draft, favorites],
-  );
+  const draftCount = useMemo(() => {
+    const normalized = normalizeYearFilters(draft);
+    return tracks.filter((track) => matchesSongFilters(track, normalized, favoritesSet)).length;
+  }, [tracks, draft, favorites]);
   const setRatingMin = (value: number) => {
     setDraft((current) => ({
       ...current,
@@ -290,6 +341,11 @@ export function SongsPage() {
       ...current,
       ratingMax: Math.max(value, current.ratingMin),
     }));
+  };
+  const setYearValue = (field: "yearMin" | "yearMax", raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 4);
+    const value = digits ? Number(digits) : null;
+    setDraft((current) => ({ ...current, [field]: value && value > 0 ? value : null }));
   };
   useEffect(() => {
     if (!filterOpen) return;
@@ -464,7 +520,7 @@ export function SongsPage() {
         <motion.div className="search-empty glass" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <SearchX size={24} />
           <h3>{tr("No matching songs", "没有匹配的歌曲")}</h3>
-          <p>{tr("Try a different title, artist or album.", "试试其他标题、艺术家或专辑。")}</p>
+          <p>{tr("Try a different title, artist, album or year.", "试试其他标题、艺术家、专辑或年份。")}</p>
         </motion.div>
       )}
 
@@ -614,6 +670,83 @@ export function SongsPage() {
                     </select>
                   </label>
                 </div>
+              </section>
+
+              <section className="filter-section">
+                <div className="filter-section__head">
+                  <span className="filter-section__title">{tr("Release year", "发行年份")}</span>
+                  <span className="filter-section__hint">
+                    {yearBounds.min > 0
+                      ? tr(
+                          "Library spans {min}–{max}; leave blank for any year.",
+                          "资料库跨度 {min}–{max}，留空表示不限。",
+                          { min: yearBounds.min, max: yearBounds.max },
+                        )
+                      : tr("No release years in this library yet.", "资料库中还没有发行年份。")}
+                  </span>
+                </div>
+                <div className="filter-fields filter-fields--two filter-fields--year">
+                  <label>
+                    <span>{tr("From year", "起始年份")}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      className="year-range__input"
+                      placeholder={yearBounds.min > 0 ? String(yearBounds.min) : tr("Any", "不限")}
+                      value={draft.yearMin ?? ""}
+                      onChange={(event) => setYearValue("yearMin", event.target.value)}
+                      aria-label={tr("Earliest release year", "最早发行年份")}
+                    />
+                  </label>
+                  <label>
+                    <span>{tr("To year", "结束年份")}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      className="year-range__input"
+                      placeholder={yearBounds.max > 0 ? String(yearBounds.max) : tr("Any", "不限")}
+                      value={draft.yearMax ?? ""}
+                      onChange={(event) => setYearValue("yearMax", event.target.value)}
+                      aria-label={tr("Latest release year", "最晚发行年份")}
+                    />
+                  </label>
+                </div>
+                {yearPresets.length > 0 && (
+                  <div className="filter-tags year-presets" role="group" aria-label={tr("Release decade presets", "发行年代快捷筛选")}>
+                    {yearPresets.map((preset) => {
+                      const active = draft.yearMin === preset.from && draft.yearMax === preset.to;
+                      return (
+                        <button
+                          key={preset.from}
+                          type="button"
+                          className={clsx("filter-tag year-preset", active && "is-active")}
+                          aria-pressed={active}
+                          onClick={() =>
+                            setDraft((current) => ({
+                              ...current,
+                              yearMin: active ? null : preset.from,
+                              yearMax: active ? null : preset.to,
+                            }))
+                          }
+                        >
+                          {tr("{decade}s", "{decade} 年代", { decade: preset.from })}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className={clsx("filter-tag year-preset", draft.yearMin === null && draft.yearMax === null && "is-active")}
+                      aria-pressed={draft.yearMin === null && draft.yearMax === null}
+                      onClick={() => setDraft((current) => ({ ...current, yearMin: null, yearMax: null }))}
+                    >
+                      {tr("Any year", "不限年份")}
+                    </button>
+                  </div>
+                )}
               </section>
 
               <section className="filter-section">

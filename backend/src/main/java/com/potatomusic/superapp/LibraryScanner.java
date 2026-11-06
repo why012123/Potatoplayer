@@ -163,6 +163,9 @@ public final class LibraryScanner {
                 if (notBlank(binding.title)) track.title = binding.title;
                 if (notBlank(binding.artist)) track.artist = binding.artist;
                 if (notBlank(binding.album)) track.album = binding.album;
+                // The release year imported at download time beats a missing or
+                // stale year in the audio tag.
+                if (binding.year > 0) track.year = binding.year;
                 if (notBlank(binding.coverPath) && Files.isRegularFile(Path.of(binding.coverPath))) {
                     track.coverPath = binding.coverPath;
                 }

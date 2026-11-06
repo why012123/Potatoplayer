@@ -120,7 +120,7 @@ export function SearchPage() {
             <SearchX size={28} />
           </div>
           <h2>{tr("No results for “{query}”.", "没有找到“{query}”的结果。", { query })}</h2>
-          <p>{tr("Try a shorter phrase, or search by artist, album, genre or title.", "试试更短的关键词，或按艺术家、专辑、流派或标题搜索。")}</p>
+          <p>{tr("Try a shorter phrase, or search by artist, album, genre, year or title.", "试试更短的关键词，或按艺术家、专辑、流派、年份或标题搜索。")}</p>
         </div>
       ) : (
         <>

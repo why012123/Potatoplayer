@@ -11062,7 +11062,8 @@ img {
   color: var(--muted);
 }
 
-.filter-fields select {
+.filter-fields select,
+.filter-fields input {
   width: 100%;
   height: 38px;
   padding: 0 10px;
@@ -11074,8 +11075,13 @@ img {
   background: rgba(255, 255, 255, 0.38);
 }
 
-.filter-fields select:focus {
+.filter-fields select:focus,
+.filter-fields input:focus {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.filter-fields input::placeholder {
+  color: var(--faint);
 }
 
 .filter-dialog .modal__actions {
@@ -11221,10 +11227,21 @@ img {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.filter-fields select {
+.filter-fields select,
+.filter-fields input {
   height: 36px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface, #fff) 26%, transparent);
+}
+
+.filter-fields .year-range__input {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.year-presets {
+  margin-top: 8px;
 }
 
 .filter-tags {
