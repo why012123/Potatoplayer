@@ -14,6 +14,28 @@ All notable changes to Potatoplayer Super are documented here.
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
+## Unreleased — 2026-11-12
+
+### Added
+
+- **AI 工作台**：新增「AI 工作台」页面，管理持久化的历史对话、歌曲独立记忆与长期偏好索引。支持搜索、置顶、重命名、删除、继续对话；每首歌可保存摘要和事实列表，长期记忆带标签与重要度。对话写入 `ai-conversations.json`，记忆写入 `ai-memory.json`，均在本机原子写入。
+- **记忆注入与工具**：新增 `remember_song` / `remember_preference` / `get_song_memory` / `list_memories` / `forget_*` 工具。当前歌曲、提问中提到的歌名/歌手和长期偏好会自动进入系统提示；AI 工作台也可以手动新增、编辑、删除记忆。
+- **联网查资料**：接入 DeepSeek 官方 Search / Fetch API，新增 `web_search` / `web_fetch` 工具，可查询歌曲背景、发行、创作者和版本信息；回答保留来源，界面显示可点击的「网页来源」卡片。联网搜索可在 AI 连接设置中单独开关，按官方规则计费。
+- **Ultra 目的地**：AI 版用 Ultra 三维 CD 档案页替换 Dive 导航入口；页面读取实时曲库，按需构建并在独立窗口打开 Ultra，首次打开会现场构建 `ultra-rhine/dist`。Ultra 数据源改为 AI 版曲库，并兼容 `POTATOMUSIC_HOME` / `POTATOMUSIC_ULTRA_LIBRARY` 与旧版回退。
+- **0.2.0 暖调视觉层**：新增 `src/ai/ai-color.css`，以旧版 editorial 听音室为基准，把纸张、珊瑚、杏色、灰蓝、丁香和橄榄色引入首页、侧栏、助手、播放器与弹窗；保留用户 `--accent` 强调色，并补齐深色暖调。
+
+### Changed
+
+- 右侧助手与 AI 工作台共享同一套对话状态、会话持久化和记忆；新对话不再清空历史，旧对话可以随时继续。
+- AI 工作台在进入具体对话后收起大幅 hero，让对话、结果卡片和输入框适配一屏高度。
+- 对话、歌曲结果卡片和来源卡片统一由 `AiTurnView` 渲染，侧栏与工作台保持一致。
+
+### Validation
+
+- `npm run typecheck`、`npm run build:renderer`、`npm run test:ai`（11 组，含会话重启持久化、记忆注入、Search 工具、联网开关）、`npm run test:ai-ui`。
+- 隔离 Electron 测试覆盖 AI 工作台对话持久化、刷新后恢复、手动歌曲/长期记忆保存与刷新后保留、Ultra 页面导航。
+- Ultra 构建实测通过，读取 `~/.potatomusic-ai/library.json` 生成 384 条档案记录。
+
 ## Unreleased — 2026-11-09
 
 ### Added

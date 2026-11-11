@@ -3,6 +3,8 @@ const str = (description) => ({type:'string',description});
 const num = (description,minimum,maximum) => ({type:'number',description,minimum,maximum});
 const en = (...values) => ({type:'string',enum:values});
 const ids = {type:'array',items:{type:'string'},maxItems:200};
+const texts = {type:'array',items:{type:'string'},maxItems:20};
+const tags = {type:'array',items:{type:'string'},maxItems:8};
 const obj = (properties,required=[]) => ({type:'object',properties,required,additionalProperties:false});
 const tool = (name,description,properties={},required=[]) => ({type:'function',function:{name,description,parameters:obj(properties,required)}});
 const metadata = {
@@ -21,6 +23,14 @@ const tools = [
  tool('manage_playlist','创建/改名/添加/移除歌曲/按完整ID列表重排歌单。删除操作仅删歌单，不删文件。',{action:en('create','rename','add','remove','reorder','delete'),playlistId:str('已存在歌单ID'),name:str('歌单名称'),trackIds:ids},['action']),
  tool('search_netease','启动已有网易云服务并搜索在线歌曲。返回真实ID，不能虚构下载ID。',{keywords:str('歌名 歌手'),limit:num('结果数',1,30)},['keywords']),
  tool('download_netease','下载本次搜索结果的网易云歌曲到本地。加入真实下载队列，下载是否成功以任务状态为准。',{id:str('搜索返回的网易云歌曲ID'),quality:en('standard','high','lossless'),block:str('目标区块'),genre:str('目标流派')},['id']),
+ tool('web_search','联网搜索网页。用于查歌曲背景、发行信息、创作者、版本、专辑故事或站外资料。返回标题、链接和摘要；needContent=true时附带正文节选。回答时注明来源。',{query:str('搜索词，可包含歌名/歌手/专辑'),count:num('结果数',1,8),needContent:{type:'boolean',description:'是否返回网页正文节选'}},['query']),
+ tool('web_fetch','抓取一个网页并以 Markdown 正文返回。用于阅读搜索结果里的具体页面。',{url:str('http(s) 网页地址')},['url']),
+ tool('get_song_memory','读取一首歌的独立长期记忆。聊到具体歌曲或准备写入记忆前先读。',{trackId:str('歌曲ID')},['trackId']),
+ tool('list_memories','列出长期记忆与歌曲记忆索引，可按关键词筛选。',{query:str('可选关键词')}),
+ tool('remember_song','为指定歌曲写入长期记忆。用户说“记住”或出现值得跨会话保留的歌曲偏好、听感、背景时使用；一次最多写 6 条事实，不要记寒暄和临时状态。',{trackId:str('歌曲ID'),summary:str('一句话记忆，最多600字'),facts:texts},['trackId']),
+ tool('remember_preference','写入用户长期偏好或事实（歌手、风格、场景、习惯等）。只记稳定的偏好，不记隐私或临时情绪。',{text:str('记忆内容，最多500字'),tags:tags,importance:num('重要度0到3',0,3)},['text']),
+ tool('forget_song_memory','删除一首歌的记忆，或只删除其中一条事实。',{trackId:str('歌曲ID'),factId:str('要删除的记忆片段ID')},['trackId']),
+ tool('forget_preference','删除一条长期偏好记忆。',{id:str('记忆ID')},['id']),
  tool('set_appearance','修改软件外观设置，即时生效并持久化。',{patch:obj(appearance)},['patch']),
 ];
 function validate(value,schema,path='参数') {
@@ -42,9 +52,16 @@ function validateTool(name,args) {
  validate(args,t.function.parameters);
 }
 const publicTrack = t => ({id:t.id,title:t.title,artist:t.artist,album:t.album,block:t.block,genre:t.genre,note:t.note,rating:t.rating,year:t.year,trackNo:t.trackNo,playCount:t.playCount,addedAt:t.addedAt,neteaseId:t.neteaseId,qqId:t.qqId,duration:t.duration,hasCover:Boolean(t.coverPath)});
-function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm}) {
+function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm, searchWeb, fetchWeb, memory}) {
  const knownOnline = new Map();
+ const sources = [];
  let results=[];
+ const addSources = (items) => {
+   for (const item of items || []) {
+     if (!item?.url || sources.some((source) => source.url === item.url)) continue;
+     sources.push({title:item.title || item.url,url:item.url,site:item.site || item.site_name || ''});
+   }
+ };
  const checked = (all, input) => {
   const selected=[...new Set(input||[])];
   if(selected.some(id=>!all.some(t=>t.id===id))) throw Error('包含无效歌曲ID，请重新搜索曲库');
@@ -117,9 +134,38 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
    const song=knownOnline.get(args.id); if(!song) throw Error('请先搜索并使用搜索返回的歌曲ID');
    return await invoke('netease.download',{id:args.id,title:song.name,quality:args.quality||'high',block:args.block||'',genre:args.genre||''});
   }
+  if(name==='web_search') {
+   if(!searchWeb) throw Error('联网搜索未启用，请先在 AI 连接设置中打开');
+   const result = await searchWeb({query:args.query,count:args.count,needContent:args.needContent});
+   addSources(result?.results);
+   return result;
+  }
+  if(name==='web_fetch') {
+   if(!fetchWeb) throw Error('联网抓取未启用，请先在 AI 连接设置中打开');
+   const result = await fetchWeb(args.url);
+   addSources([result]);
+   return result;
+  }
+  if(['get_song_memory','list_memories','remember_song','remember_preference','forget_song_memory','forget_preference'].includes(name)) {
+   if(!memory) throw Error('记忆系统尚未就绪');
+   if(name==='get_song_memory') return {memory:memory.findSong(args.trackId)};
+   if(name==='list_memories') {
+    const found=memory.search(args.query || '');
+    return {stats:found.stats,songs:(found.songs||[]).slice(0,20),profile:(found.profile||[]).slice(0,30)};
+   }
+   if(name==='remember_song') {
+    const track=tracks.find(t=>t.id===args.trackId);
+    if(!track) throw Error('歌曲不存在，请先读取曲库');
+    if(!args.summary?.trim() && !args.facts?.length) throw Error('记忆内容不能为空');
+    return {memory:memory.upsertSong({trackId:track.id,title:track.title,artist:track.artist,album:track.album,year:track.year,summary:args.summary,facts:args.facts,source:'ai'})};
+   }
+   if(name==='remember_preference') return {memory:memory.upsertProfile({...args,source:'ai'})};
+   if(name==='forget_song_memory') return memory.deleteSong(args.trackId,args.factId);
+   if(name==='forget_preference') return memory.deleteProfile(args.id);
+  }
   if(name==='set_appearance') { await setAppearance(args.patch); return {applied:args.patch}; }
   throw Error('工具尚未实现');
  }
- return {execute, resultIds:()=>results};
+ return {execute, resultIds:()=>results, sources:()=>sources};
 }
 module.exports={tools,validateTool,createToolExecutor};

@@ -30,6 +30,8 @@ import { DiscoverPage } from "@/pages/DiscoverPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
 import { DivePage } from "@/pages/DivePage";
+import { AiWorkspacePage } from "@/ai/AiWorkspacePage";
+import { UltraPage } from "@/ai/UltraPage";
 import { CommentsPage } from "@/pages/CommentsPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
@@ -306,6 +308,7 @@ export default function App() {
 
   if (loading) return <LoadingScreen />;
   if (fatalError) return <FatalScreen message={fatalError} />;
+  const fullWidthPage = view.kind === "ai" || view.kind === "ultra";
 
   const page = (() => {
     if (searchQuery.trim()) return <SearchPage />;
@@ -322,6 +325,10 @@ export default function App() {
         return <FavoritesPage />;
       case "daily":
         return <DailyMixPage />;
+      case "ai":
+        return <AiWorkspacePage />;
+      case "ultra":
+        return <UltraPage />;
       case "dive":
         return <DivePage />;
       case "comments":
@@ -377,7 +384,7 @@ export default function App() {
         <Sidebar />
         <div className="workspace">
           <TopBar />
-          <div className={clsx("workspace-body", !rightPanelOpen && "workspace-body--solo")}>
+          <div className={clsx("workspace-body", (!rightPanelOpen || fullWidthPage) && "workspace-body--solo")}>
             <main className="page-shell glass">
               <div className="page-scroll" ref={scrollRef}>
                 <AnimatePresence mode="wait" initial={false}>
@@ -397,7 +404,7 @@ export default function App() {
             {/* Do not keep NowPlaying mounted for an exit animation: during the
                 one-column grid transition it would wrap below the page and flash
                 across the lower half of the centre column. */}
-            {rightPanelOpen && <AssistantPanel />}
+            {rightPanelOpen && !fullWidthPage && <AssistantPanel />}
           </div>
         </div>
       </div>

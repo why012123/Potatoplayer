@@ -77,3 +77,98 @@ test('401 errors and stream truncation reset busy state',async()=>{
 test('Cancel aborts network and prevents tool execution',async()=>{
  const s=setup(async(_url,{signal})=>new Promise((resolve,reject)=>{signal.addEventListener('abort',()=>reject(signal.reason),{once:true});}));await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});const pending=s.service.handle('ai.chat',{requestId:'5',prompt:'修改资料'});await new Promise(r=>setImmediate(r));await s.service.handle('ai.cancel',{requestId:'5'});await assert.rejects(pending,/已停止/);assert.equal(s.b.calls.filter(c=>c.method==='library.patchMetadata').length,0);assert.equal((await s.service.handle('ai.status')).busy,false);fs.rmSync(s.dataDir,{recursive:true,force:true});
 });
+test('Conversation history persists across service restarts and can be managed',async()=>{
+ const s=setup(async()=>sse({content:'第一段回复'}));
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ const first=await s.service.handle('ai.chat',{requestId:'h1',prompt:'第一段对话'});
+ assert.ok(first.conversationId,'chat returns a conversation id');
+ let list=await s.service.handle('ai.conversations.list');
+ assert.equal(list.length,1);
+ assert.equal(list[0].turnCount,1);
+ assert.equal(list[0].title,'第一段对话');
+ await assert.rejects(s.service.handle('ai.chat',{requestId:'bad',prompt:'继续',conversationId:'missing'}),/不存在/);
+ assert.equal((await s.service.handle('ai.status')).busy,false);
+ const reopened=createAiService({dataDir:s.dataDir,safeStorage:secure,invoke:s.b.invoke,emit:()=>{},confirm:async()=>false,fetchImpl:async()=>sse({content:'后面的回复'})});
+ const loaded=await reopened.handle('ai.conversations.get',{id:first.conversationId});
+ assert.equal(loaded.turns.length,1);
+ assert.equal(loaded.turns[0].prompt,'第一段对话');
+ assert.equal(loaded.turns[0].result.explanation,'第一段回复');
+ const renamed=await reopened.handle('ai.conversations.rename',{id:first.conversationId,title:'新的标题'});
+ assert.equal(renamed.title,'新的标题');
+ assert.equal((await reopened.handle('ai.conversations.pin',{id:first.conversationId,pinned:true})).pinned,true);
+ const created=await reopened.handle('ai.conversations.create',{title:'本地记录'});
+ const appended=await reopened.handle('ai.conversations.append',{id:created.id,turn:{prompt:'本地提问',result:{intent:'search',title:'',explanation:'本地回答',trackIds:['a']},provider:'local'}});
+ assert.equal(appended.conversation.turnCount,1);
+ const local=await reopened.handle('ai.conversations.get',{id:created.id});
+ assert.equal(local.turns[0].result.trackIds[0],'a');
+ await reopened.handle('ai.conversations.delete',{id:created.id});
+ assert.ok(!(await reopened.handle('ai.conversations.list')).some((item)=>item.id===created.id));
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+test('Memory tools write song and profile memories and inject them into the next chat',async()=>{
+ let requests=[];
+ const s=setup(async(url,options)=>{
+  assert.match(url,/chat\/completions$/);
+  const body=JSON.parse(options.body);requests.push(body);
+  if(body.messages.some((message)=>message.role==='tool'))return sse({content:'记住了。'});
+  return sse({tool_calls:[
+   call('remember_song',{trackId:'a',summary:'用户喜欢这首歌的副歌',facts:['适合夜晚听'],},'m1'),
+   call('remember_preference',{text:'喜欢夜晚的钢琴曲',tags:['夜晚','钢琴'],importance:2},'m2'),
+  ]});
+ });
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ await s.service.handle('ai.chat',{requestId:'m1',prompt:'记住我喜欢这首歌的副歌',currentTrackId:'a'});
+ let snapshot=await s.service.handle('ai.memory.snapshot');
+ assert.equal(snapshot.stats.songs,1);
+ assert.equal(snapshot.songs[0].trackId,'a');
+ assert.equal(snapshot.songs[0].factCount,1);
+ assert.equal(snapshot.stats.profile,1);
+ assert.equal(snapshot.profile[0].text,'喜欢夜晚的钢琴曲');
+ requests=[];
+ await s.service.handle('ai.chat',{requestId:'m2',prompt:'再聊聊夜晚适合听什么',currentTrackId:'a'});
+ const system=requests[0].messages[0].content;
+ assert.match(system,/用户喜欢这首歌的副歌/);
+ assert.match(system,/喜欢夜晚的钢琴曲/);
+ assert.match(system,/长期记忆/);
+ const replaced=await s.service.handle('ai.memory.song.upsert',{trackId:'a',summary:'更新后的摘要',facts:['只保留这一条'],replaceFacts:true});
+ assert.equal(replaced.memory.facts.length,1);
+ assert.equal(replaced.memory.summary,'更新后的摘要');
+ await s.service.handle('ai.memory.song.delete',{trackId:'a'});
+ assert.equal((await s.service.handle('ai.memory.snapshot')).stats.songs,0);
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+test('Web search uses DeepSeek Search, returns citations and feeds results back to the model',async()=>{
+ let chatBodies=[];let searchBody=null;
+ const s=setup(async(url,options)=>{
+  if(url.endsWith('/chat/completions')){
+   const body=JSON.parse(options.body);chatBodies.push(body);
+   if(chatBodies.length===1)return sse({tool_calls:[call('web_search',{query:'鳥の詩 Lia 发行',count:3,needContent:true})]});
+   return sse({content:'这是网页上的资料。来源：https://example.com/song'});
+  }
+  if(url.endsWith('/v1/tools/search')){
+   searchBody=JSON.parse(options.body);
+   return new Response(JSON.stringify({results:[{title:'Song background',url:'https://example.com/song',site_name:'Example',summary:'A summary',content:'Long page content',authority:3}]}),{status:200,headers:{'Content-Type':'application/json'}});
+  }
+  throw Error(`unexpected URL ${url}`);
+ });
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test',webSearchEnabled:true});
+ const result=await s.service.handle('ai.chat',{requestId:'w1',prompt:'查一下这首歌的背景'});
+ assert.equal(searchBody.query,'鳥の詩 Lia 发行');
+ assert.equal(searchBody.count,3);
+ assert.equal(searchBody.need_content,true);
+ assert.equal(result.sources.length,1);
+ assert.equal(result.sources[0].url,'https://example.com/song');
+ const toolMessage=chatBodies[1].messages.find((message)=>message.role==='tool');
+ assert.match(toolMessage.content,/Song background/);
+ assert.match(toolMessage.content,/Long page content/);
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+test('Web tools are omitted from the model request when the setting is off',async()=>{
+ let body=null;
+ const s=setup(async(url,options)=>{assert.match(url,/chat\/completions$/);body=JSON.parse(options.body);return sse({content:'Hi'});});
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test',webSearchEnabled:false});
+ await s.service.handle('ai.chat',{requestId:'w2',prompt:'你好'});
+ assert.ok(body.tools.some((tool)=>tool.function.name==='remember_song'));
+ assert.ok(!body.tools.some((tool)=>tool.function.name==='web_search'));
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});

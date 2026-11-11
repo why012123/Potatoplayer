@@ -17,6 +17,8 @@ import "./graphics.css";
 import "./now-playing.css";
 import "./sync.css";
 import "./ai/ai.css";
+import "./ai/workspace.css";
+import "./ai/ai-color.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());

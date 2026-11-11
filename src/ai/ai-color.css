@@ -1,0 +1,1979 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Potato Music AI — "Warm Editorial" color layer
+   ─────────────────────────────────────────────────────────────────────────────
+   Loaded LAST (after src/ai/ai.css and the legacy stylesheets). This file only
+   paints: colour, gradients, shadows, texture and interaction accents. It does
+   not change layout, spacing or type metrics.
+
+   Art direction — the old Potatoplayer "editorial" listening room, translated
+   into the AI workspace:
+     · warm paper + warm brown-black ink instead of cool green/grey;
+     · coral / terracotta as the editorial signature, apricot as the sun;
+     · dusty blue, lilac and olive as supporting moods (no single hue family);
+     · glassy paper surfaces with a light grain, soft warm shadows and glow;
+     · serif display notes on hero / welcome / dialog titles.
+
+   The user's appearance accent (--accent / --accent-secondary, driven by
+   :root[data-accent="coral"|"sage"|"ocean"|"plum"|"gold"|"cover"]) still powers
+   every interactive state: nav indicator, buttons, focus rings, icons, active
+   toolbars. Fixed editorial hues are only used for atmosphere and mood.
+
+   Contrast: body ink ≥ 7:1 on paper, muted text ≥ 4.5:1 in both themes.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. DESIGN TOKENS — light (warm paper edition)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app {
+  /* Paper & ink ------------------------------------------------------------- */
+  --ai-bg: #f3ebdf;                 /* page paper */
+  --ai-bg-deep: #ece1d1;            /* recessed paper */
+  --ai-surface: #fdf8f0;            /* card / sheet paper */
+  --ai-surface-strong: #fffbf4;     /* elevated paper */
+  --ai-panel-solid: #f8f1e6;        /* assistant solid fallback */
+  --ai-ink: #2c241d;                /* warm brown-black */
+  --ai-ink-soft: #4c4137;
+  --ai-muted: #756656;              /* ~5.1:1 on paper */
+  --ai-muted-strong: #635445;
+  --ai-border: rgba(78, 60, 42, 0.14);
+  --ai-border-strong: rgba(78, 60, 42, 0.23);
+  --ai-soft: rgba(140, 104, 66, 0.085);
+  --ai-highlight: rgba(255, 252, 246, 0.6);
+
+  /* The fixed editorial palette (independent of the appearance accent) ------ */
+  --ai-coral: #d05c3f;              /* terracotta / coral signature */
+  --ai-coral-deep: #a8402a;
+  --ai-coral-soft: #f6dacb;
+  --ai-apricot: #e9a45f;            /* apricot sun */
+  --ai-apricot-soft: #f9e6cb;
+  --ai-gold: #cfa04c;
+  --ai-olive: #7c8a55;              /* olive / sage garden */
+  --ai-olive-soft: #e7e9cd;
+  --ai-blue: #7a93a6;               /* dusty blue */
+  --ai-blue-soft: #dde5ea;
+  --ai-lilac: #9480a5;              /* dusty lilac / plum */
+  --ai-lilac-soft: #e9e1ef;
+  --ai-clay: #c17858;
+  --ai-rose: #cf8a7c;
+
+  /* Paper grain (inline SVG noise; no external asset, no font) ------------- */
+  --ai-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+
+  /* Warm shadows / glow ---------------------------------------------------- */
+  --ai-shadow: 0 22px 46px -30px rgba(78, 49, 27, 0.42), 0 2px 6px rgba(78, 49, 27, 0.05);
+  --ai-shadow-soft: 0 14px 32px -26px rgba(78, 49, 27, 0.38);
+  --ai-shadow-glow: 0 18px 42px -26px rgba(168, 92, 52, 0.5);
+
+  /* Appearance bridge — the user's accent, warmed with clay ----------------
+     These tokens feed ai.css selectors that used to be green.             */
+  --ai-accent: var(--accent);
+  --ai-accent-2: var(--accent-secondary);
+  --ai-accent-warm: color-mix(in srgb, var(--accent) 66%, var(--ai-coral));
+  --ai-accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --ai-accent-line: color-mix(in srgb, var(--accent) 34%, var(--ai-border));
+  --ai-accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+  --ai-green: color-mix(in srgb, var(--accent) 62%, #33261c);
+  --ai-strong: color-mix(in srgb, var(--accent) 55%, #2a1d15);
+
+  /* Editorial action buttons: accent warmed with clay, grounded in ink.
+     White label contrast stays ≥ 6.5:1 for every accent choice.           */
+  --ai-btn-a: color-mix(in srgb, var(--ai-strong) 74%, var(--ai-coral));
+  --ai-btn-b: color-mix(in srgb, var(--ai-strong) 86%, #1d120c);
+  --ai-btn-a-hover: color-mix(in srgb, var(--ai-strong) 64%, var(--ai-coral));
+
+  /* Legacy tokens consumed by shared pages, dialogs and toasts ------------ */
+  --text: var(--ai-ink);
+  --muted: var(--ai-muted);
+  --faint: rgba(76, 61, 46, 0.46);
+  --line: rgba(255, 250, 243, 0.6);
+  --line-dark: var(--ai-border);
+  --paper: var(--ai-bg);
+  --surface: rgba(253, 248, 240, 0.74);
+  --surface-strong: rgba(255, 251, 244, 0.92);
+  --surface-solid: var(--ai-surface);
+  --surface-soft: rgba(255, 250, 243, 0.5);
+  --surface-quiet: rgba(255, 250, 243, 0.3);
+  --surface-ink: rgba(58, 43, 30, 0.055);
+  --glass: linear-gradient(155deg, rgba(255, 251, 245, 0.92), rgba(248, 240, 229, 0.88));
+  --glass-strong: linear-gradient(155deg, rgba(255, 252, 247, 0.985), rgba(249, 242, 232, 0.96));
+  --control-dark: #3a2e25;
+  --control-darker: #241b15;
+  --accent-soft: var(--ai-accent-soft);
+
+  /* Base paint (visible if the ambient layer is disabled by a preference) */
+  background:
+    radial-gradient(62% 48% at 4% -8%, color-mix(in srgb, var(--ai-apricot) 32%, transparent), transparent 68%),
+    radial-gradient(54% 44% at 98% 0%, color-mix(in srgb, var(--ai-blue) 26%, transparent), transparent 66%),
+    radial-gradient(48% 42% at 12% 104%, color-mix(in srgb, var(--ai-coral) 18%, transparent), transparent 72%),
+    linear-gradient(132deg, #f7efe4 0%, #f2e7d9 48%, #f0e6dd 100%);
+  color: var(--ai-ink);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. DESIGN TOKENS — dark (warm ember edition)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app.theme-dark {
+  --ai-bg: #1a1512;
+  --ai-bg-deep: #14100e;
+  --ai-surface: #26201c;
+  --ai-surface-strong: #2d2621;
+  --ai-panel-solid: #221d19;
+  --ai-ink: #f3e9dc;
+  --ai-ink-soft: #d9cbbb;
+  --ai-muted: #aa9c8b;              /* ~7:1 on dark paper */
+  --ai-muted-strong: #c2b29f;
+  --ai-border: rgba(255, 240, 222, 0.11);
+  --ai-border-strong: rgba(255, 240, 222, 0.18);
+  --ai-soft: rgba(255, 240, 224, 0.07);
+  --ai-highlight: rgba(255, 240, 222, 0.08);
+
+  --ai-coral: #e8836a;
+  --ai-coral-deep: #f0a184;
+  --ai-coral-soft: #4a2f27;
+  --ai-apricot: #e9ac6e;
+  --ai-apricot-soft: #43342a;
+  --ai-gold: #dfb567;
+  --ai-olive: #a8b485;
+  --ai-olive-soft: #33392c;
+  --ai-blue: #9db6c8;
+  --ai-blue-soft: #2b343c;
+  --ai-lilac: #b7a4c6;
+  --ai-lilac-soft: #342e3d;
+  --ai-clay: #d59a7e;
+  --ai-rose: #dca597;
+
+  --ai-shadow: 0 24px 54px -28px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.24);
+  --ai-shadow-soft: 0 16px 34px -26px rgba(0, 0, 0, 0.76);
+  --ai-shadow-glow: 0 20px 44px -24px rgba(0, 0, 0, 0.82);
+
+  --ai-accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --ai-accent-line: color-mix(in srgb, var(--accent) 42%, var(--ai-border));
+  --ai-accent-glow: color-mix(in srgb, var(--accent) 34%, transparent);
+  --ai-green: color-mix(in srgb, var(--accent) 58%, #f0e0cd);
+  --ai-strong: color-mix(in srgb, var(--accent) 52%, #33231b);
+  --ai-btn-a: color-mix(in srgb, var(--ai-strong) 72%, var(--ai-coral));
+  --ai-btn-b: color-mix(in srgb, var(--ai-strong) 84%, #15100c);
+  --ai-btn-a-hover: color-mix(in srgb, var(--ai-strong) 62%, var(--ai-coral));
+
+  --text: var(--ai-ink);
+  --muted: var(--ai-muted);
+  --faint: rgba(238, 226, 212, 0.4);
+  --line: rgba(255, 240, 222, 0.1);
+  --line-dark: var(--ai-border);
+  --paper: var(--ai-bg);
+  --surface: rgba(37, 31, 27, 0.74);
+  --surface-strong: rgba(45, 38, 33, 0.9);
+  --surface-solid: var(--ai-surface);
+  --surface-soft: rgba(255, 240, 222, 0.06);
+  --surface-quiet: rgba(255, 240, 222, 0.035);
+  --surface-ink: rgba(0, 0, 0, 0.18);
+  --glass: linear-gradient(155deg, rgba(48, 40, 36, 0.92), rgba(28, 24, 21, 0.88));
+  --glass-strong: linear-gradient(155deg, rgba(54, 45, 40, 0.985), rgba(31, 26, 23, 0.96));
+  --control-dark: #eadbc8;
+  --control-darker: #d5c2ac;
+  --accent-soft: var(--ai-accent-soft);
+
+  background:
+    radial-gradient(58% 44% at 4% -8%, color-mix(in srgb, var(--ai-coral) 16%, transparent), transparent 68%),
+    radial-gradient(52% 42% at 98% 0%, color-mix(in srgb, var(--ai-blue) 13%, transparent), transparent 66%),
+    radial-gradient(46% 42% at 12% 104%, color-mix(in srgb, var(--ai-coral) 10%, transparent), transparent 72%),
+    linear-gradient(140deg, #1b1613 0%, #191411 48%, #1a1716 100%);
+  color: var(--ai-ink);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. AMBIENT STAGE — re-enable the editorial wash behind the glass shell
+   (ai.css hides .ambient; the old room was built on this layer)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app > .ambient {
+  display: block;
+  background:
+    radial-gradient(66% 54% at 4% -6%, color-mix(in srgb, var(--ai-apricot) 42%, #fff8ee) 0%, transparent 66%),
+    radial-gradient(54% 50% at 98% 2%, color-mix(in srgb, var(--ai-blue) 44%, transparent) 0%, transparent 66%),
+    radial-gradient(52% 58% at 10% 102%, color-mix(in srgb, var(--ai-coral) 28%, transparent) 0%, transparent 72%),
+    radial-gradient(48% 52% at 94% 96%, color-mix(in srgb, var(--ai-lilac) 28%, transparent) 0%, transparent 72%),
+    linear-gradient(132deg, #f8f0e5 0%, #f3e8da 46%, #f0e5dc 100%);
+}
+
+#root .app.ai-app > .ambient .ambient__art {
+  display: none; /* the AI shell has no cover wash */
+}
+
+#root .app.ai-app > .ambient .ambient__wash {
+  background:
+    radial-gradient(90% 78% at 22% 0%, rgba(255, 252, 246, 0.55), transparent 64%),
+    linear-gradient(120deg, rgba(255, 251, 244, 0.18), rgba(250, 233, 214, 0.18) 52%, rgba(238, 226, 233, 0.2));
+}
+
+#root .app.ai-app > .ambient .ambient__blob--a {
+  background: color-mix(in srgb, var(--ai-coral) 24%, transparent);
+  opacity: 0.38;
+}
+
+#root .app.ai-app > .ambient .ambient__blob--b {
+  background: color-mix(in srgb, var(--ai-blue) 26%, transparent);
+  opacity: 0.34;
+}
+
+#root .app.ai-app > .ambient .ambient__grain {
+  opacity: 0.055;
+  mix-blend-mode: multiply;
+}
+
+#root .app.ai-app.theme-dark > .ambient {
+  background:
+    radial-gradient(62% 50% at 4% -6%, color-mix(in srgb, var(--ai-coral) 26%, transparent) 0%, transparent 66%),
+    radial-gradient(52% 48% at 98% 2%, color-mix(in srgb, var(--ai-lilac) 21%, transparent) 0%, transparent 66%),
+    radial-gradient(50% 56% at 12% 102%, color-mix(in srgb, var(--ai-apricot) 17%, transparent) 0%, transparent 72%),
+    radial-gradient(46% 50% at 94% 96%, color-mix(in srgb, var(--ai-blue) 17%, transparent) 0%, transparent 72%),
+    linear-gradient(140deg, #1c1714 0%, #181311 48%, #1a1514 100%);
+}
+
+#root .app.ai-app.theme-dark > .ambient .ambient__wash {
+  background:
+    radial-gradient(88% 74% at 20% 0%, rgba(52, 40, 33, 0.5), transparent 62%),
+    linear-gradient(120deg, rgba(28, 22, 19, 0.2), rgba(46, 33, 27, 0.16) 52%, rgba(31, 27, 35, 0.2));
+}
+
+#root .app.ai-app.theme-dark > .ambient .ambient__grain {
+  opacity: 0.04;
+  mix-blend-mode: soft-light;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. SHELL — translucent paper panels floating on the ambient wash
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 251, 244, 0.76) 0%, rgba(246, 238, 226, 0.82) 52%, rgba(238, 227, 212, 0.88) 100%);
+  border-right: 1px solid var(--ai-border);
+  backdrop-filter: blur(26px) saturate(128%);
+  -webkit-backdrop-filter: blur(26px) saturate(128%);
+  box-shadow: inset -1px 0 0 var(--ai-highlight), 22px 0 48px -46px rgba(74, 48, 26, 0.6);
+}
+
+#root .app.ai-app.theme-dark .ai-sidebar {
+  background:
+    linear-gradient(180deg, rgba(30, 25, 22, 0.8) 0%, rgba(26, 21, 19, 0.86) 52%, rgba(23, 19, 17, 0.9) 100%);
+  box-shadow: inset -1px 0 0 rgba(255, 240, 222, 0.06), 22px 0 48px -44px #000;
+}
+
+#root .app.ai-app .ai-topbar {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.66), rgba(249, 241, 231, 0.54));
+  border-bottom: 1px solid var(--ai-border);
+  backdrop-filter: blur(20px) saturate(126%);
+  -webkit-backdrop-filter: blur(20px) saturate(126%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+#root .app.ai-app.theme-dark .ai-topbar {
+  background: linear-gradient(180deg, rgba(32, 27, 24, 0.72), rgba(27, 22, 20, 0.62));
+  box-shadow: inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .page-shell {/* "paper sheet" over the ambient room */
+  background:
+    radial-gradient(110% 58% at 22% -12%, color-mix(in srgb, var(--ai-apricot) 13%, transparent) 0%, transparent 58%),
+    radial-gradient(78% 46% at 104% -6%, color-mix(in srgb, var(--ai-blue) 10%, transparent) 0%, transparent 60%),
+    radial-gradient(70% 52% at -6% 108%, color-mix(in srgb, var(--ai-coral) 7%, transparent), transparent 64%),
+    radial-gradient(64% 48% at 106% 104%, color-mix(in srgb, var(--ai-lilac) 7%, transparent), transparent 64%),
+    linear-gradient(160deg, rgba(255, 251, 245, 0.87) 0%, rgba(250, 243, 233, 0.86) 58%, rgba(246, 238, 227, 0.88) 100%);
+  backdrop-filter: blur(24px) saturate(124%);
+  -webkit-backdrop-filter: blur(24px) saturate(124%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 34px 70px -58px rgba(74, 48, 26, 0.7);
+}
+
+#root .app.ai-app.theme-dark .page-shell {
+  background:
+    radial-gradient(110% 58% at 22% -12%, color-mix(in srgb, var(--ai-coral) 10%, transparent) 0%, transparent 58%),
+    radial-gradient(78% 46% at 104% -6%, color-mix(in srgb, var(--ai-lilac) 8%, transparent) 0%, transparent 60%),
+    radial-gradient(70% 52% at -6% 108%, color-mix(in srgb, var(--ai-apricot) 6%, transparent), transparent 64%),
+    linear-gradient(160deg, rgba(36, 30, 27, 0.9) 0%, rgba(30, 25, 22, 0.9) 58%, rgba(28, 23, 21, 0.92) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 222, 0.06), 0 34px 70px -54px #000;
+}
+
+#root .app.ai-app .ai-page-scroll::-webkit-scrollbar-thumb,
+#root .app.ai-app .page-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(88, 64, 43, 0.22);
+  border-radius: 999px;
+}
+
+#root .app.ai-app.theme-dark .page-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 236, 214, 0.16);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. SIDEBAR — warm navigation, accent rail, paper chips
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-brand strong {
+  color: var(--ai-ink);
+  letter-spacing: -1.2px;
+}
+
+#root .app.ai-app .ai-brand strong > span {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-brand em {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--ai-border));
+  background: var(--ai-accent-soft);
+  color: var(--ai-green);
+}
+
+#root .app.ai-app .ai-logo {
+  background:
+    radial-gradient(80% 80% at 30% 22%, rgba(255, 255, 255, 0.3), transparent 58%),
+    linear-gradient(148deg, var(--ai-coral), color-mix(in srgb, var(--ai-coral) 52%, var(--ai-apricot)));
+  color: #fffaef;
+  box-shadow: 0 10px 24px -12px rgba(168, 92, 52, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+#root .app.ai-app .ai-nav-label {
+  color: var(--ai-muted);
+  font-weight: 600;
+}
+
+#root .app.ai-app .ai-nav-label-row button {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-nav-label-row button:hover {
+  color: var(--ai-accent-warm);
+}
+
+#root .app.ai-app .ai-nav-item {
+  position: relative;
+  color: var(--ai-ink-soft);
+  border-radius: 8px;
+}
+
+#root .app.ai-app .ai-nav-item > svg {
+  color: color-mix(in srgb, var(--ai-ink) 52%, transparent);
+  opacity: 1;
+  transition: color 0.16s ease;
+}
+
+#root .app.ai-app .ai-nav-item:hover {
+  background: linear-gradient(100deg, var(--ai-soft), color-mix(in srgb, var(--ai-apricot) 10%, transparent));
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-nav-item:hover > svg {
+  color: var(--ai-accent-warm);
+}
+
+#root .app.ai-app .ai-nav-item small {
+  color: var(--ai-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Active item: warm cream pill + accent rail, benchmarked on the old room */
+#root .app.ai-app .ai-nav-item.is-active {
+  background:
+    linear-gradient(102deg, color-mix(in srgb, var(--ai-surface-strong) 94%, transparent), color-mix(in srgb, var(--ai-apricot-soft) 46%, var(--ai-surface)) 100%);
+  color: var(--ai-ink);
+  font-weight: 650;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ai-border) 80%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 8px 18px -14px rgba(97, 63, 35, 0.55);
+}
+
+#root .app.ai-app .ai-nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 17px;
+  border-radius: 0 3px 3px 0;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 52%, var(--ai-coral)));
+  box-shadow: 0 0 10px var(--ai-accent-glow);
+}
+
+#root .app.ai-app .ai-nav-item.is-active > svg {
+  color: var(--accent);
+}
+
+#root .app.ai-app .ai-nav-item.is-active small {
+  color: var(--ai-green);
+}
+
+#root .app.ai-app.theme-dark .ai-nav-item.is-active {
+  background:
+    linear-gradient(102deg, rgba(255, 240, 222, 0.10), rgba(255, 240, 222, 0.055) 70%, rgba(232, 131, 106, 0.1));
+  color: var(--ai-ink);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 240, 222, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* AI shortcut gets the editorial "sunrise" chip */
+#root .app.ai-app .ai-assistant-shortcut {
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--ai-apricot) 17%, var(--ai-surface)), color-mix(in srgb, var(--ai-coral) 9%, var(--ai-surface)) 100%);
+  color: var(--ai-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-apricot) 32%, transparent);
+}
+
+#root .app.ai-app .ai-assistant-shortcut > svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-assistant-shortcut > span:first-of-type {
+  font-weight: 550;
+}
+
+#root .app.ai-app .ai-assistant-shortcut:hover {
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--ai-apricot) 26%, var(--ai-surface)), color-mix(in srgb, var(--ai-coral) 14%, var(--ai-surface)) 100%);
+}
+
+#root .app.ai-app .ai-mini-badge {
+  border-color: color-mix(in srgb, var(--ai-coral) 34%, var(--ai-border));
+  background: color-mix(in srgb, var(--ai-surface-strong) 70%, transparent);
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-side-hint {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-sidebar-bottom {
+  border-top: 1px solid var(--ai-border);
+  background: linear-gradient(180deg, transparent, rgba(255, 251, 244, 0.4));
+}
+
+#root .app.ai-app.theme-dark .ai-sidebar-bottom {
+  background: linear-gradient(180deg, transparent, rgba(255, 240, 222, 0.03));
+}
+
+#root .app.ai-app .ai-library-status {
+  background:
+    radial-gradient(120% 150% at 8% 0%, color-mix(in srgb, var(--ai-apricot) 14%, transparent), transparent 62%),
+    linear-gradient(140deg, color-mix(in srgb, var(--ai-surface-strong) 78%, transparent), color-mix(in srgb, var(--ai-bg) 82%, transparent));
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--ai-border), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app.theme-dark .ai-library-status {
+  box-shadow: inset 0 0 0 1px var(--ai-border), inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .ai-library-status:hover {
+  background:
+    radial-gradient(120% 150% at 8% 0%, color-mix(in srgb, var(--ai-apricot) 24%, transparent), transparent 62%),
+    linear-gradient(140deg, color-mix(in srgb, var(--ai-surface-strong) 88%, transparent), color-mix(in srgb, var(--ai-bg) 88%, transparent));
+}
+
+#root .app.ai-app .ai-library-status small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-status-dot,
+#root .app.ai-app .ai-local-note > span {
+  background: var(--ai-olive);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai-olive) 16%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. TOP BAR — paper search field, warm icon buttons
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-topbar button:hover {
+  background: var(--ai-soft);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-search {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: var(--ai-muted);
+  background: color-mix(in srgb, var(--ai-surface-strong) 58%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ai-border);
+  transition: box-shadow 0.16s ease, background 0.16s ease;
+}
+
+#root .app.ai-app .ai-search:focus-within {
+  color: var(--ai-ink);
+  background: color-mix(in srgb, var(--ai-surface-strong) 90%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ai-accent-line), 0 0 0 3px var(--ai-accent-soft);
+}
+
+#root .app.ai-app .ai-search input {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-search input::placeholder {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-search > svg {
+  color: var(--ai-blue);
+}
+
+#root .app.ai-app .ai-search kbd {
+  border-color: var(--ai-border);
+  background: color-mix(in srgb, var(--ai-surface-strong) 60%, transparent);
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-topbar .ai-toggle {
+  border-color: var(--ai-border);
+  color: var(--ai-muted);
+  background: color-mix(in srgb, var(--ai-surface-strong) 42%, transparent);
+}
+
+#root .app.ai-app .ai-topbar .ai-toggle:hover {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-topbar .ai-toggle.is-active {
+  color: var(--ai-green);
+  background: var(--ai-accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. HOME — greeting, section rhythm, editorial labels
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-home h1 {
+  color: var(--ai-ink);
+  letter-spacing: -0.8px;
+}
+
+#root .app.ai-app .ai-home-heading p {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-eyebrow {
+  color: color-mix(in srgb, var(--ai-coral-deep) 82%, var(--ai-muted));
+  font-weight: 600;
+}
+
+#root .app.ai-app .ai-eyebrow > span {
+  background: linear-gradient(140deg, var(--ai-coral), var(--ai-apricot));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai-coral) 15%, transparent);
+}
+
+#root .app.ai-app .ai-date {
+  color: color-mix(in srgb, var(--ai-ink) 72%, var(--ai-coral));
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ai-surface-strong) 56%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ai-border);
+  letter-spacing: 0.04em;
+}
+
+#root .app.ai-app .ai-section-heading h2 {
+  position: relative;
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-section-heading h2::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  bottom: -8px;
+  width: 32px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ai-coral), var(--ai-apricot));
+  opacity: 0.9;
+}
+
+#root .app.ai-app .ai-section-heading p {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-section-heading > span,
+#root .app.ai-app .ai-label {
+  color: color-mix(in srgb, var(--ai-coral-deep) 70%, var(--ai-muted));
+  font-weight: 600;
+}
+
+#root .app.ai-app .ai-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ai-apricot) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-apricot) 26%, transparent);
+}
+
+#root .app.ai-app .ai-section-heading button {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-section-heading button:hover {
+  color: var(--ai-accent-warm);
+}
+
+#root .app.ai-app .ai-section-heading button svg {
+  transition: transform 0.16s ease;
+}
+
+#root .app.ai-app .ai-section-heading button:hover svg {
+  transform: translateX(2px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. HERO — the "morning edition" poster: apricot sun, terracotta shadow
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-hero {
+  --ai-hero-ink: #2f251d;
+  --ai-hero-muted: #74604c;
+  --ai-hero-line: color-mix(in srgb, var(--ai-coral) 26%, rgba(74, 52, 34, 0.16));
+  background:
+    radial-gradient(64% 92% at 76% 56%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%),
+    radial-gradient(78% 128% at 88% 4%, color-mix(in srgb, var(--ai-apricot) 58%, #fff6ea) 0%, transparent 56%),
+    radial-gradient(66% 118% at 104% 94%, color-mix(in srgb, var(--ai-blue) 31%, transparent) 0%, transparent 62%),
+    radial-gradient(58% 92% at -2% 102%, color-mix(in srgb, var(--ai-coral) 17%, transparent), transparent 66%),
+    linear-gradient(118deg, #f9edda 0%, #f4e2cb 42%, #efd7c0 76%, #ebd8cf 100%);
+  color: var(--ai-hero-ink);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff8ec 45%, transparent),
+    var(--ai-shadow);
+}
+
+/* Soft light bloom behind the sleeve */
+#root .app.ai-app .ai-hero::before {
+  content: "";
+  position: absolute;
+  inset: auto -10% -34% 34%;
+  height: 122%;
+  pointer-events: none;
+  background: radial-gradient(52% 54% at 62% 42%, rgba(255, 247, 234, 0.62), transparent 70%);
+}
+
+/* Paper grain over the artwork, under the copy (copy sits at z-index 2) */
+#root .app.ai-app .ai-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--ai-grain);
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+}
+
+#root .app.ai-app .ai-hero-kicker {
+  color: color-mix(in srgb, var(--ai-coral-deep) 74%, var(--ai-hero-ink));
+  font-weight: 600;
+  letter-spacing: 1.3px;
+}
+
+#root .app.ai-app .ai-hero-kicker svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-hero h2 {
+  color: var(--ai-hero-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+#root .app.ai-app .ai-hero p {
+  color: var(--ai-hero-muted);
+}
+
+#root .app.ai-app .ai-hero-copy > small {
+  color: color-mix(in srgb, var(--ai-hero-muted) 88%, var(--ai-hero-ink));
+}
+
+/* Hero artwork: warm paper sleeve, coral sun, ember vinyl */
+#root .app.ai-app .ai-record-orbit {
+  border-color: var(--ai-hero-line);
+}
+
+#root .app.ai-app .ai-record-orbit::after {
+  border-color: color-mix(in srgb, var(--ai-blue) 38%, rgba(255, 255, 255, 0.24));
+}
+
+#root .app.ai-app .ai-record {
+  background: repeating-radial-gradient(circle, #2b211c 0, #2b211c 1px, #3b2d24 2px, #241c18 3px);
+  box-shadow: 8px 18px 38px rgba(79, 47, 29, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+#root .app.ai-app .ai-record-label {
+  background: radial-gradient(circle at 34% 28%, #f6ce93 0%, var(--ai-apricot) 46%, var(--ai-coral) 100%);
+  box-shadow: inset 0 0 0 6px rgba(255, 250, 240, 0.2);
+  color: #3a2417;
+}
+
+#root .app.ai-app .ai-record-label::before {
+  background: #2b211c;
+}
+
+#root .app.ai-app .ai-record-label small {
+  color: rgba(58, 36, 23, 0.62);
+}
+
+#root .app.ai-app .ai-record-sleeve {
+  /* the sleeve is a paper object: keep its print ink dark in both themes */
+  color: #35261c;
+  background: linear-gradient(155deg, #fdf5e8 0%, #f6e8d5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 20px 38px -18px rgba(89, 55, 30, 0.42);
+}
+
+#root .app.ai-app .ai-sleeve-sun {
+  background: radial-gradient(circle at 28% 22%, #ffd79a 0%, #eda664 44%, #d9754f 74%, #b85b3f 100%);
+}
+
+#root .app.ai-app .ai-sleeve-sun::after {
+  background: rgba(251, 243, 231, 0.48);
+}
+
+#root .app.ai-app .ai-floating-label {
+  background: rgba(255, 250, 242, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: var(--ai-hero-muted);
+  box-shadow: 0 10px 24px -14px rgba(87, 54, 30, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#root .app.ai-app .ai-floating-label svg {
+  color: var(--ai-coral);
+}
+
+/* Primary call-to-action, still driven by the appearance accent */
+#root .app.ai-app .ai-primary {
+  background:
+    radial-gradient(120% 160% at 24% 0%, rgba(255, 255, 255, 0.2), transparent 56%),
+    linear-gradient(150deg, var(--ai-btn-a), var(--ai-btn-b));
+  color: #fff9f1;
+  box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--ai-strong) 72%, rgba(84, 44, 22, 0.5)), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+#root .app.ai-app .ai-primary:hover {
+  background:
+    radial-gradient(120% 160% at 24% 0%, rgba(255, 255, 255, 0.26), transparent 56%),
+    linear-gradient(150deg, var(--ai-btn-a-hover), var(--ai-btn-b));
+  box-shadow: 0 16px 30px -14px color-mix(in srgb, var(--ai-strong) 74%, rgba(84, 44, 22, 0.56)), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+#root .app.ai-app button:focus-visible,
+#root .app.ai-app textarea:focus-visible,
+#root .app.ai-app input:focus-visible {
+  outline-color: color-mix(in srgb, var(--accent) 68%, var(--ai-coral));
+}
+
+/* Dark edition: ember poster */
+#root .app.ai-app.theme-dark .ai-hero {
+  --ai-hero-ink: #f4ead9;
+  --ai-hero-muted: #c6b29c;
+  --ai-hero-line: color-mix(in srgb, var(--ai-apricot) 26%, rgba(255, 240, 222, 0.1));
+  background:
+    radial-gradient(64% 92% at 76% 56%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 72%),
+    radial-gradient(78% 128% at 88% 4%, color-mix(in srgb, var(--ai-apricot) 24%, transparent) 0%, transparent 56%),
+    radial-gradient(66% 118% at 104% 94%, color-mix(in srgb, var(--ai-blue) 16%, transparent) 0%, transparent 62%),
+    radial-gradient(58% 92% at -2% 102%, color-mix(in srgb, var(--ai-coral) 20%, transparent), transparent 66%),
+    linear-gradient(118deg, #2c221c 0%, #291f1a 48%, #241d1a 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 222, 0.07), var(--ai-shadow);
+}
+
+#root .app.ai-app.theme-dark .ai-hero::before {
+  background: radial-gradient(52% 54% at 62% 42%, rgba(255, 214, 166, 0.1), transparent 70%);
+}
+
+#root .app.ai-app.theme-dark .ai-hero::after {
+  opacity: 0.18;
+  mix-blend-mode: soft-light;
+}
+
+#root .app.ai-app.theme-dark .ai-hero-kicker {
+  color: var(--ai-apricot);
+}
+
+#root .app.ai-app.theme-dark .ai-hero h2 {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.24);
+}
+
+#root .app.ai-app.theme-dark .ai-floating-label {
+  background: rgba(42, 33, 27, 0.86);
+  border-color: rgba(255, 232, 202, 0.16);
+  color: #e8d7c1;
+  box-shadow: 0 12px 26px -16px #000;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. HOME PROMPT — a warm editorial search strip
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-home-prompt {
+  background:
+    radial-gradient(90% 180% at 0% 0%, color-mix(in srgb, var(--ai-apricot) 16%, transparent), transparent 55%),
+    linear-gradient(130deg, color-mix(in srgb, var(--ai-surface-strong) 94%, transparent), color-mix(in srgb, var(--ai-surface) 88%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--ai-border));
+  box-shadow: var(--ai-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+#root .app.ai-app .ai-home-prompt > svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-home-prompt input {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-home-prompt input::placeholder {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-home-prompt button {
+  background: linear-gradient(145deg, var(--ai-btn-a), var(--ai-btn-b));
+  color: #fff9f1;
+  box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--accent) 50%, rgba(90, 48, 24, 0.5));
+}
+
+#root .app.ai-app .ai-home-prompt:focus-within {
+  border-color: var(--ai-accent-line);
+  box-shadow: 0 0 0 3px var(--ai-accent-soft), var(--ai-shadow-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. MOOD CARDS — four distinct editorial tints (olive / clay / lilac / amber)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-mood {
+  --mood-a: #e6ebcb;
+  --mood-b: #ccd7a8;
+  --mood-ink: #45542b;
+  --mood-strong: #2f3d1c;
+  --mood-muted: #4a5b2e;
+  --mood-icon: #5b7438;
+  color: var(--mood-ink);
+  background:
+    radial-gradient(130% 110% at 88% -6%, rgba(255, 252, 238, 0.7), transparent 56%),
+    linear-gradient(155deg, var(--mood-a), var(--mood-b));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38),
+    0 12px 26px -24px rgba(79, 50, 29, 0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+#root .app.ai-app .ai-mood--peach {
+  --mood-a: #f7d9bd;
+  --mood-b: #eec29c;
+  --mood-ink: #7c4226;
+  --mood-strong: #622d12;
+  --mood-muted: #6f442b;
+  --mood-icon: #ae5530;
+}
+
+#root .app.ai-app .ai-mood--lilac {
+  --mood-a: #e7ddee;
+  --mood-b: #d6c5e4;
+  --mood-ink: #574467;
+  --mood-strong: #42304f;
+  --mood-muted: #5c4a6b;
+  --mood-icon: #7a5d92;
+}
+
+#root .app.ai-app .ai-mood--sand {
+  --mood-a: #f5e4bf;
+  --mood-b: #ecd29b;
+  --mood-ink: #6f531c;
+  --mood-strong: #573f0f;
+  --mood-muted: #63491c;
+  --mood-icon: #956b24;
+}
+
+/* concentric editorial ring + corner glow, purely decorative */
+#root .app.ai-app .ai-mood::before {
+  content: "";
+  position: absolute;
+  right: -26px;
+  top: -30px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--mood-icon) 30%, transparent);
+  pointer-events: none;
+}
+
+#root .app.ai-app .ai-mood::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: -34px;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--mood-icon) 18%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+#root .app.ai-app .ai-mood > svg,
+#root .app.ai-app .ai-mood > strong,
+#root .app.ai-app .ai-mood > small,
+#root .app.ai-app .ai-mood .ai-mood-arrow {
+  position: relative;
+  z-index: 1;
+}
+
+#root .app.ai-app .ai-mood > svg {
+  color: var(--mood-icon);
+}
+
+#root .app.ai-app .ai-mood strong {
+  color: var(--mood-strong);
+}
+
+#root .app.ai-app .ai-mood small {
+  color: var(--mood-muted);
+}
+
+#root .app.ai-app .ai-mood .ai-mood-arrow {
+  color: var(--mood-icon);
+  opacity: 0.7;
+}
+
+#root .app.ai-app .ai-mood:hover {
+  transform: translateY(-3px);
+  filter: saturate(1.04);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 18px 30px -20px color-mix(in srgb, var(--mood-icon) 42%, rgba(70, 44, 25, 0.4));
+}
+
+#root .app.ai-app .ai-mood:focus-visible {
+  outline-color: var(--mood-icon);
+}
+
+#root .app.ai-app.theme-dark .ai-mood {
+  --mood-a: #3b4330;
+  --mood-b: #333a28;
+  --mood-ink: #d9e2c4;
+  --mood-strong: #eef2df;
+  --mood-muted: #b9c6a2;
+  --mood-icon: #b8cd8a;
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 222, 0.05), 0 14px 28px -22px #000;
+}
+
+#root .app.ai-app.theme-dark .ai-mood--peach {
+  --mood-a: #4a3227;
+  --mood-b: #422b22;
+  --mood-ink: #f0d4b6;
+  --mood-strong: #ffe4c9;
+  --mood-muted: #d1ae8f;
+  --mood-icon: #e8a273;
+}
+
+#root .app.ai-app.theme-dark .ai-mood--lilac {
+  --mood-a: #3a3144;
+  --mood-b: #332a3d;
+  --mood-ink: #e3d8ee;
+  --mood-strong: #f2e9fb;
+  --mood-muted: #c3b2d2;
+  --mood-icon: #c3a8da;
+}
+
+#root .app.ai-app.theme-dark .ai-mood--sand {
+  --mood-a: #453724;
+  --mood-b: #3c3020;
+  --mood-ink: #efdfba;
+  --mood-strong: #ffedc9;
+  --mood-muted: #d0b992;
+  --mood-icon: #dfb767;
+}
+
+#root .app.ai-app.theme-dark .ai-mood::before {
+  border-color: rgba(255, 240, 222, 0.11);
+}
+
+#root .app.ai-app.theme-dark .ai-mood::after {
+  background: radial-gradient(circle, rgba(255, 240, 222, 0.07), transparent 70%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. RECORD CARDS / RECENT LIST — paper print with warm shadows
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-card-art {
+  border-radius: 12px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+#root .app.ai-app .ai-card-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 62%, rgba(74, 43, 24, 0.16) 100%);
+  opacity: 0.55;
+  transition: opacity 0.22s ease;
+}
+
+#root .app.ai-app .ai-card-art .cover {
+  box-shadow: 0 16px 30px -22px rgba(74, 43, 24, 0.55);
+}
+
+/* A faint tinted ring per record position: olive / clay / lilac / amber. */
+#root .app.ai-app .ai-card-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ai-card-tint, var(--ai-coral)) 38%, transparent);
+}
+
+#root .app.ai-app .ai-record-grid .ai-record-card:nth-child(4n + 1) .ai-card-art {
+  --ai-card-tint: var(--ai-olive);
+}
+
+#root .app.ai-app .ai-record-grid .ai-record-card:nth-child(4n + 2) .ai-card-art {
+  --ai-card-tint: var(--ai-clay);
+}
+
+#root .app.ai-app .ai-record-grid .ai-record-card:nth-child(4n + 3) .ai-card-art {
+  --ai-card-tint: var(--ai-lilac);
+}
+
+#root .app.ai-app .ai-record-grid .ai-record-card:nth-child(4n + 4) .ai-card-art {
+  --ai-card-tint: var(--ai-gold);
+}
+
+#root .app.ai-app .ai-card-art .ai-rating,
+#root .app.ai-app .ai-card-art .ai-card-play {
+  z-index: 2;
+}
+
+/* Generated fallback covers are seeded dark hues; warm them so a library
+   without artwork still belongs to the editorial room. The soft-light wash
+   keeps each sleeve's own hue while pulling it toward paper/terracotta. */
+#root .app.ai-app .cover--fallback {
+  filter: sepia(0.12) saturate(1.12) contrast(1.02);
+}
+
+#root .app.ai-app .cover--fallback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(150deg, rgba(233, 164, 95, 0.34), rgba(208, 92, 63, 0.14) 52%, rgba(148, 128, 165, 0.24));
+  mix-blend-mode: soft-light;
+}
+
+#root .app.ai-app .ai-record-card:hover .ai-card-art {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 34px -24px color-mix(in srgb, var(--ai-coral) 42%, rgba(74, 43, 24, 0.4));
+}
+
+#root .app.ai-app .ai-record-card:hover .ai-card-art::after {
+  opacity: 0.8;
+}
+
+#root .app.ai-app .ai-record-card:hover .cover img {
+  transform: scale(1.03);
+}
+
+#root .app.ai-app .ai-record-card > strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-record-card > small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-rating {
+  background: color-mix(in srgb, var(--ai-surface-strong) 88%, transparent);
+  color: var(--ai-coral-deep);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-coral) 20%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#root .app.ai-app .ai-card-play {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--ai-surface-strong) 96%, transparent), color-mix(in srgb, var(--ai-apricot-soft) 58%, var(--ai-surface)));
+  color: var(--ai-coral-deep);
+  box-shadow: 0 8px 18px -10px rgba(88, 48, 24, 0.55), inset 0 0 0 1px color-mix(in srgb, var(--ai-coral) 22%, transparent);
+}
+
+#root .app.ai-app .ai-record-card:hover .ai-card-play,
+#root .app.ai-app .ai-record-card:focus-visible .ai-card-play {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-record-card:hover .ai-card-play:hover {
+  background: linear-gradient(150deg, var(--ai-apricot), var(--ai-coral));
+  color: #fff9f1;
+}
+
+#root .app.ai-app .ai-recent-row {
+  border-bottom: 1px solid var(--ai-border);
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-recent-row:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ai-apricot) 7%, transparent), transparent 70%);
+}
+
+#root .app.ai-app .ai-row-number {
+  color: color-mix(in srgb, var(--ai-coral-deep) 62%, var(--ai-muted));
+}
+
+#root .app.ai-app .ai-recent-song .cover {
+  box-shadow: 0 8px 16px -12px rgba(74, 43, 24, 0.55);
+}
+
+#root .app.ai-app .ai-recent-song strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-recent-song small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-recent-row > button:last-child {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-recent-row > button:last-child:hover {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-import-empty {
+  border: 1px dashed color-mix(in srgb, var(--ai-apricot) 46%, var(--ai-border));
+  background:
+    radial-gradient(90% 130% at 6% 0%, color-mix(in srgb, var(--ai-apricot) 11%, transparent), transparent 60%),
+    color-mix(in srgb, var(--ai-surface) 55%, transparent);
+}
+
+#root .app.ai-app .ai-import-empty > svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-import-empty strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-import-empty p {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-home-footer {
+  border-top: 1px solid var(--ai-border);
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-home-footer > svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-home-footer > span:last-child {
+  color: color-mix(in srgb, var(--ai-coral-deep) 58%, var(--ai-muted));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. ASSISTANT PANEL — the AI workspace as a warm editorial sidebar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-assistant {
+  background:
+    radial-gradient(120% 40% at 100% 0%, color-mix(in srgb, var(--ai-apricot) 16%, transparent), transparent 68%),
+    radial-gradient(110% 36% at 0% 100%, color-mix(in srgb, var(--ai-lilac) 7%, transparent), transparent 66%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ai-surface-strong) 88%, transparent) 0%, color-mix(in srgb, var(--ai-bg) 86%, transparent) 100%);
+  border-left: 1px solid var(--ai-border);
+  backdrop-filter: blur(26px) saturate(126%);
+  -webkit-backdrop-filter: blur(26px) saturate(126%);
+  box-shadow: inset 1px 0 0 var(--ai-highlight), -18px 0 46px -46px rgba(74, 48, 26, 0.55);
+}
+
+#root .app.ai-app.theme-dark .ai-assistant {
+  background:
+    radial-gradient(120% 40% at 100% 0%, color-mix(in srgb, var(--ai-coral) 10%, transparent), transparent 68%),
+    radial-gradient(110% 36% at 0% 100%, color-mix(in srgb, var(--ai-lilac) 7%, transparent), transparent 66%),
+    linear-gradient(180deg, rgba(34, 28, 25, 0.88) 0%, rgba(27, 22, 20, 0.9) 100%);
+  box-shadow: inset 1px 0 0 rgba(255, 240, 222, 0.05), -18px 0 46px -44px #000;
+}
+
+#root .app.ai-app .ai-assistant-header {
+  border-bottom: 1px solid var(--ai-border);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.34), transparent);
+}
+
+#root .app.ai-app .ai-assistant-mark {
+  color: #fff9f0;
+  background:
+    radial-gradient(80% 80% at 30% 20%, rgba(255, 255, 255, 0.3), transparent 58%),
+    linear-gradient(148deg, var(--ai-apricot), var(--ai-coral));
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--ai-coral) 55%, rgba(84, 44, 22, 0.4)), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+#root .app.ai-app .ai-assistant-header strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-assistant-header em {
+  background: var(--ai-accent-soft);
+  color: var(--ai-green);
+}
+
+#root .app.ai-app .ai-assistant-header small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-assistant-header small i {
+  background: var(--ai-olive);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai-olive) 16%, transparent);
+}
+
+#root .app.ai-app .ai-assistant-header button:hover {
+  color: var(--ai-ink);
+  background: var(--ai-soft);
+}
+
+/* Welcome state */
+#root .app.ai-app .ai-welcome-symbol {
+  color: #fff9f0;
+  background:
+    radial-gradient(80% 80% at 30% 22%, rgba(255, 255, 255, 0.28), transparent 56%),
+    linear-gradient(150deg, var(--ai-apricot), var(--ai-coral));
+  box-shadow: 0 16px 30px -18px color-mix(in srgb, var(--ai-coral) 55%, rgba(84, 44, 22, 0.45)), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+#root .app.ai-app .ai-welcome-symbol span {
+  background: var(--ai-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai-blue) 16%, transparent);
+}
+
+#root .app.ai-app .ai-welcome-symbol i {
+  background: var(--ai-olive);
+}
+
+#root .app.ai-app .ai-welcome h2 {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-welcome > p {
+  color: var(--ai-muted);
+}
+
+/* Suggestion cards: one accent hue per card, like index cards */
+#root .app.ai-app .ai-suggestions button {
+  --sug-tint: var(--ai-blue);
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--sug-tint) 9%, var(--ai-surface)), var(--ai-surface) 62%);
+  border-color: var(--ai-border);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--sug-tint) 62%, transparent), var(--ai-shadow-soft);
+}
+
+#root .app.ai-app .ai-suggestions button:nth-child(2) {
+  --sug-tint: var(--ai-olive);
+}
+
+#root .app.ai-app .ai-suggestions button:nth-child(3) {
+  --sug-tint: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-suggestions button:nth-child(4) {
+  --sug-tint: var(--ai-lilac);
+}
+
+#root .app.ai-app .ai-suggestions button > svg {
+  color: var(--sug-tint);
+}
+
+#root .app.ai-app .ai-suggestions button:hover {
+  border-color: color-mix(in srgb, var(--sug-tint) 42%, var(--ai-border));
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--sug-tint) 15%, var(--ai-surface)), var(--ai-surface) 66%);
+  transform: translateX(2px);
+}
+
+#root .app.ai-app .ai-suggestions strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-suggestions small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-suggestions button > span {
+  color: var(--sug-tint);
+}
+
+#root .app.ai-app .ai-local-note p {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-local-note strong {
+  color: var(--ai-ink-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. CONVERSATION — apricot notes, coral replies, paper result cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-user-message {
+  background:
+    radial-gradient(110% 150% at 6% 0%, color-mix(in srgb, var(--ai-apricot) 30%, transparent), transparent 62%),
+    linear-gradient(140deg, color-mix(in srgb, var(--ai-apricot-soft) 78%, var(--ai-surface)), color-mix(in srgb, var(--ai-coral-soft) 58%, var(--ai-surface)));
+  color: var(--ai-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-apricot) 26%, transparent), 0 10px 20px -18px rgba(120, 60, 30, 0.45);
+}
+
+#root .app.ai-app.theme-dark .ai-user-message {
+  background:
+    radial-gradient(110% 150% at 6% 0%, color-mix(in srgb, var(--ai-apricot) 18%, transparent), transparent 62%),
+    linear-gradient(140deg, color-mix(in srgb, var(--ai-apricot) 14%, var(--ai-surface)), color-mix(in srgb, var(--ai-coral) 12%, var(--ai-surface)));
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 222, 0.08);
+}
+
+#root .app.ai-app .ai-reply-label {
+  color: var(--ai-coral-deep);
+  font-weight: 600;
+}
+
+#root .app.ai-app .ai-reply-label svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-turn h3 {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-reply-explanation {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-result-card {
+  background:
+    radial-gradient(120% 200% at 0% 0%, color-mix(in srgb, var(--ai-apricot) 7%, transparent), transparent 55%),
+    var(--ai-surface);
+  border-color: var(--ai-border);
+  box-shadow: var(--ai-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+#root .app.ai-app.theme-dark .ai-result-card {
+  box-shadow: var(--ai-shadow-soft), inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .ai-result-heading {
+  color: var(--ai-muted);
+  background: color-mix(in srgb, var(--ai-apricot) 8%, transparent);
+  border-bottom-color: var(--ai-border);
+}
+
+#root .app.ai-app .ai-result-heading svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-result-track:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ai-apricot) 11%, transparent), transparent 78%);
+}
+
+#root .app.ai-app .ai-result-track .cover {
+  box-shadow: 0 6px 14px -10px rgba(74, 43, 24, 0.55);
+}
+
+#root .app.ai-app .ai-result-track strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-result-track small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-result-track > svg {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-result-track:hover > svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-result-actions {
+  border-top-color: var(--ai-border);
+  background: color-mix(in srgb, var(--ai-apricot) 5%, transparent);
+}
+
+#root .app.ai-app .ai-result-actions > button:not(.ai-primary) {
+  background: color-mix(in srgb, var(--ai-accent-soft) 70%, var(--ai-surface));
+  color: var(--ai-green);
+  box-shadow: inset 0 0 0 1px var(--ai-accent-line);
+}
+
+#root .app.ai-app .ai-result-actions > button:not(.ai-primary):hover {
+  background: var(--ai-accent-soft);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-thinking,
+#root .app.ai-app .ai-response-link {
+  color: var(--ai-green);
+}
+
+#root .app.ai-app .ai-response-link:hover {
+  color: var(--ai-accent-warm);
+}
+
+#root .app.ai-app .ai-response-error {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-response-error button {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-tool-log {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-tool-log summary {
+  color: var(--ai-green);
+}
+
+#root .app.ai-app .ai-tool-log summary:hover {
+  color: var(--ai-accent-warm);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. COMPOSER — a lifted paper card with an accent focus ring
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-compose-area {
+  background:
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--ai-bg) 72%, transparent));
+  box-shadow: inset 0 1px 0 var(--ai-border);
+}
+
+#root .app.ai-app .ai-context-track {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-context-track:hover {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-context-track svg:first-child {
+  color: var(--ai-olive);
+}
+
+#root .app.ai-app .ai-context-track svg:last-child {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-composer {
+  background:
+    radial-gradient(130% 160% at 0% 0%, color-mix(in srgb, var(--ai-apricot) 9%, transparent), transparent 58%),
+    var(--ai-surface-strong);
+  border-color: var(--ai-border-strong);
+  box-shadow: 0 16px 30px -26px rgba(74, 43, 24, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+#root .app.ai-app.theme-dark .ai-composer {
+  box-shadow: 0 16px 30px -24px #000, inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .ai-composer:focus-within {
+  border-color: var(--ai-accent-line);
+  box-shadow: 0 0 0 3px var(--ai-accent-soft), 0 16px 30px -26px rgba(74, 43, 24, 0.5);
+}
+
+#root .app.ai-app .ai-composer textarea {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-composer textarea::placeholder {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-composer > div > span {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-composer > div > span svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-composer button {
+  background: linear-gradient(150deg, var(--ai-btn-a), var(--ai-btn-b));
+  color: #fff9f1;
+  box-shadow: 0 8px 16px -10px color-mix(in srgb, var(--ai-strong) 62%, rgba(84, 44, 22, 0.6)), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+#root .app.ai-app .ai-composer button:hover:not(:disabled) {
+  background: linear-gradient(150deg, var(--ai-btn-a-hover), var(--ai-btn-b));
+}
+
+#root .app.ai-app .ai-compose-hint {
+  color: var(--ai-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   15. PLAYER BAR — warm glass with an editorial rainbow hairline
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .ai-player {
+  background:
+    radial-gradient(80% 180% at 12% 0%, color-mix(in srgb, var(--ai-apricot) 12%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ai-surface-strong) 90%, transparent) 0%, color-mix(in srgb, var(--ai-bg) 94%, transparent) 100%);
+  border-top: 1px solid var(--ai-border);
+  backdrop-filter: blur(30px) saturate(134%);
+  -webkit-backdrop-filter: blur(30px) saturate(134%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 -20px 52px -38px rgba(74, 43, 24, 0.55);
+}
+
+#root .app.ai-app .ai-player::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0 auto 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--ai-coral) 62%, transparent) 16%, color-mix(in srgb, var(--ai-apricot) 68%, transparent) 34%, color-mix(in srgb, var(--ai-blue) 52%, transparent) 56%, color-mix(in srgb, var(--ai-lilac) 52%, transparent) 78%, transparent 100%);
+  opacity: 0.85;
+}
+
+#root .app.ai-app.theme-dark .ai-player {
+  background:
+    radial-gradient(80% 180% at 12% 0%, color-mix(in srgb, var(--ai-coral) 9%, transparent), transparent 58%),
+    linear-gradient(180deg, rgba(37, 31, 27, 0.92) 0%, rgba(27, 22, 20, 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 222, 0.05), 0 -20px 52px -36px #000;
+}
+
+#root .app.ai-app.theme-dark .ai-player::before {
+  opacity: 0.68;
+}
+
+#root .app.ai-app .ai-playing-track strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-playing-track small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-player-cover .cover {
+  box-shadow: 0 10px 20px -12px rgba(74, 43, 24, 0.6);
+}
+
+#root .app.ai-app .ai-player button {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-player button:hover {
+  background: var(--ai-soft);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-player .ai-play-button {
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.24), transparent 56%),
+    linear-gradient(150deg, var(--ai-btn-a), var(--ai-btn-b));
+  color: #fff9f1;
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--ai-strong) 68%, rgba(84, 44, 22, 0.5)), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+#root .app.ai-app .ai-player .ai-play-button:hover {
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.3), transparent 56%),
+    linear-gradient(150deg, var(--ai-btn-a-hover), var(--ai-btn-b));
+  box-shadow: 0 14px 26px -10px color-mix(in srgb, var(--ai-strong) 68%, rgba(84, 44, 22, 0.56)), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+#root .app.ai-app .ai-player .is-active {
+  color: var(--ai-green);
+}
+
+#root .app.ai-app .ai-player .ai-transport-buttons button.is-active {
+  background: var(--ai-accent-soft);
+}
+
+#root .app.ai-app .ai-progress > span {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-player .range {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 78%, var(--ai-coral)) 0 var(--slider-progress), color-mix(in srgb, var(--ai-ink) 14%, transparent) var(--slider-progress) 100%);
+}
+
+#root .app.ai-app .ai-player .range::-webkit-slider-thumb {
+  background: color-mix(in srgb, var(--accent) 82%, var(--ai-coral));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ai-surface-strong) 92%, transparent), 0 2px 6px rgba(74, 43, 24, 0.35);
+  opacity: 1;
+}
+
+#root .app.ai-app .ai-player-tools > button:hover,
+#root .app.ai-app .ai-player-tools > button.is-active {
+  color: var(--ai-coral-deep);
+}
+
+/* Queue popover */
+#root .app.ai-app .ai-queue {
+  background:
+    radial-gradient(120% 100% at 100% 0%, color-mix(in srgb, var(--ai-apricot) 10%, transparent), transparent 62%),
+    color-mix(in srgb, var(--ai-surface-strong) 96%, transparent);
+  border-color: var(--ai-border);
+  box-shadow: 0 28px 70px -30px rgba(60, 36, 20, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(26px) saturate(130%);
+  -webkit-backdrop-filter: blur(26px) saturate(130%);
+}
+
+#root .app.ai-app.theme-dark .ai-queue {
+  box-shadow: 0 28px 70px -28px #000, inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .ai-queue header {
+  background: color-mix(in srgb, var(--ai-apricot) 8%, transparent);
+}
+
+#root .app.ai-app .ai-queue header strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-queue header small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-queue button {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-queue button:hover {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-queue-row:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ai-apricot) 9%, transparent), transparent 80%);
+}
+
+#root .app.ai-app .ai-queue-row strong {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-queue-row small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-queue-row > button > span {
+  color: color-mix(in srgb, var(--ai-coral-deep) 54%, var(--ai-muted));
+}
+
+#root .app.ai-app .ai-empty-copy {
+  color: var(--ai-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   16. DIALOGS, AI CONNECTION & TOASTS — warm paper overlays
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .modal-backdrop {
+  background: rgba(40, 28, 19, 0.3);
+  backdrop-filter: blur(14px) saturate(118%);
+  -webkit-backdrop-filter: blur(14px) saturate(118%);
+}
+
+#root .app.ai-app .modal {
+  background:
+    radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--ai-apricot) 11%, transparent), transparent 60%),
+    linear-gradient(160deg, rgba(255, 251, 245, 0.985), rgba(248, 238, 225, 0.975));
+  border-color: var(--ai-border);
+  box-shadow: 0 44px 100px -46px rgba(60, 36, 20, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app.theme-dark .modal {
+  background:
+    radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--ai-coral) 9%, transparent), transparent 60%),
+    linear-gradient(160deg, rgba(44, 36, 32, 0.985), rgba(31, 26, 23, 0.98));
+  box-shadow: 0 44px 100px -40px #000, inset 0 1px 0 rgba(255, 240, 222, 0.06);
+}
+
+#root .app.ai-app .ai-connection-modal h2 {
+  font-family: var(--font-display);
+  color: var(--ai-ink);
+  letter-spacing: -0.4px;
+}
+
+#root .app.ai-app .ai-connection-modal .modal__eyebrow {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .ai-connection-modal .modal__eyebrow svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-connection-modal .modal__description {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-connection-enable {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-connection-enable input {
+  accent-color: color-mix(in srgb, var(--accent) 80%, var(--ai-coral));
+}
+
+#root .app.ai-app .ai-connection-enable small {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-config-field {
+  color: var(--ai-ink-soft);
+}
+
+#root .app.ai-app .ai-config-field > span {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-config-field > input {
+  background: color-mix(in srgb, var(--ai-surface-strong) 72%, transparent);
+  border-color: var(--ai-border);
+  color: var(--ai-ink);
+  box-shadow: inset 0 1px 2px rgba(74, 43, 24, 0.05);
+}
+
+#root .app.ai-app .ai-config-field > input:focus {
+  outline: none;
+  border-color: var(--ai-accent-line);
+  box-shadow: 0 0 0 3px var(--ai-accent-soft);
+}
+
+#root .app.ai-app .ai-config-note {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .ai-config-note svg {
+  color: var(--ai-coral);
+}
+
+#root .app.ai-app .ai-config-capabilities span {
+  background: color-mix(in srgb, var(--ai-apricot) 13%, var(--ai-surface));
+  color: color-mix(in srgb, var(--ai-ink) 78%, var(--ai-coral-deep));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-apricot) 28%, transparent);
+}
+
+#root .app.ai-app .ai-config-notice {
+  border-color: color-mix(in srgb, var(--ai-apricot) 40%, var(--ai-border));
+  background: color-mix(in srgb, var(--ai-apricot) 10%, transparent);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-config-actions > button {
+  background: var(--ai-accent-soft);
+  color: var(--ai-green);
+  box-shadow: inset 0 0 0 1px var(--ai-accent-line);
+}
+
+#root .app.ai-app .ai-config-actions > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .ai-config-actions > button:first-child {
+  background: none;
+  color: var(--ai-muted);
+  box-shadow: none;
+}
+
+#root .app.ai-app .ai-config-actions > .ai-primary {
+  background: linear-gradient(150deg, var(--ai-btn-a), var(--ai-btn-b));
+  color: #fff9f1;
+  box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--ai-strong) 62%, rgba(84, 44, 22, 0.5));
+}
+
+#root .app.ai-app .ai-config-close:hover {
+  color: var(--ai-ink);
+  background: var(--ai-soft);
+}
+
+/* Toasts inside the AI shell */
+#root .app.ai-app .toast {
+  background: color-mix(in srgb, var(--ai-surface-strong) 92%, transparent);
+  border-color: var(--ai-border);
+  color: var(--ai-ink);
+  box-shadow: 0 20px 44px -24px rgba(60, 36, 20, 0.45);
+}
+
+#root .app.ai-app .toast__icon {
+  background: color-mix(in srgb, var(--ai-apricot) 12%, transparent);
+  color: var(--ai-ink-soft);
+}
+
+#root .app.ai-app .toast--success .toast__icon {
+  color: var(--ai-olive);
+  background: color-mix(in srgb, var(--ai-olive) 16%, transparent);
+}
+
+#root .app.ai-app .toast--error .toast__icon {
+  color: var(--ai-coral-deep);
+  background: color-mix(in srgb, var(--ai-coral) 14%, transparent);
+}
+
+#root .app.ai-app .toast small {
+  color: var(--ai-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   17. SHARED EDITORIAL SURFACES (album / artist / library / discover pages)
+   The AI shell reuses the old page components; keep them in the same room
+   without touching their layout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#root .app.ai-app .page-header h1 {
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .page-header p {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .eyebrow {
+  color: color-mix(in srgb, var(--ai-coral-deep) 70%, var(--ai-muted));
+}
+
+#root .app.ai-app .back-link {
+  color: var(--ai-muted);
+}
+
+#root .app.ai-app .back-link:hover {
+  color: var(--ai-coral-deep);
+}
+
+#root .app.ai-app .detail-hero,
+#root .app.ai-app .artist-hero,
+#root .app.ai-app .playlist-hero,
+#root .app.ai-app .tag-hero {
+  background:
+    radial-gradient(110% 140% at 92% 0%, color-mix(in srgb, var(--ai-apricot) 13%, transparent), transparent 58%),
+    radial-gradient(90% 120% at 4% 100%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    var(--surface);
+  border-color: var(--ai-border);
+  box-shadow: var(--ai-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+#root .app.ai-app.theme-dark .detail-hero,
+#root .app.ai-app.theme-dark .artist-hero,
+#root .app.ai-app.theme-dark .playlist-hero,
+#root .app.ai-app.theme-dark .tag-hero {
+  background:
+    radial-gradient(110% 140% at 92% 0%, color-mix(in srgb, var(--ai-coral) 9%, transparent), transparent 58%),
+    radial-gradient(90% 120% at 4% 100%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%),
+    var(--surface);
+  box-shadow: var(--ai-shadow-soft), inset 0 1px 0 rgba(255, 240, 222, 0.05);
+}
+
+#root .app.ai-app .track-row:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ai-apricot) 7%, transparent), transparent 72%);
+}
+
+#root .app.ai-app .track-row.is-active {
+  background: linear-gradient(90deg, var(--ai-accent-soft), transparent 76%);
+}
+
+#root .app.ai-app .collection-card__cover {
+  box-shadow: 0 17px 34px -19px rgba(56, 35, 20, 0.5);
+}
+
+#root .app.ai-app .collection-card:hover .collection-card__cover {
+  box-shadow: 0 24px 42px -18px color-mix(in srgb, var(--ai-clay) 40%, rgba(56, 35, 20, 0.5));
+}
+
+#root .app.ai-app .empty-stage {
+  background:
+    radial-gradient(90% 120% at 6% 0%, color-mix(in srgb, var(--ai-apricot) 10%, transparent), transparent 58%),
+    var(--surface);
+  border-color: var(--ai-border);
+}
+
+#root .app.ai-app .filter-chip.is-active,
+#root .app.ai-app .tag-pill--soft {
+  box-shadow: inset 0 0 0 1px var(--ai-accent-line);
+}
+
+#root .app.ai-app .stat-strip {
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--ai-surface-strong) 82%, transparent), color-mix(in srgb, var(--ai-apricot) 6%, transparent));
+  box-shadow: inset 0 0 0 1px var(--ai-border), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   18. PARALLEL WORKSTREAM BRIDGE — AI 工作台 / memory / Ultra
+   The AI workspace, conversation-history and memory pages (AiWorkspacePage,
+   memory.ts) ship their own stylesheet, src/ai/workspace.css, with a --ws-*
+   palette that is deliberately aligned with this layer (coral, apricot, lilac,
+   dusty sky, olive). This file therefore leaves those component surfaces to
+   workspace.css and only supplies the shared primitives they reuse:
+   .ai-composer, .ai-turn, .ai-user-message, .ai-result-card, .ai-primary,
+   .ai-tool-log, .ai-source-list (last one is workspace-owned).
+   Ultra (UltraPage / ultra.css) reads the --ai-* tokens declared above, so it
+   inherits this warm room automatically.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Shared assistant surfaces inside the full-width workspace pages keep the
+   same paper language as the docked assistant panel. */
+#root .app.ai-app .ai-conversation-panel {
+  border-color: var(--ai-border);
+}
+
+#root .app.ai-app .ai-conversation-panel .ai-compose-area {
+  box-shadow: inset 0 1px 0 var(--ai-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   19. APPEARANCE PREFERENCE HOOKS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Sans display preference should also soften the AI dialog display serif */
+:root[data-display="sans"] #root .app.ai-app .ai-connection-modal h2 {
+  font-family: var(--font);
+}
+
+/* Crisp corners: keep our added pills / rails in the same language */
+:root[data-corners="crisp"] #root .app.ai-app .ai-search,
+:root[data-corners="crisp"] #root .app.ai-app .ai-date,
+:root[data-corners="crisp"] #root .app.ai-app .ai-label {
+  border-radius: 4px;
+}
+
+/* Still atmosphere: drop the ambient drift + hero grain, keep flat paper */
+:root[data-atmosphere="still"] #root .app.ai-app > .ambient .ambient__blob,
+:root[data-atmosphere="still"] #root .app.ai-app > .ambient .ambient__grain,
+:root[data-atmosphere="still"] #root .app.ai-app .ai-hero::after {
+  display: none;
+}
+
+/* Reduced motion: no decorative lift on cards */
+@media (prefers-reduced-motion: reduce) {
+  #root .app.ai-app .ai-record-card:hover .ai-card-art {
+    transform: none;
+  }
+
+  #root .app.ai-app .ai-suggestions button:hover {
+    transform: none;
+  }
+}
+
+.reduce-motion #root .app.ai-app .ai-record-card:hover .ai-card-art,
+.reduce-motion #root .app.ai-app .ai-suggestions button:hover {
+  transform: none;
+}

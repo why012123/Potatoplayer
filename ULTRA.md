@@ -8,9 +8,15 @@
 
 ## 打开方式
 
-1. 重启 Super（新版本）
-2. 菜单 **Window → Open Potatoplayer Ultra**，或按 `⌘⇧U`
+1. AI 版左侧「音乐工具 → Ultra」，点击「打开 Ultra」
+2. 或菜单 **Window → Open Potatoplayer Ultra**，或按 `⌘⇧U`
 3. 也可以在 `⌘K` 命令面板搜索 **Potatoplayer Ultra**
+
+首次打开时如果 `ultra-rhine/dist` 不存在，页面会现场运行构建；也可以手动：
+
+```sh
+npm run build:ultra
+```
 
 独立启动：
 
@@ -18,7 +24,7 @@
 npm run ultra
 ```
 
-`npm start` 会在资料库变化后自动重建 Ultra。
+`npm run prepare:ultra` 会在资料库变化后重建 Ultra；AI 版主界面启动不会阻塞等待 Ultra 构建。
 
 ## 布局
 
@@ -43,7 +49,7 @@ npm run ultra
 ## 数据与播放
 
 `ultra-rhine/scripts/generate-music-archives.mjs` 读取
-`~/.potatoplayer-super/library.json`，把每条记录映射为：
+`~/.potatomusic-ai/library.json`（或 `POTATOMUSIC_HOME` / `POTATOMUSIC_ULTRA_LIBRARY`，并回退到旧版 `~/.potatoplayer-super/library.json`），把每条记录映射为：
 
 | 字段 | 音乐库 |
 |---|---|
@@ -89,7 +95,7 @@ Super 的渲染器不打包 Three.js。
 
 - 密集阵列中部分封面被前方盒体遮挡；选中后可查看完整封面。
 - 8 列中一次显示约 5 列，左右切换列。
-- 资料库变化后需要重建（`npm run build:ultra`，或重启 Super 时的自动检查）。
+- 资料库变化后需要重建（`npm run build:ultra` 或 `npm run prepare:ultra`）。
 - 不是通用组件库；这是对上游完整应用的 fork。
 
 ## 上游与改动

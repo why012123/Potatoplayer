@@ -36,6 +36,8 @@ export interface PotatoAPI {
   coverPalette(path: string): Promise<Palette | null>;
   coverData(path: string): Promise<string | null>;
   openUltra(): Promise<void>;
+  ultraStatus(): Promise<{ ready: boolean; building: boolean }>;
+  prepareUltra(): Promise<{ ready: boolean }>;
   rendererReady(): void;
   platform: string;
 }

@@ -10,9 +10,26 @@ import path from "node:path";
  * rated tracks each. Search inside the archive still covers those 40 records;
  * the full library remains available in Potatoplayer Super.
  */
-const libraryPath =
-  process.env.POTATOMUSIC_LIBRARY ||
-  path.join(os.homedir(), ".potatoplayer-super", "library.json");
+const aiHome = process.env.POTATOMUSIC_HOME
+  ? path.resolve(process.env.POTATOMUSIC_HOME)
+  : path.join(os.homedir(), ".potatomusic-ai");
+const directLibrary = process.env.POTATOMUSIC_LIBRARY;
+const libraryCandidates = [
+  process.env.POTATOMUSIC_ULTRA_LIBRARY,
+  directLibrary && directLibrary.endsWith(".json") ? directLibrary : null,
+  path.join(aiHome, "library.json"),
+  path.join(os.homedir(), ".potatoplayer-super", "library.json"),
+].filter(Boolean);
+let libraryPath = null;
+for (const candidate of libraryCandidates) {
+  try {
+    await fs.access(candidate);
+    libraryPath = candidate;
+    break;
+  } catch {
+    // Try the next AI / legacy data directory.
+  }
+}
 
 const output = new URL("../content/archives.json", import.meta.url);
 const sample = new URL("../content/archives.sample.json", import.meta.url);
@@ -22,11 +39,13 @@ const useSample = async (reason) => {
   process.exit(0);
 };
 
+if (!libraryPath) await useSample(`no music library in ${libraryCandidates.join(", ")}`);
+console.log(`[ultra] reading the music library from ${libraryPath}`);
 let library;
 try {
   library = JSON.parse(await fs.readFile(libraryPath, "utf8"));
 } catch {
-  await useSample(`no music library at ${libraryPath}`);
+  await useSample(`no readable music library at ${libraryPath}`);
 }
 
 const tracks = Array.isArray(library?.tracks) ? library.tracks : [];

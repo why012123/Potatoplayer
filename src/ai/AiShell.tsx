@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Album, ArrowLeft, ArrowRight, AudioLines, BarChart3, ChevronDown, CloudDownload, Compass, Disc3, FolderOpen, Heart, Home, Layers3, ListMusic, Maximize2, MessageCircle, Moon, Music2, Pause, Play, Plus, Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Sparkles, SquarePen, Sun, Users, Volume2, VolumeX, X, RefreshCw, Gamepad2 } from "lucide-react";
+import { Album, ArrowLeft, ArrowRight, AudioLines, BarChart3, BrainCircuit, ChevronDown, CloudDownload, Compass, Disc3, FolderOpen, Heart, Home, Layers3, ListMusic, Maximize2, MessageCircle, Moon, Music2, Orbit, Pause, Play, Plus, Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Sparkles, SquarePen, Sun, Users, Volume2, VolumeX, X, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useAssistant } from "./assistant";
 import { Cover } from "@/components/Cover";
@@ -9,6 +9,7 @@ import type { View } from "@/types";
 
 const mainNav = [
   { kind: "home", label: "为你精选", icon: Home },
+  { kind: "ai", label: "AI 工作台", icon: BrainCircuit },
   { kind: "discover", label: "在线发现", icon: Compass },
   { kind: "daily", label: "每日推荐", icon: AudioLines },
 ] as const;
@@ -24,13 +25,32 @@ const toolsNav = [
   { kind: "editor", label: "歌曲编辑", icon: SquarePen },
   { kind: "sync", label: "歌单同步", icon: RefreshCw },
   { kind: "comments", label: "音乐评论", icon: MessageCircle },
-  { kind: "dive", label: "Dive", icon: Gamepad2 },
+  { kind: "ultra", label: "Ultra", icon: Orbit },
 ] as const;
 export function AiSidebar() {
   const s = useAppStore();
   const [more, setMore] = useState(false);
   const view = s.viewHistory[s.viewIndex];
   const active = view.kind === "album" ? "albums" : view.kind === "artist" ? "artists" : ["block", "genre"].includes(view.kind) ? "collections" : view.kind;
+  useEffect(() => {
+    if (toolsNav.some((item) => item.kind === view.kind)) setMore(true);
+  }, [view.kind]);
+  const openAssistant = () => {
+    if (view.kind === "ai") {
+      window.dispatchEvent(new Event("potato:focus-workspace-composer"));
+      return;
+    }
+    if (view.kind === "ultra") {
+      s.navigate({ kind: "home" });
+      window.setTimeout(() => {
+        s.setRightPanelOpen(true);
+        window.dispatchEvent(new Event("potato:focus-assistant"));
+      }, 120);
+      return;
+    }
+    s.setRightPanelOpen(true);
+    window.dispatchEvent(new Event("potato:focus-assistant"));
+  };
   const nav = (items: readonly { kind: string; label: string; icon: typeof Home }[]) => items.map(({ kind, label, icon: Icon }) => (
     <button key={kind} className={`ai-nav-item ${active === kind && !s.searchQuery ? "is-active" : ""}`} aria-current={active === kind ? "page" : undefined} onClick={() => s.navigate({ kind } as View)} title={label}>
       <Icon size={18} /><span>{label}</span>{kind === "songs" && <small>{s.tracks.length}</small>}
@@ -41,7 +61,7 @@ export function AiSidebar() {
     <button className="ai-brand" onClick={() => s.navigate({ kind: "home" })} aria-label="Potato Music AI 首页"><span className="ai-logo"><AudioLines size={23} /></span><strong>potato<span>music <em>AI</em></span></strong></button>
     <div className="ai-sidebar-scroll">
       <div className="ai-nav-label">听见新的可能</div><nav aria-label="探索音乐">{nav(mainNav)}</nav>
-      <button className="ai-assistant-shortcut" onClick={() => { s.setRightPanelOpen(true); window.dispatchEvent(new Event("potato:focus-assistant")); }}><Sparkles size={17} /><span>和音乐聊聊天</span><span className="ai-mini-badge">AI</span></button>
+      <button className="ai-assistant-shortcut" onClick={openAssistant}><Sparkles size={17} /><span>和音乐聊聊天</span><span className="ai-mini-badge">AI</span></button>
       <div className="ai-nav-label">我的音乐</div><nav aria-label="我的音乐">{nav(libraryNav)}</nav>
       <div className="ai-nav-label ai-nav-label-row">我的歌单<button title="新建歌单" aria-label="新建歌单" onClick={() => s.openPrompt({ title: "新建歌单", placeholder: "给这段旋律起个名字", confirmLabel: "创建歌单", onSubmit: async (name) => { const p = await s.createPlaylist(name); if (p) s.navigate({ kind: "playlist", id: p.id }); } })}><Plus size={15}/></button></div>
       {s.playlists.length === 0 && <p className="ai-side-hint">把喜欢的旋律，收在一起。</p>}
@@ -49,13 +69,14 @@ export function AiSidebar() {
       <button className="ai-nav-item ai-more" aria-expanded={more} onClick={() => setMore(!more)}><SlidersHorizontal size={17}/><span>音乐工具</span><ChevronDown size={14}/></button>
       {more && nav(toolsNav)}
     </div>
-    <div className="ai-sidebar-bottom"><button className="ai-library-status" onClick={() => void s.chooseLibrary()}><span className="ai-status-dot"/><span>{s.scanning ? "正在整理曲库…" : "本地音乐库"}<small>{s.tracks.length} 首歌曲 · 选择文件夹</small></span><FolderOpen size={16}/></button><button className="ai-nav-item" onClick={() => s.navigate({ kind: "settings" })}><Settings2 size={17}/><span>设置</span><small>v0.1.1</small></button></div>
+    <div className="ai-sidebar-bottom"><button className="ai-library-status" onClick={() => void s.chooseLibrary()}><span className="ai-status-dot"/><span>{s.scanning ? "正在整理曲库…" : "本地音乐库"}<small>{s.tracks.length} 首歌曲 · 选择文件夹</small></span><FolderOpen size={16}/></button><button className="ai-nav-item" onClick={() => s.navigate({ kind: "settings" })}><Settings2 size={17}/><span>设置</span><small>v0.2.0</small></button></div>
   </aside>;
 }
 
 export function AiTopBar() {
   const s = useAppStore();
   const input = useRef<HTMLInputElement>(null);
+  const fullWidthPage = s.viewHistory[s.viewIndex]?.kind === "ai" || s.viewHistory[s.viewIndex]?.kind === "ultra";
   useEffect(() => {
     const focus = () => input.current?.focus();
     window.addEventListener("potato:focus-search", focus);
@@ -63,7 +84,7 @@ export function AiTopBar() {
   }, []);
   return <header className="ai-topbar window-drag"><div className="ai-history no-drag"><button aria-label="后退" disabled={s.viewIndex === 0} onClick={s.goBack}><ArrowLeft size={18}/></button><button aria-label="前进" disabled={s.viewIndex >= s.viewHistory.length - 1} onClick={s.goForward}><ArrowRight size={18}/></button></div>
     <label className="ai-search no-drag"><Search size={16}/><input ref={input} aria-label="搜索资料库" placeholder="搜索歌曲、歌手、专辑…" value={s.searchQuery} onChange={(e) => s.setSearchQuery(e.target.value)}/>{s.searchQuery ? <button aria-label="清除搜索" onClick={() => s.setSearchQuery("")}><X size={14}/></button> : <kbd>⌘ F</kbd>}</label>
-    <div className="ai-top-actions no-drag"><button title="下载任务" aria-label="下载任务" onClick={() => s.setDownloadPanelOpen(true)}><CloudDownload size={18}/></button><button title="切换主题" aria-label="切换主题" onClick={() => s.setTheme(s.theme === "dark" ? "light" : "dark")}>{s.theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button><button className={`ai-toggle ${s.rightPanelOpen ? "is-active" : ""}`} aria-label="切换 AI 助手" aria-pressed={s.rightPanelOpen} onClick={() => s.setRightPanelOpen(!s.rightPanelOpen)}><Sparkles size={16}/><span>AI 助手</span></button></div>
+    <div className="ai-top-actions no-drag"><button title="下载任务" aria-label="下载任务" onClick={() => s.setDownloadPanelOpen(true)}><CloudDownload size={18}/></button><button title="切换主题" aria-label="切换主题" onClick={() => s.setTheme(s.theme === "dark" ? "light" : "dark")}>{s.theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>{!fullWidthPage && <button className={`ai-toggle ${s.rightPanelOpen ? "is-active" : ""}`} aria-label="切换 AI 助手" aria-pressed={s.rightPanelOpen} onClick={() => s.setRightPanelOpen(!s.rightPanelOpen)}><Sparkles size={16}/><span>AI 助手</span></button>}</div>
   </header>;
 }
 

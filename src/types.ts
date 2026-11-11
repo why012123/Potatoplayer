@@ -162,6 +162,8 @@ export type View =
   | { kind: "artists" }
   | { kind: "favorites" }
   | { kind: "daily" }
+  | { kind: "ai" }
+  | { kind: "ultra" }
   | { kind: "dive" }
   | { kind: "comments" }
   | { kind: "stats" }

@@ -26,6 +26,7 @@ const windowTitle = ultraMode
 
 let mainWindow = null;
 let ultraWindow = null;
+let ultraBuildPromise = null;
 let backend = null;
 let quitting = false;
 let captured = false;
@@ -298,6 +299,45 @@ function createWindow() {
   });
 }
 
+function ultraEntryPath() {
+  return path.join(appRoot, "ultra-rhine", "dist", "index.html");
+}
+
+function prepareUltra() {
+  const entry = ultraEntryPath();
+  if (fs.existsSync(entry)) return Promise.resolve({ ready: true });
+  if (ultraBuildPromise) return ultraBuildPromise;
+  ultraBuildPromise = new Promise((resolve, reject) => {
+    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    const child = spawn(npm, ["run", "build:ultra"], {
+      cwd: appRoot,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let log = "";
+    const append = (chunk) => {
+      const value = String(chunk);
+      log = `${log}${value}`.slice(-4000);
+      process.stdout.write(value);
+    };
+    child.stdout?.on("data", append);
+    child.stderr?.on("data", append);
+    child.on("error", (error) => {
+      ultraBuildPromise = null;
+      reject(new Error(`Ultra 构建进程启动失败：${error.message}`));
+    });
+    child.on("exit", (code) => {
+      ultraBuildPromise = null;
+      if (code === 0 && fs.existsSync(entry)) {
+        resolve({ ready: true });
+        return;
+      }
+      reject(new Error(`Ultra 构建失败（退出码 ${code ?? "?"}）：${log.slice(-1200)}`));
+    });
+  });
+  return ultraBuildPromise;
+}
+
 function createUltraWindow() {
   if (ultraWindow && !ultraWindow.isDestroyed()) {
     ultraWindow.show();
@@ -338,7 +378,7 @@ function createUltraWindow() {
     console.error("[ultra] renderer gone", details.reason);
   });
 
-  const ultraEntry = path.join(appRoot, "ultra-rhine", "dist", "index.html");
+  const ultraEntry = ultraEntryPath();
   const ultraSilent = process.env.POTATO_HIDDEN || process.env.POTATO_ULTRA_SILENT === "1";
   if (!fs.existsSync(ultraEntry)) {
     ultraWindow.loadURL(
@@ -530,13 +570,17 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       } catch {
         return false;
       }
-      const allowed = ["bilibili.com", "b23.tv"];
       if (
         url.protocol !== "https:" ||
-        !allowed.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+        url.username ||
+        url.password ||
+        url.hostname === "localhost" ||
+        url.hostname.endsWith(".local")
       ) {
         return false;
       }
+      // Bilibili MV links and AI web sources both use this bridge. Keep the
+      // renderer from opening local endpoints while allowing public citations.
       await shell.openExternal(url.toString());
       return true;
     });
@@ -576,6 +620,8 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     ipcMain.handle("ultra:open", () => {
       createUltraWindow();
     });
+    ipcMain.handle("ultra:status", () => ({ ready: fs.existsSync(ultraEntryPath()), building: Boolean(ultraBuildPromise) }));
+    ipcMain.handle("ultra:prepare", () => prepareUltra());
 
     ipcMain.on("app:renderer-ready", () => {
       if (capturePath) setTimeout(() => void attemptCapture(), 450);

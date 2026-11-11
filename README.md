@@ -27,12 +27,15 @@ npm start
 - 新首页、心情入口、真实曲库精选、最近加入。
 - 底部播放器、播放队列、沉浸播放、收藏和均衡器。
 - DeepSeek 多轮聊天、流式回复、取消、真实操作记录。
+- **AI 工作台**：历史对话持久化，可搜索、置顶、重命名、删除和继续；每首歌有独立记忆，另有一份长期偏好索引。对话和记忆都保存在本机。
+- **联网查资料**：通过 DeepSeek 官方 Search / Fetch 查询歌曲背景、发行、创作者和版本信息，回答附带可点击来源；可在 AI 连接设置里关闭。
+- **Ultra**：AI 版导航中的 Dive 入口由 Ultra 三维 CD 档案页替换，按需构建并在独立窗口打开，与主播放器共享曲库和播放状态。
 - 编辑歌曲的标题、歌手、专辑、评分、备注、分类、年份、歌词覆盖等资料，修改跨重扫保留，音频文件不变。
 - 编排播放队列、创建和管理歌单。
 - 连接已有网易云 API 搜索并加入下载任务。
 - 调整主题、强调色、字体风格、密度、圆角和动效。
 
-独立数据目录：`~/.potatomusic-ai`。原 `potatomusic` 源码没有改动。音乐目录可共用，新增下载仍会进入你选定的音乐目录。
+独立数据目录：`~/.potatomusic-ai`。会话写入 `ai-conversations.json`，歌曲记忆与长期索引写入 `ai-memory.json`；原 `potatomusic` 源码没有改动。音乐目录可共用，新增下载仍会进入你选定的音乐目录。
 
 完整配置、数据编辑边界、当前验证状态：[AI 接入说明](docs/ai-integration.md)。原功能说明：[上游 README](docs/upstream-readme.md)。
 
@@ -46,6 +49,7 @@ npm run test:backend
 npm run test:ai-metadata
 npm run test:migration
 npm run test:ai-ui
+npm run test:ai-workspace
 ```
 
-类型检查、构建、AI 模拟接口测试和真实 Java 后端元数据测试已通过。桌面截图测试受当前执行环境窗口权限限制；真实 DeepSeek 与网易云账号操作需要自行配置 Key/登录后验证。
+类型检查、构建、11 组 AI 模拟接口与工具测试、真实 Java 后端元数据测试、AI 桌面交互测试，以及 AI 工作台/记忆/Ultra 页面的隔离 Electron 测试均已通过。真实 DeepSeek 对话、联网搜索与网易云账号操作需要自行配置 Key/登录后验证。Ultra 第一次打开会现场构建 `ultra-rhine/dist`，可能需要几分钟和网络下载三维依赖。

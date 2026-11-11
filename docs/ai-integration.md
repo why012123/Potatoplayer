@@ -27,17 +27,45 @@ API Key 只交给 Electron 主进程：优先使用 Electron `safeStorage` 加�
 
 资料修改仅写入应用索引，歌词覆盖也保存在索引中，清空覆盖可恢复原歌词。元数据覆盖会跨重扫保留。音频内容、音频文件路径、稳定歌曲 ID、文件大小和解码时长不对模型开放修改。AI 不具备删除音频文件、运行命令或任意访问文件的工具。
 
-用户明确要求的修改会立即执行，工具执行过程显示在对话的操作记录中。删除歌单有原生确认框。停止请求会取消后续工具与网络读取，已经完成的操作不会回滚。会话历史当前只保存在内存中，重启后清空。
+用户明确要求的修改会立即执行，工具执行过程显示在对话的操作记录中。删除歌单有原生确认框。停止请求会取消后续工具与网络读取，已经完成的操作不会回滚。
+
+## AI 工作台与记忆
+
+左侧「AI 工作台」是历史对话和记忆的管理页。
+
+- **历史对话**：每轮最终回复、操作记录、讨论过的歌曲和上下文轨道会保存到 `~/.potatomusic-ai/ai-conversations.json`。支持搜索、置顶、重命名、删除、继续对话；「新对话」只新建会话，不会删除旧记录。
+- **歌曲记忆**：每首歌有独立的摘要和事实列表。聊到当前歌曲、或在提问中出现已记忆的歌名/歌手时，相关记忆会自动进入系统提示。记忆只按稳定的歌曲 ID 绑定，不影响音频文件或歌曲元数据。
+- **长期索引**：稳定的听歌偏好、歌手/风格/场景信息保存在 `ai-memory.json`，每轮对话按重要度和关键词取用。歌曲记忆也会形成一份简短索引表，方便快速回看。
+- **写入方式**：用户明确说「记住」、AI 判断存在值得跨会话保留的信息时，通过 `remember_song` / `remember_preference` 工具写入；也可以在 AI 工作台手动新建、编辑、删除。
+- **边界**：不记录寒暄、临时状态、隐私、密钥或系统内部信息；删除记忆不会删除对话、音频或歌曲资料。
+
+## 联网搜索与引用
+
+在 AI 连接设置中打开「联网搜索」后，模型可以使用 DeepSeek 官方 Search / Fetch API：
+
+- `POST https://api.deepseek.com/v1/tools/search`：按 query 搜索网页，可返回摘要与正文节选。
+- `POST https://api.deepseek.com/v1/tools/fetch`：抓取单个网页并转为 Markdown 正文。
+
+用于歌曲背景、发行时间、创作者、版本、专辑故事、演出等站外信息。工具结果会作为不可信资料交给模型，模型回答时应保留来源；界面会把搜索结果整理成「网页来源」卡片，点击用系统浏览器打开。搜索和抓取按成功请求计费（官方当前为每 1,000 次 5 元），不消耗模型 token 之外的额度；关闭开关后联网工具不会出现在请求的 tools 列表中。
+
+## Ultra
+
+AI 版用 Ultra 三维 CD 档案页替换了原来的 Dive 入口。页面实时读取 AI 版曲库统计，点击「打开 Ultra」会在独立窗口启动 `ultra-rhine`，共享后端与播放状态。首次打开若 `ultra-rhine/dist` 不存在，会通过 Electron IPC 现场运行 `npm run build:ultra`；构建读取 `~/.potatomusic-ai/library.json`（也兼容 `POTATOMUSIC_HOME` / `POTATOMUSIC_ULTRA_LIBRARY`，并回退到旧版 `~/.potatoplayer-super/library.json`）。Dive 旧页面仍保留代码，但不再出现在 AI 版导航、命令面板或当前路由入口。
 
 ## 实现结构
 
 - `src/ai/AiHomePage.tsx`：新首页。
+- `src/ai/AiWorkspacePage.tsx`：AI 工作台（对话历史、歌曲记忆、长期索引）。
+- `src/ai/UltraPage.tsx`：Ultra 目的地页与按需构建/打开。
 - `src/ai/AiShell.tsx`：导航、搜索、底部播放器、队列。
-- `src/ai/AssistantPanel.tsx`：流式对话、歌曲结果卡片、操作记录。
-- `src/ai/AiConnection.tsx`：启用、模型、密钥、连接测试。
-- `src/ai/assistant.ts`：本地匹配和 DeepSeek IPC provider、取消与请求隔离。
-- `electron/ai-service.cjs`：加密配置、SSE 解析、多轮工具调用、超时与历史管理。
-- `electron/ai-tools.cjs`：JSON Schema、参数验证、受限工具执行。
+- `src/ai/AssistantPanel.tsx`：流式对话、歌曲结果卡片、来源卡片、操作记录。
+- `src/ai/AiComposer.tsx` / `AiTurnView.tsx`：侧栏与工作台共用的输入和对话渲染。
+- `src/ai/AiConnection.tsx`：启用、模型、密钥、连接测试、联网搜索开关。
+- `src/ai/assistant.ts`：本地匹配和 DeepSeek IPC provider、会话状态、取消与请求隔离。
+- `src/ai/memory.ts`：记忆快照、保存、删除。
+- `electron/ai-service.cjs`：加密配置、SSE 解析、多轮工具调用、超时、会话/记忆存储、Search/Fetch。
+- `electron/ai-conversations.cjs` / `ai-memory.cjs`：原子写入的本地会话与记忆存储。
+- `electron/ai-tools.cjs`：JSON Schema、参数验证、受限工具执行、来源收集。
 - `Backend.patchMetadata` / `Track.metadataOverrides`：索引编辑与重扫保护。
 
 工具调用每轮最多 10 个模型往返、40 个工具调用；单次网络/执行会话超时 180 秒。工具仅接受显式参数和已存在曲库 ID，外观更新等待渲染层确认后才报告成功。模型回应与曲库文本按纯文本渲染，不执行返回的 HTML 或脚本。
@@ -51,18 +79,20 @@ npm run test:ai
 npm run test:backend
 npm run test:ai-metadata
 npm run test:ai-ui
+npm run test:ai-workspace
 ```
 
-已通过：TypeScript、前端构建、7 组 AI 接口与工具测试、原后端 2172 项检查，以及真实 Java 后端元数据集成测试（13 个字段、重扫保留、无效修改不部分落盘、歌词读取、歌单、队列、音频 SHA-256 不变）。AI 网络测试使用模拟 DeepSeek SSE，未消耗真实 API 额度。
+已通过：TypeScript、前端构建、11 组 AI 接口与工具测试（含会话重启持久化、记忆注入、Search 工具与联网开关）、原后端检查、真实 Java 后端元数据集成测试，以及隔离 Electron 的 AI UI/工作台/记忆/Ultra 页面测试。AI 网络测试使用模拟 DeepSeek SSE 与模拟 Search 响应，未消耗真实 API 额度。
 
-开发执行环境阻止 Electron/Chromium 创建 macOS 窗口（MachPortRendezvous permission denied），因此此次无法完成自动化截图和桌面交互验证。`test:ai-ui` 已提供独立的无声音频夹具，供正常桌面环境执行。当前未提供真实 DeepSeek Key，真实模型对话与真实网易云账号下载仍需在配置后验证。构建沿用原工程的大包体与 lyric3d 输出目录提示。
+真实 DeepSeek 对话、联网搜索与真实网易云账号下载仍需配置后验证；Ultra 首次构建需要网络安装 `ultra-rhine` 的三维依赖。
 
 ## 官方依据
 
 - https://api-docs.deepseek.com/zh-cn/
 - https://api-docs.deepseek.com/zh-cn/guides/tool_calls/
+- https://api-docs.deepseek.com/zh-cn/guides/search
 
-实现采用官方 Chat Completions、SSE 流式输出与 Function Calling，默认关闭 thinking，以简化工具连续执行的消息管理。
+实现采用官方 Chat Completions、SSE 流式输出、Function Calling 与 Search / Fetch API，默认关闭 thinking，以简化工具连续执行的消息管理。
 
 
 ## 0.1.1 原版数据补迁移
