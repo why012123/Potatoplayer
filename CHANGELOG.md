@@ -30,6 +30,10 @@ All notable changes to Potatoplayer Super are documented here.
 - AI 工作台在进入具体对话后收起大幅 hero，让对话、结果卡片和输入框适配一屏高度。
 - 对话、歌曲结果卡片和来源卡片统一由 `AiTurnView` 渲染，侧栏与工作台保持一致。
 
+### Fixed
+
+- **FLAC 年份补全**：旧索引已经带有标题/歌手/时长时，扫描器过去会跳过音频标签；现在只要年份未知也会读取 `DATE` / `YEAR` 标签。资料库 schema 升到 3，旧库升级后首次启动会自动重扫补全。真实曲库验证：384 首中 380 首有年份，剩余 4 首没有年份标签；示例 `KAKO - 15cm.flac` 从 0 补到 2007，`Train - 50 Ways to Say Goodbye.flac` 补到 2012。
+
 ### Validation
 
 - `npm run typecheck`、`npm run build:renderer`、`npm run test:ai`（11 组，含会话重启持久化、记忆注入、Search 工具、联网开关）、`npm run test:ai-ui`。

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "ai0.1.1";
+    public static final String VERSION = "ai0.2.0";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -89,7 +89,9 @@ public final class Backend implements PlaybackController.Host {
             ensureTrackTaxonomyLocked();
             scanNeeded = state.tracks.isEmpty()
                     || !settings.libraryRoot.equals(state.libraryRoot)
-                    || state.schemaVersion < 2;
+                    // Schema 3 reads release years from audio tags for libraries
+                    // imported from legacy entries that already had title/artist.
+                    || state.schemaVersion < 3;
         }
         this.playback = new PlaybackController(this);
         this.playback.warmUpAsync();
@@ -188,7 +190,7 @@ public final class Backend implements PlaybackController.Host {
                     state.scannedAt = System.currentTimeMillis();
                     rebuildIndex();
                     ensureTaxonomyLocked();
-                    state.schemaVersion = 2;
+                    state.schemaVersion = 3;
                     // Favorites and playlist membership are user data. Keep them even
                     // while switching roots; missing IDs simply resolve once the
                     // matching library is selected again.

@@ -127,7 +127,7 @@ public final class LibraryScanner {
             }
         }
 
-        if (track.duration <= 0 || !notBlank(track.title) || !notBlank(track.artist)) {
+        if (needsMetadata(track)) {
             Metadata metadata = readMetadata(absolute, track.id);
             if (metadata != null) {
                 if (notBlank(metadata.title)) {
@@ -208,6 +208,18 @@ public final class LibraryScanner {
             track.note = "";
         }
         return track;
+    }
+
+    /**
+     * Legacy entries carry title/artist/duration, so the old fast path skipped
+     * reading audio tags entirely. Read when the year is unknown too: FLACs
+     * frequently store the release year as a DATE/Vorbis tag.
+     */
+    static boolean needsMetadata(Track track) {
+        return track.duration <= 0
+                || !notBlank(track.title)
+                || !notBlank(track.artist)
+                || track.year <= 0;
     }
 
     private Metadata readMetadata(Path file, String id) {

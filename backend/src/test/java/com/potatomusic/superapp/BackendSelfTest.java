@@ -13,6 +13,7 @@ public final class BackendSelfTest {
 
     public static void main(String[] args) throws Exception {
         testFileNameParsing();
+        testScannerMetadataNeed();
         testStableIds();
         testLrcParsing();
         testLegacyImport();
@@ -121,6 +122,22 @@ public final class BackendSelfTest {
         String[] doubleDash = LibraryScanner.splitFileName("Artist - Song - Live.flac");
         check("Artist".equals(doubleDash[0]), "only the first separator is used");
         check("Song - Live".equals(doubleDash[1]), "the rest of the title is preserved");
+    }
+
+    private static void testScannerMetadataNeed() {
+        Track legacy = new Track();
+        legacy.title = "A";
+        legacy.artist = "B";
+        legacy.duration = 120;
+        legacy.year = 0;
+        check(LibraryScanner.needsMetadata(legacy), "unknown year reads tags even with legacy metadata");
+        legacy.year = 2007;
+        check(!LibraryScanner.needsMetadata(legacy), "known year can use the metadata fast path");
+        Track missingDuration = new Track();
+        missingDuration.title = "A";
+        missingDuration.artist = "B";
+        missingDuration.year = 2007;
+        check(LibraryScanner.needsMetadata(missingDuration), "missing duration still reads tags");
     }
 
     private static void testStableIds() {
