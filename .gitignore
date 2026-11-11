@@ -1,0 +1,52 @@
+# Node / renderer
+node_modules/
+dist/
+dist-electron/
+release/
+*.log
+npm-debug.log*
+
+# Java
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven wrapper cache / downloaded jars
+.mvn/wrapper/maven-wrapper.jar.tmp
+backend/.deps/
+
+# Runtime data (normally in ~/.potatoplayer-super)
+data/
+covers/
+
+# Generated native Now Playing helper (rebuilt by npm start)
+build/media-remote/
+
+# Generated 3D stage bundle (rebuilt by npm run build:renderer)
+public/lyric3d/stage.bundle.js
+
+# Local screenshots / scratch
+*.tmp.png
+docs/screenshots/*.raw.png
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Credentials and local settings that must never be committed
+netease_cookie.txt
+*.cookie
+.env
+
+ai-settings.json
+ai-settings.json.tmp
+.env.*

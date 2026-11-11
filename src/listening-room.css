@@ -1,0 +1,252 @@
+/* Super — translucent iOS materials. Keep Brief's separate paper treatment.
+   Three optical depths: window glass, inset glass, and raised control glass.
+   Alpha is intentional: the album atmosphere must remain visible underneath. */
+:root[data-style] .app:not(.brief) {
+  --frost-window: linear-gradient(145deg, rgb(255 255 255 / .48), rgb(255 255 255 / .19));
+  --frost-inset: linear-gradient(145deg, rgb(255 255 255 / .30), rgb(255 255 255 / .12));
+  --frost-control: linear-gradient(155deg, rgb(255 255 255 / .74), rgb(255 255 255 / .36));
+  --frost-edge: rgb(255 255 255 / .46);
+  --frost-highlight: rgb(255 255 255 / .50);
+  --frost-shadow: 0 16px 44px -18px rgb(47 53 73 / .18), 0 2px 6px rgb(47 53 73 / .035);
+  --frost-raised: 0 5px 16px -6px rgb(47 53 73 / .17);
+  --frost-wash: rgb(248 250 255 / .22);
+  --frost-hero: rgb(250 252 255 / .64);
+  --frost-hover: rgb(255 255 255 / .32);
+}
+:root[data-style][data-theme="dark"] .app:not(.brief) {
+  --frost-window: linear-gradient(145deg, rgb(49 53 65 / .48), rgb(24 28 40 / .35));
+  --frost-inset: linear-gradient(145deg, rgb(255 255 255 / .075), rgb(255 255 255 / .025));
+  --frost-control: linear-gradient(155deg, rgb(255 255 255 / .19), rgb(255 255 255 / .075));
+  --frost-edge: rgb(255 255 255 / .15);
+  --frost-highlight: rgb(255 255 255 / .23);
+  --frost-shadow: 0 18px 48px -16px rgb(0 0 0 / .40), 0 2px 6px rgb(0 0 0 / .12);
+  --frost-raised: 0 6px 20px -8px rgb(0 0 0 / .45);
+  --frost-wash: rgb(13 17 28 / .38);
+  --frost-hero: rgb(23 28 40 / .70);
+  --frost-hover: rgb(255 255 255 / .09);
+}
+
+/* A softly coloured canvas supplies the light that the glass diffuses. */
+:root[data-style] .app:not(.brief) .ambient {
+  background:
+    radial-gradient(ellipse at 6% 8%, #f9decf, transparent 60%),
+    radial-gradient(ellipse at 92% 18%, #bccfea, transparent 65%),
+    linear-gradient(145deg, #e7deed, #e8eaf2 50%, #d2e3e4);
+}
+:root[data-style] .app:not(.brief) .ambient__wash {
+  background:
+    radial-gradient(ellipse at 8% 0%, rgb(255 255 255 / .34), transparent 65%),
+    linear-gradient(125deg, var(--frost-wash), var(--frost-wash));
+}
+:root[data-style] .app:not(.brief) .ambient__art {
+  filter: blur(90px) saturate(145%) brightness(1.05);
+  opacity: .62;
+}
+:root[data-style] .app:not(.brief) .ambient__grain { opacity: .018; }
+:root[data-style][data-theme="dark"] .app:not(.brief) .ambient {
+  background:
+    radial-gradient(ellipse at 5% 5%, #443847, transparent 65%),
+    radial-gradient(ellipse at 96% 20%, #28415e, transparent 65%), #121822;
+}
+:root[data-style][data-theme="dark"] .app:not(.brief) .ambient__art {
+  filter: blur(90px) saturate(140%) brightness(.48);
+  opacity: .55;
+}
+
+/* Continuous rounded surfaces with a fine, luminous upper edge. */
+:root[data-style] .app:not(.brief) :is(.sidebar, .page-shell, .now-playing) {
+  background: var(--frost-window);
+  border: 1px solid var(--frost-edge);
+  box-shadow: var(--frost-shadow), inset 0 1px 0 var(--frost-highlight), inset 0 -1px 0 rgb(255 255 255 / .05);
+  -webkit-backdrop-filter: blur(38px) saturate(155%);
+  backdrop-filter: blur(38px) saturate(155%);
+}
+:root[data-style] .app:not(.brief) :is(.sidebar, .page-shell, .now-playing)::after {
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / .10);
+}
+:root[data-style] .app:not(.brief) .now-playing__glow { opacity: .18; }
+:root[data-style] .app:not(.brief) :is(.library-card, .stat-strip, .taxonomy-overview, .home-customizer) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), 0 4px 16px -12px rgb(30 40 60 / .16);
+}
+
+/* Search and selected controls float one material level above their parent. */
+:root[data-style] .app:not(.brief) :is(.topbar__search, .nav-item__pill, .button--glass, .np-tabs__pill) {
+  background: var(--frost-control);
+  border: 1px solid var(--frost-edge);
+  box-shadow: var(--frost-raised), inset 0 1px 0 var(--frost-highlight);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+:root[data-style] .app:not(.brief) .topbar__search {
+  border-radius: 999px;
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+:root[data-style] .app:not(.brief) .topbar__search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--frost-edge));
+  box-shadow: var(--frost-raised), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+:root[data-style] .app:not(.brief) .nav-item.is-active { color: var(--text); }
+:root[data-style] .app:not(.brief) .nav-item.is-active > svg { color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+:root[data-style] .app:not(.brief) .np-tabs {
+  background: rgb(100 110 135 / .08);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 3px rgb(30 40 60 / .035);
+}
+:root[data-style] .app:not(.brief) .button--glass:hover:not(:disabled) { background: var(--frost-hover); }
+
+/* Artwork stays upright, with the ambient colour glowing through its stage. */
+:root[data-style] .app:not(.brief) .hero {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: var(--frost-raised), inset 0 1px 0 var(--frost-highlight);
+}
+:root[data-style] .app:not(.brief) .hero__backdrop { opacity: .32; filter: blur(45px) saturate(130%); }
+:root[data-style] .app:not(.brief) .hero__shade {
+  background: linear-gradient(110deg, transparent, var(--frost-hero));
+}
+:root[data-style] .app:not(.brief) .hero__rings { opacity: .16; }
+:root[data-style] .app:not(.brief) .hero__cover {
+  filter: none;
+  box-shadow: 0 16px 26px -14px rgb(25 30 45 / .38), 0 3px 8px rgb(25 30 45 / .08);
+}
+:root[data-style] .app:not(.brief) .now-playing__art {
+  box-shadow: 0 18px 32px -16px rgb(25 30 45 / .38), 0 2px 8px rgb(25 30 45 / .08);
+}
+:root[data-style] .app:not(.brief) .media-card__cover { transition: box-shadow .22s ease; }
+:root[data-style] .app:not(.brief) .media-card:hover .media-card__cover { box-shadow: 0 12px 22px -10px rgb(25 30 45 / .28); }
+:root[data-style] .app:not(.brief) .track-row:hover { background: var(--frost-hover); }
+:root[data-style] .app:not(.brief) .empty-stage {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight);
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-style] .app:not(.brief) { --frost-window: #eef0f5; --frost-inset: #e6e9ef; --frost-control: #f8f9fc; }
+  :root[data-style][data-theme="dark"] .app:not(.brief) { --frost-window: #232936; --frost-inset: #292f3d; --frost-control: #343c4c; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style] .app:not(.brief) :is(.topbar__search, .media-card__cover) { transition: none; }
+}
+
+:root[data-style] .app:not(.brief) .page--home > .hero { margin-bottom: 18px; }
+
+/* Inner pages use the same neutral glass as the shell. Older editorial tokens
+   were still painting warm, almost opaque rectangles inside that glass. */
+:root[data-style] .app:not(.brief) .page-shell {
+  --glass: var(--frost-inset);
+  --surface-soft: rgb(255 255 255 / .24);
+  --surface-quiet: rgb(255 255 255 / .12);
+  --surface-strong: rgb(255 255 255 / .46);
+}
+:root[data-style][data-theme="dark"] .app:not(.brief) .page-shell {
+  --surface-soft: rgb(255 255 255 / .07);
+  --surface-quiet: rgb(255 255 255 / .035);
+  --surface-strong: rgb(255 255 255 / .14);
+}
+:root[data-style] .app:not(.brief) .page-shell .glass {
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-raised);
+  /* The containing shell already diffuses the artwork. No second large blur. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style="classic"] .app:not(.brief) .library-controls.glass {
+  box-shadow: none;
+}
+:root[data-style] .app:not(.brief) .library-controls :is(.list-toolbar, .taxonomy-filterbar) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style="classic"] .app:not(.brief) .library-controls :is(.list-toolbar, .taxonomy-filterbar) {
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-raised);
+}
+:root[data-style] .app:not(.brief) .track-table__head {
+  color: var(--muted);
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight);
+  -webkit-backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(140%);
+  backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(140%);
+}
+:root[data-control-blur="false"][data-style] .app:not(.brief) .track-table__head {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-style] .app:not(.brief) :is(.sort-control, .taxonomy-select) {
+  background: var(--frost-inset);
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight);
+}
+:root[data-style] .app:not(.brief) .page--comments {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+:root[data-style] .app:not(.brief) :is(.comments-hero, .comments-page) {
+  border-radius: var(--radius-panel);
+}
+:root[data-style] .app:not(.brief) .comments-page {
+  max-width: none;
+  padding: 4px 24px 20px;
+}
+:root[data-style] .app:not(.brief) .comments-hero {
+  padding: 22px;
+}
+:root[data-style] .app:not(.brief) .comments-source {
+  color: color-mix(in srgb, var(--accent) 58%, var(--text));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--frost-edge));
+  border-radius: var(--radius-small);
+}
+:root[data-style] .app:not(.brief) .comment-item {
+  padding-block: 17px;
+  border-color: var(--line-dark);
+}
+:root[data-style] .app:not(.brief) .comment-item__head { flex-wrap: wrap; gap: 4px 8px; }
+:root[data-style] .app:not(.brief) .comment-item__head strong { font-size: 11.5px; }
+:root[data-style] .app:not(.brief) .comment-item__text { font-size: 12.5px; line-height: 1.75; }
+:root[data-style] .app:not(.brief) :is(.comment-item__head span, .comment-item__liked) { color: var(--muted); }
+:root[data-style] .app:not(.brief) .comment-item__reply {
+  background: var(--surface-quiet);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+:root[data-style] .app:not(.brief) .comment-item__avatar { background: var(--surface-soft); }
+@media (max-width: 620px) {
+  :root[data-style] .app:not(.brief) :is(.comments-hero, .comments-page) { padding-inline: 14px; }
+  :root[data-style] .app:not(.brief) .comments-hero__meta { flex-wrap: wrap; }
+}
+
+/* Playlist surfaces inherit the room tint; primary actions remain easy to find. */
+:root[data-style] .app:not(.brief) .page--playlist .playlist-hero {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), 0 12px 32px rgb(35 50 62 / 6%);
+  overflow: visible;
+}
+.playlist-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.playlist-actions > .button { min-height: 36px; padding: 0 14px; border-radius: 12px; white-space: nowrap; }
+.app:not(.brief) .playlist-actions > .button--glass { background: var(--surface-quiet); box-shadow: none; border: 1px solid var(--frost-edge); }
+.playlist-more { position: relative; }
+.playlist-more summary { list-style: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; color: var(--muted); }
+.playlist-more summary::-webkit-details-marker { display: none; }
+.playlist-more summary:hover, .playlist-more[open] summary { background: var(--surface-soft); color: var(--text); }
+.playlist-more__menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 210px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass-strong); box-shadow: 0 16px 40px rgb(0 0 0 / 16%); }
+.playlist-more__menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.playlist-more__menu button:hover { background: var(--surface-soft); }
+.playlist-more__menu button:disabled { opacity: .4; cursor: default; }
+.playlist-more__menu button:last-child { border-top: 1px solid var(--line); margin-top: 4px; color: #ba4c56; }
+.playlist-sort-hint { color: var(--muted); font-size: 11px; margin: 12px 0 4px; }
+.track-table__row-wrap.is-reorderable { padding-left: 22px; }
+.playlist-drag-handle { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 22px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); opacity: .55; cursor: grab; }
+.playlist-drag-handle:hover, .playlist-drag-handle:focus-visible { opacity: 1; color: var(--accent); }
+.is-drop-target { box-shadow: inset 0 2px var(--accent); }
+.playlist-drop-end { height: 12px; }
+.playlist-drop-end.is-dragging { height: 40px; display: grid; place-items: center; border: 1px dashed var(--accent); border-radius: 8px; color: var(--muted); font-size: 11px; }
+@media (max-width: 900px) { .playlist-actions { gap: 8px; } .playlist-actions > .button { padding-inline: 10px; } }
+
+.page--playlist .playlist-hero:has(.playlist-more[open]) { position: relative; z-index: 10; }
+.page--playlist .track-table:has(.playlist-drag-handle) .track-table__head { padding-left: 30px; }
