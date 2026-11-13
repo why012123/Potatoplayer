@@ -56,8 +56,9 @@ export function AssistantPanel() {
         {assistant.turns.length === 0 && (
           <div className="ai-welcome">
             <div className="ai-welcome-symbol"><Sparkles size={31} strokeWidth={1.4} /><span /><i /></div>
-            <h2>下一首，听什么？</h2>
-            <p>告诉我歌名、歌手，或你想听的感觉。</p>
+            <div className="ai-eyebrow">YOUR MUSIC COMPANION</div>
+            <h2>下一首，<br />一起找到它。</h2>
+            <p>告诉我想听什么。<br />从你的音乐里，找一点共鸣。</p>
             <div className="ai-suggestions">
               {[
                 { icon: Search, title: "帮我找首歌", subtitle: "记得歌名，或者歌手？", prompt: "" },

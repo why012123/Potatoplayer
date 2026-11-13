@@ -16,19 +16,15 @@ import {
   ScanLine,
   Search,
   Sparkles,
-  SlidersHorizontal,
   WifiOff,
 } from "lucide-react";
-import type { DownloadQuality, NeteasePlaylist, NeteaseSong, NeteaseStatus, OnlineSource } from "@/types";
+import type { DownloadQuality, NeteasePlaylist, NeteaseSong, NeteaseStatus } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
 import { PageHeader } from "@/components/Headers";
 import { coverGradient, onlineImageUrl } from "@/lib/covers";
 import { formatTime, initials } from "@/lib/format";
-
-import { connectOnline, onlineStatus, rememberOnlineStatus } from "@/lib/online-session";
-import "./discover.css";
 
 type Mode = "search" | "daily" | "playlists";
 
@@ -105,7 +101,7 @@ function SongRow({
         disabled={downloading}
         title={
           owned
-            ? tr("Already downloaded — choosing a higher quality re-downloads and replaces the file", "已下载过；选择更高音质会重新下载并替换文件")
+            ? tr("Already downloaded — update its block and genre", "已下载过，只更新区块与流派")
             : tr("Download and add to your library", "下载并添加到资料库")
         }
       >
@@ -116,22 +112,7 @@ function SongRow({
   );
 }
 
-type DiscoverView = {
-  mode: Mode;
-  query: string;
-  results: NeteaseSong[];
-  daily: NeteaseSong[];
-  playlists: NeteasePlaylist[];
-  activePlaylist: { id: string; name: string; coverUrl: string; tracks: NeteaseSong[] } | null;
-};
-const views = new Map<OnlineSource, DiscoverView>();
-
 export function DiscoverPage() {
-  const source = useAppStore((state) => state.onlineSource);
-  return <DiscoverContent key={source} />;
-}
-
-function DiscoverContent() {
   const tr = useTr();
   const libraryRoot = useAppStore((state) => state.libraryRoot);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -154,17 +135,12 @@ function DiscoverContent() {
     }
     return ids;
   }, [tracks, onlineSource]);
-  const saved = views.get(onlineSource);
-  const [status, updateStatus] = useState<NeteaseStatus | null>(() => onlineStatus(onlineSource));
-  const setStatus = useCallback((next: NeteaseStatus) => {
-    rememberOnlineStatus(onlineSource, next);
-    updateStatus(next);
-  }, [onlineSource]);
-  const [loading, setLoading] = useState(() => !onlineStatus(onlineSource));
+  const [status, setStatus] = useState<NeteaseStatus | null>(null);
+  const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [aliasSyncing, setAliasSyncing] = useState(false);
-  const [mode, setMode] = useState<Mode>(saved?.mode ?? "search");
-  const [query, setQuery] = useState(saved?.query ?? "");
+  const [mode, setMode] = useState<Mode>("search");
+  const [query, setQuery] = useState("");
   const [downloadBlock, setDownloadBlockState] = useState(() => {
     try {
       return localStorage.getItem("potato:download-block") ?? "";
@@ -195,18 +171,18 @@ function DiscoverContent() {
       // Storage is optional.
     }
   };
-  const [results, setResults] = useState<NeteaseSong[]>(saved?.results ?? []);
+  const [results, setResults] = useState<NeteaseSong[]>([]);
   const [searching, setSearching] = useState(false);
-  const [daily, setDaily] = useState<NeteaseSong[]>(saved?.daily ?? []);
+  const [daily, setDaily] = useState<NeteaseSong[]>([]);
   const [dailyLoading, setDailyLoading] = useState(false);
-  const [playlists, setPlaylists] = useState<NeteasePlaylist[]>(saved?.playlists ?? []);
+  const [playlists, setPlaylists] = useState<NeteasePlaylist[]>([]);
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [activePlaylist, setActivePlaylist] = useState<{
     id: string;
     name: string;
     coverUrl: string;
     tracks: NeteaseSong[];
-  } | null>(saved?.activePlaylist ?? null);
+  } | null>(null);
   const [qr, setQr] = useState<{ key: string; qrImage: string | null } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrMessage, setQrMessage] = useState("");
@@ -215,39 +191,57 @@ function DiscoverContent() {
   const [cookieBusy, setCookieBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    views.set(onlineSource, { mode, query, results, daily, playlists, activePlaylist });
-  }, [onlineSource, mode, query, results, daily, playlists, activePlaylist]);
+  const autoStartAttempted = useRef(false);
   const sourceName = onlineSource === "qq" ? "QQ Music" : "NetEase Cloud Music";
   const sourceShort = onlineSource === "qq" ? "QQ MUSIC" : "NETEASE";
   const invokeOnline = <T,>(method: string, params?: Record<string, unknown>) =>
     window.potato.invoke<T>(`${onlineSource}.${method}`, params);
+  const onlineQuality = (value: string) =>
+    onlineSource === "qq"
+      ? value === "standard"
+        ? "128"
+        : value === "lossless"
+          ? "flac"
+          : "320"
+      : value;
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     setError(null);
     try {
-      updateStatus(await connectOnline(onlineSource, true));
+      let next = await invokeOnline<NeteaseStatus>("status");
+      if (!next.service && next.canStart && !autoStartAttempted.current) {
+        autoStartAttempted.current = true;
+        setStarting(true);
+        try {
+          next = await invokeOnline<NeteaseStatus>("startService");
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setStarting(false);
+        }
+      }
+      setStatus(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [onlineSource, setStatus]);
+  }, [onlineSource]);
 
   useEffect(() => {
-    let active = true;
-    void connectOnline(onlineSource).then((next) => {
-      if (active) updateStatus(next);
-    }).catch((e) => {
-      if (active) {
-        updateStatus(onlineStatus(onlineSource));
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
-    return () => { active = false; };
-  }, [onlineSource, setStatus]);
+    autoStartAttempted.current = false;
+    setStatus(null);
+    setResults([]);
+    setDaily([]);
+    setPlaylists([]);
+    setActivePlaylist(null);
+    setError(null);
+    setQr(null);
+    setQrMessage("");
+    setLoading(true);
+    void refresh();
+  }, [onlineSource, refresh]);
 
   const syncAliases = async () => {
     setAliasSyncing(true);
@@ -440,7 +434,7 @@ function DiscoverContent() {
       await invokeOnline("download", {
         id: song.id,
         title: song.name,
-        quality: quality,
+        quality: onlineQuality(quality),
         block: downloadBlock,
         genre: downloadGenre,
       });
@@ -460,7 +454,7 @@ function DiscoverContent() {
         await invokeOnline("download", {
           id: song.id,
           title: song.name,
-          quality: quality,
+          quality: onlineQuality(quality),
           block: downloadBlock,
           genre: downloadGenre,
         });
@@ -479,7 +473,7 @@ function DiscoverContent() {
     if (!activePlaylist) return;
     await importNeteasePlaylist(
       { name: activePlaylist.name, tracks: activePlaylist.tracks.map((song) => ({ id: song.id, name: song.name, artists: song.artists })) },
-      quality,
+      onlineQuality(quality),
       downloadBlock,
       downloadGenre,
     );
@@ -729,13 +723,13 @@ function DiscoverContent() {
         eyebrow={tr("Online", "在线")}
         title={tr("Discover", "发现")}
         description={tr(
-          "Find your next favourite. Keep it in your library.",
-          "遇见下一首喜欢的歌，收藏进自己的音乐世界。",
+          "Search {source}, download into your local library, and keep your own taxonomy intact.",
+          "在 {source} 中搜索，下载到本地资料库，并保持你自己的分类体系完整。",
           { source: sourceName },
         )}
         actions={
           <>
-            <span className="online-source-pill"><span className="online-connected-dot" />{sourceShort}</span>
+            <span className="online-source-pill">{sourceShort}</span>
             <span className="online-user">
               <Artwork
                 src={status.avatarUrl}
@@ -743,7 +737,6 @@ function DiscoverContent() {
               />
               <em>{status.nickname}</em>
             </span>
-            <button type="button" className="icon-button icon-button--glass icon-button--sm" title={tr("Refresh connection", "刷新连接")} onClick={() => void refresh()}><RefreshCw size={15} /></button>
             <button
               type="button"
               className="icon-button icon-button--glass icon-button--sm"
@@ -756,8 +749,6 @@ function DiscoverContent() {
         }
       />
 
-      {error && <div className="online-error" role="alert">{error}</div>}
-      <div className="discover-search-panel">
       <div className="online-toolbar glass">
         <form
           className="online-search"
@@ -779,42 +770,22 @@ function DiscoverContent() {
             {searching ? <LoaderCircle size={14} className="is-spinning" /> : tr("Search", "搜索")}
           </button>
         </form>
-      </div>
-
-      <details className="discover-settings">
-        <summary><SlidersHorizontal size={14} /><span>{tr("Download settings", "下载设置")}</span><em>{quality === "hires" ? "Hi-Res" : quality === "jymaster" ? tr("Master", "母带") : quality === "lossless" ? tr("Lossless", "无损") : quality === "standard" ? tr("Standard", "标准") : "320 kbps"}</em></summary>
-      <div className="download-target">
-        <label className="quality-control download-target__control">
+        <label className="quality-control">
           <span>{tr("Quality", "音质")}</span>
           <select value={quality} onChange={(event) => setQuality(event.target.value as DownloadQuality)}>
             <option value="standard">{tr("Standard", "标准")}</option>
             <option value="high">{tr("High 320k", "高品质 320k")}</option>
             <option value="lossless">{tr("Lossless", "无损")}</option>
-            <option
-              value="hires"
-              title={tr(
-                "Needs a signed-in account with Hi-Res access, and only for songs that have a Hi-Res master.",
-                "需要已登录且有 Hi-Res 权限的账号，且仅限有 Hi-Res 母带的歌曲。",
-              )}
-            >
-              {tr("Hi-Res 96k/24", "Hi-Res 96k/24")}
-            </option>
-            <option
-              value="jymaster"
-              title={tr(
-                "Master quality (up to 192 kHz/24-bit) needs a membership; files are roughly 4–6× larger than lossless.",
-                "超清母带（最高 192kHz/24bit）需要会员；文件约为无损的 4–6 倍。",
-              )}
-            >
-              {tr("Master 192k/24", "超清母带 192k/24")}
-            </option>
           </select>
         </label>
+      </div>
+
+      <div className="download-target">
+        <span className="download-target__label">{tr("Download to", "下载到")}</span>
         <label className="quality-control download-target__control">
           <span>{tr("Block", "区块")}</span>
           <select value={downloadBlock} onChange={(event) => setDownloadBlock(event.target.value)}>
-            <option value="">{tr("Not set — keep existing", "不指定（沿用）")}</option>
-            <option value="__none__">{tr("None — clear it", "无（清空）")}</option>
+            <option value="">{tr("No block", "不指定")}</option>
             {blocks.map((tag) => (
               <option key={tag.name} value={tag.name}>
                 {tag.name}
@@ -825,8 +796,7 @@ function DiscoverContent() {
         <label className="quality-control download-target__control">
           <span>{tr("Genre", "流派")}</span>
           <select value={downloadGenre} onChange={(event) => setDownloadGenre(event.target.value)}>
-            <option value="">{tr("Not set — keep existing", "不指定（沿用）")}</option>
-            <option value="__none__">{tr("None — clear it", "无（清空）")}</option>
+            <option value="">{tr("No genre", "不指定")}</option>
             {genres.map((tag) => (
               <option key={tag.name} value={tag.name}>
                 {tag.name}
@@ -835,14 +805,8 @@ function DiscoverContent() {
           </select>
         </label>
         <em className="download-target__hint">
-          {tr(
-            "Higher quality upgrades the file and keeps ratings and favourites. Availability depends on the source and account.",
-            "更高音质会升级已有文件，保留评分与收藏。实际音质以音源和账号权限为准。",
-          )}
+          {tr("Used for new downloads; existing songs only get their info updated.", "新下载会归入这里；已下载的歌曲只更新信息。")}
         </em>
-      </div>
-
-      </details>
       </div>
 
       <div className="online-tabs">
@@ -858,18 +822,17 @@ function DiscoverContent() {
       </div>
 
       {mode === "search" && (
-        <section className="online-section" aria-busy={searching}>
-          {searching && <div className="discover-search-status"><LoaderCircle size={16} className="is-spinning" />{tr("Searching…", "正在搜索…")}</div>}
+        <section className="online-section">
           {!results.length && !searching ? (
             <div className="online-empty glass">
               <div className="online-empty__disc">
                 <Disc3 size={28} />
               </div>
-              <h2>{tr("What would you like to hear?", "今天，想听点什么？")}</h2>
+              <h2>{tr("Search outside your shelves.", "在书架之外搜索。")}</h2>
               <p>
                 {tr(
                   "Find a song, download it with artwork and lyrics, then assign it into your blocks and genres.",
-                  "搜索喜欢的歌手、歌曲或专辑。封面与歌词，会随音乐一起留下。",
+                  "找到歌曲，连同封面与歌词一起下载，再归入你的区块与流派。",
                 )}
               </p>
               <div className="quick-searches">
@@ -890,15 +853,11 @@ function DiscoverContent() {
                   })}
                 </span>
                 <em>
-                  {quality === "jymaster"
-                    ? tr("Master quality download", "超清母带下载")
-                    : quality === "hires"
-                      ? tr("Hi-Res download", "Hi-Res 下载")
-                      : quality === "lossless"
-                        ? tr("Lossless download", "无损下载")
-                        : quality === "standard"
-                          ? tr("Standard download", "标准音质下载")
-                          : tr("High quality download", "高品质下载")}
+                  {quality === "lossless"
+                    ? tr("Lossless download", "无损下载")
+                    : quality === "standard"
+                      ? tr("Standard download", "标准音质下载")
+                      : tr("High quality download", "高品质下载")}
                 </em>
               </div>
               {results.map((song) => (

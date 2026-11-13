@@ -1,4 +1,4 @@
-import { BrainCircuit, Command, Compass, Home, Music2, Settings2, Sparkles } from "lucide-react";
+import { Command, Gamepad2, Home, MessageCircle, Music2, Settings2, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import type { View } from "@/types";
 import { useAppStore } from "@/store";
@@ -7,9 +7,9 @@ import { useTr } from "@/lib/i18n";
 const items: { en: string; zh: string; view: View; icon: typeof Home }[] = [
   { en: "Home", zh: "首页", view: { kind: "home" }, icon: Home },
   { en: "Songs", zh: "歌曲", view: { kind: "songs" }, icon: Music2 },
-  { en: "Daily", zh: "每日推荐", view: { kind: "daily" }, icon: Sparkles },
-  { en: "Discover", zh: "在线发现", view: { kind: "discover" }, icon: Compass },
-  { en: "AI", zh: "AI 工作台", view: { kind: "ai" }, icon: BrainCircuit },
+  { en: "Daily", zh: "每日", view: { kind: "daily" }, icon: Sparkles },
+  { en: "Dive", zh: "Dive", view: { kind: "dive" }, icon: Gamepad2 },
+  { en: "Comments", zh: "评论", view: { kind: "comments" }, icon: MessageCircle },
 ];
 
 export function BriefDock() {

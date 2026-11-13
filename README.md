@@ -46,8 +46,6 @@ npm run typecheck
 npm run build:renderer
 npm run test:ai
 npm run test:backend
-npm run test:online-session
-npm run test:discover  # 先构建前后端；需要 ffmpeg，使用隔离临时曲库和本机模拟接口
 npm run test:ai-metadata
 npm run test:migration
 npm run test:ai-ui

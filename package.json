@@ -1,6 +1,6 @@
 {
   "name": "potatomusic-ai",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Potato Music AI — a listening workspace with an assistant-ready music interface",
   "type": "module",
@@ -21,8 +21,6 @@
     "start": "node scripts/run-electron.cjs .",
     "typecheck": "tsc --noEmit",
     "test:backend": "node scripts/test-backend.cjs",
-    "test:online-session": "node --test scripts/online-session-test.cjs",
-    "test:discover": "node scripts/discover-quality-smoke.cjs",
     "smoke": "node scripts/smoke-backend.cjs",
     "predev": "npm run build:lyric3d && node scripts/ensure-backend.cjs && npm run build:media-helper",
     "test:ui": "node scripts/ui-smoke.cjs",

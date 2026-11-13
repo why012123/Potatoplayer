@@ -55,8 +55,6 @@ public final class QQMusicService {
     private volatile Process serviceProcess;
     private volatile Map<String, Object> cachedStatus;
     private volatile long cachedAt;
-    private final java.util.Map<String, java.util.Map<String, Object>> qualityProbes = new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.Map<String, Long> qualityProbedAt = new java.util.concurrent.ConcurrentHashMap<>();
 
     public QQMusicService(Backend host) {
         this.host = host;
@@ -367,26 +365,30 @@ public final class QQMusicService {
             requireService();
             downloader.check();
             String bindingId = "qq:" + mid;
-            String requestedQuality = AudioQuality.normalize(quality);
-            boolean clearBlock = DownloadTargets.clears(targetBlock);
-            boolean setBlock = DownloadTargets.specifies(targetBlock);
-            boolean clearGenre = DownloadTargets.clears(targetGenre);
-            boolean setGenre = DownloadTargets.specifies(targetGenre);
             NeteaseBindings.Binding existing = host.neteaseBindings().findByNeteaseId(bindingId);
             Track local = host.findTrackByOnlineId(null, mid);
-            Path existingPath = localPath(local, existing);
-            String existingQuality = AudioQuality.existingLabel(existing == null ? null : existing.quality,
-                    existingPath == null ? null : existingPath.toString());
-            // A higher tier replaces the audio file; anything else keeps the copy and only refreshes its info.
-            boolean replace = existingPath != null && AudioQuality.rank(requestedQuality) > AudioQuality.rank(existingQuality);
-            if (existingPath != null && !replace) {
+            if (local != null && Files.isRegularFile(Path.of(local.path))) {
                 downloader.commit();
-                Map<String, Object> done = local != null
-                        ? existingDownload(jobId, mid, existing, local, targetBlock, targetGenre)
-                        : existingBindingDownload(jobId, mid, existing, targetBlock, targetGenre);
-                done.put("quality", existingQuality);
-                done.put("requestedQuality", requestedQuality);
-                done.put("replaced", false);
+                Map<String, Object> done = existingDownload(
+                        jobId, mid, existing, local, targetBlock, targetGenre);
+                emit("download.done", done);
+                return;
+            }
+            if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
+                downloader.commit();
+                if (!targetBlock.isBlank()) existing.block = targetBlock;
+                if (!targetGenre.isBlank()) existing.genre = targetGenre;
+                host.neteaseBindings().put(existing);
+                host.rescanAfterDownload();
+                Map<String, Object> done = new LinkedHashMap<>();
+                done.put("jobId", jobId);
+                done.put("neteaseId", mid);
+                done.put("title", existing.title == null ? "" : existing.title);
+                done.put("artist", existing.artist == null ? "" : existing.artist);
+                done.put("path", existing.path);
+                done.put("source", "qq");
+                done.put("duplicate", true);
+                done.put("updated", !targetBlock.isBlank() || !targetGenre.isBlank());
                 emit("download.done", done);
                 return;
             }
@@ -399,42 +401,21 @@ public final class QQMusicService {
             String coverUrl = coverOf(song);
 
             emit("download.progress", progress(jobId, mid, title, 0, -1, "resolving"));
-            QqAudioSource audio = audioUrl(mid, requestedQuality);
-            if (!audio.present()) {
+            String[] audio = audioUrl(mid, quality);
+            if (audio[0] == null || audio[0].isBlank()) {
                 throw new IllegalStateException("No QQ Music playback URL. Sign in with a QQ Music account that can play this song.");
             }
-            String servedQuality = audio.level().isBlank() ? requestedQuality : audio.level();
             Path root = host.libraryRootPath();
             if (root == null || !Files.isDirectory(root)) throw new IllegalStateException("Choose a music folder before downloading.");
-            String extension = extension(audio.type(), audio.url());
+            String extension = extension(audio[1], audio[0]);
             String baseName = sanitize(artist + " - " + title);
-            // Same container: replace the bytes under the old path so the track keeps its
-            // id, rating, note, play count, favorites and playlist membership.
-            boolean inPlace = existingPath != null && extension.equals(extensionOf(existingPath));
-            Path target = inPlace ? existingPath : uniquePath(root, baseName, extension);
+            Path target = uniquePath(root, baseName, extension);
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, mid, title, 0, -1, "downloading"));
-            downloadFile(audio.url(), part, jobId, mid, title);
+            downloadFile(audio[0], part, jobId, mid, title);
             if (Files.size(part) < 32_768) {
                 Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete QQ Music file.");
-            }
-
-            servedQuality = AudioQuality.existingLabel(servedQuality, part.toString());
-            if (existingPath != null && AudioQuality.rank(servedQuality)
-                    <= AudioQuality.rank(existingQuality)) {
-                // QQ has no better container for this song: keep the existing file.
-                Files.deleteIfExists(part);
-                downloader.commit();
-                Map<String, Object> done = local != null
-                        ? existingDownload(jobId, mid, existing, local, targetBlock, targetGenre)
-                        : existingBindingDownload(jobId, mid, existing, targetBlock, targetGenre);
-                done.put("quality", existingQuality);
-                done.put("requestedQuality", requestedQuality);
-                done.put("replaced", false);
-                done.put("upgradeUnavailable", true);
-                emit("download.done", done);
-                return;
             }
 
             String coverPath = cacheCover(mid, coverUrl);
@@ -445,38 +426,18 @@ public final class QQMusicService {
             Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
             DownloadQueue.publishLyrics(lyrics, target);
             lyrics = null;
-            if (existingPath != null && !existingPath.equals(target)) {
-                try {
-                    Files.deleteIfExists(existingPath);
-                } catch (IOException e) {
-                    System.err.println("[qq] could not delete replaced file " + existingPath + ": " + e.getMessage());
-                }
-            }
-            NeteaseBindings.Binding binding = existing == null ? new NeteaseBindings.Binding() : existing;
-            String previousBindingPath = existing == null ? null : existing.path;
-            String previousBlock = existing != null && existing.block != null ? existing.block
-                    : local != null && local.block != null ? local.block : "";
-            String previousGenre = existing != null && existing.genre != null ? existing.genre
-                    : local != null && local.genre != null ? local.genre : "";
+            NeteaseBindings.Binding binding = new NeteaseBindings.Binding();
             binding.neteaseId = bindingId;
             binding.path = target.toString();
             binding.title = title;
             binding.artist = artist;
             binding.album = album;
             binding.coverPath = coverPath;
-            binding.quality = servedQuality;
-            binding.block = clearBlock ? "" : setBlock ? targetBlock : previousBlock;
-            binding.genre = clearGenre ? "" : setGenre ? targetGenre : previousGenre;
+            binding.quality = quality;
+            binding.block = targetBlock;
+            binding.genre = targetGenre;
             binding.downloadedAt = System.currentTimeMillis();
             host.neteaseBindings().put(binding);
-            clearQualityCache(mid);
-            if (previousBindingPath != null && !previousBindingPath.equals(target.toString())) {
-                // The sidecar is keyed by path: drop the entry for the container that was replaced.
-                host.neteaseBindings().remove(previousBindingPath);
-            }
-            if (existingPath != null && !existingPath.equals(target) && local != null) {
-                host.relocateDownloadedTrack(local.id, target.toString());
-            }
 
             Map<String, Object> done = new LinkedHashMap<>();
             done.put("jobId", jobId);
@@ -488,16 +449,8 @@ public final class QQMusicService {
             done.put("coverPath", coverPath == null ? "" : coverPath);
             done.put("source", "qq");
             done.put("duplicate", false);
-            done.put("replaced", existingPath != null);
-            done.put("quality", servedQuality);
-            done.put("requestedQuality", requestedQuality);
-            if (existingPath != null) {
-                done.put("previousQuality", existingQuality);
-            }
-            Track resultingTrack = host.findTrackByOnlineId(null, mid);
-            if (resultingTrack != null) done.put("trackId", resultingTrack.id);
-            done.put("block", binding.block);
-            done.put("genre", binding.genre);
+            done.put("block", targetBlock);
+            done.put("genre", targetGenre);
             emit("download.done", done);
             host.rescanAfterDownload();
         } catch (Exception e) {
@@ -514,11 +467,6 @@ public final class QQMusicService {
         }
     }
 
-    /**
-     * The library already holds this song at the requested tier or better. A fresh
-     * block/genre selection updates the existing local track (and its binding) instead
-     * of downloading again.
-     */
     private Map<String, Object> existingDownload(
             String jobId,
             String mid,
@@ -528,12 +476,12 @@ public final class QQMusicService {
             String targetGenre) {
         String currentBlock = track.block == null ? "" : track.block;
         String currentGenre = track.genre == null ? "" : track.genre;
-        String block = DownloadTargets.clears(targetBlock) ? "" : DownloadTargets.specifies(targetBlock) ? targetBlock : currentBlock;
-        String genre = DownloadTargets.clears(targetGenre) ? "" : DownloadTargets.specifies(targetGenre) ? targetGenre : currentGenre;
+        String block = targetBlock.isBlank() ? currentBlock : targetBlock;
+        String genre = targetGenre.isBlank() ? currentGenre : targetGenre;
         boolean changed = !block.equals(currentBlock) || !genre.equals(currentGenre);
         if (binding != null) {
-            if (DownloadTargets.specifies(targetBlock) || DownloadTargets.clears(targetBlock)) binding.block = block;
-            if (DownloadTargets.specifies(targetGenre) || DownloadTargets.clears(targetGenre)) binding.genre = genre;
+            if (!targetBlock.isBlank()) binding.block = targetBlock;
+            if (!targetGenre.isBlank()) binding.genre = targetGenre;
             host.neteaseBindings().put(binding);
         }
         if (changed) {
@@ -561,54 +509,6 @@ public final class QQMusicService {
         return done;
     }
 
-    /** Same as {@link #existingDownload} when the song is known only through its download binding. */
-    private Map<String, Object> existingBindingDownload(
-            String jobId,
-            String mid,
-            NeteaseBindings.Binding existing,
-            String targetBlock,
-            String targetGenre) {
-        boolean updateBlock = !targetBlock.isBlank();
-        boolean updateGenre = !targetGenre.isBlank();
-        boolean updated = updateBlock || updateGenre;
-        if (existing != null) {
-            if (updateBlock) existing.block = DownloadTargets.clears(targetBlock) ? "" : targetBlock;
-            if (updateGenre) existing.genre = DownloadTargets.clears(targetGenre) ? "" : targetGenre;
-            host.neteaseBindings().put(existing);
-        }
-        host.rescanAfterDownload();
-        Map<String, Object> done = new LinkedHashMap<>();
-        done.put("jobId", jobId);
-        done.put("neteaseId", mid);
-        done.put("title", existing == null || existing.title == null ? "" : existing.title);
-        done.put("artist", existing == null || existing.artist == null ? "" : existing.artist);
-        done.put("path", existing == null || existing.path == null ? "" : existing.path);
-        done.put("source", "qq");
-        done.put("duplicate", true);
-        done.put("updated", updated);
-        return done;
-    }
-
-    /** Existing file for this song: the library track wins, then the download binding. */
-    private static Path localPath(Track local, NeteaseBindings.Binding binding) {
-        try {
-            if (local != null && local.path != null && Files.isRegularFile(Path.of(local.path))) {
-                return Path.of(local.path);
-            }
-            if (binding != null && binding.path != null && Files.isRegularFile(Path.of(binding.path))) {
-                return Path.of(binding.path);
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
-    }
-
-    private static String extensionOf(Path path) {
-        String name = path.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        return dot > 0 ? name.substring(dot).toLowerCase(java.util.Locale.ROOT) : "";
-    }
-
     private JsonNode songDetail(String mid) {
         try {
             ObjectNode payload = Json.MAPPER.createObjectNode();
@@ -623,84 +523,20 @@ public final class QQMusicService {
         return legacy == null ? null : legacy.path("response").path("songinfo").path("data").path("track_info");
     }
 
-    /** One resolved QQ source: playable URL, container and the level that candidate corresponds to. */
-    private record QqAudioSource(String url, String type, String level) {
-        boolean present() {
-            return url != null && !url.isBlank();
-        }
-    }
-
-    /**
-     * Resolve a playable URL. QQ exposes three containers: {@code flac} for lossless,
-     * {@code 320}/{@code 128} for the lossy tiers. Hi-Res and master picks ask for
-     * FLAC first, which is the best this endpoint offers.
-     */
-    private QqAudioSource audioUrl(String mid, String quality) {
-        String qqQuality = switch (AudioQuality.rank(quality)) {
-            case 0 -> "128";
-            case 2, 3, 4 -> "flac";
+    private String[] audioUrl(String mid, String quality) {
+        String qqQuality = switch (quality) {
+            case "lossless" -> "flac";
+            case "standard" -> "128";
+            case "best" -> "best";
             default -> "320";
         };
         for (String candidate : new String[]{qqQuality, "320", "128", "m4a"}) {
             JsonNode data = get("/getMusicPlay/" + encode(mid) + "?quality=" + encode(candidate), 22);
             JsonNode play = data == null ? null : data.path("data").path("playUrl").path(mid);
             String url = play == null ? "" : play.path("url").asText("");
-            if (url.isBlank()) continue;
-            String type = candidate.equals("flac") ? "flac" : candidate.equals("m4a") ? "m4a" : "mp3";
-            String level = switch (candidate) {
-                case "flac" -> AudioQuality.LOSSLESS;
-                case "128" -> AudioQuality.STANDARD;
-                default -> AudioQuality.HIGH;
-            };
-            return new QqAudioSource(url, type, level);
+            if (!url.isBlank()) return new String[]{url, candidate.equals("flac") ? "flac" : candidate.equals("m4a") ? "m4a" : "mp3"};
         }
-        return new QqAudioSource(null, "", "");
-    }
-
-    /**
-     * Probe the tiers above {@code fromQuality} that this QQ song can reach.
-     * The endpoint exposes FLAC (lossless) or the lossy tiers, so Hi-Res and
-     * master selections can only ever be satisfied by FLAC here.
-     */
-    public List<Map<String, Object>> availableUpgrades(String mid, String fromQuality) {
-        requireService();
-        if (AudioQuality.rank(fromQuality) >= 2) return List.of();
-        Map<String, Object> value = probeFlac(mid);
-        return value == null ? List.of() : List.of(value);
-    }
-
-    private Map<String, Object> probeFlac(String mid) {
-        String key = mid + "|lossless";
-        long now = System.currentTimeMillis();
-        Long at = qualityProbedAt.get(key);
-        Map<String, Object> cached = qualityProbes.get(key);
-        if (at != null && cached != null && now - at < 10 * 60_000L) return cached;
-        Map<String, Object> value = null;
-        try {
-            JsonNode data = get("/getMusicPlay/" + encode(mid) + "?quality=flac", 22);
-            JsonNode play = data == null ? null : data.path("data").path("playUrl").path(mid);
-            String url = play == null ? "" : play.path("url").asText("");
-            if (!url.isBlank()) {
-                value = new LinkedHashMap<>();
-                value.put("quality", AudioQuality.LOSSLESS);
-                value.put("servedLevel", AudioQuality.LOSSLESS);
-                value.put("type", "flac");
-                value.put("br", 0);
-                value.put("size", 0);
-            }
-        } catch (Exception ignored) {
-        }
-        qualityProbes.put(key, value);
-        qualityProbedAt.put(key, now);
-        return value;
-    }
-
-    /** Drop cached probes for a song after a download changed the copy on disk. */
-    public void clearQualityCache(String mid) {
-        if (mid == null || mid.isBlank()) return;
-        String prefix = mid + "|";
-        qualityProbes.keySet().removeIf(key -> key.startsWith(prefix));
-        qualityProbedAt.keySet().removeIf(key -> key.startsWith(prefix));
+        return new String[]{null, ""};
     }
 
     private void downloadFile(String url, Path part, String jobId, String mid, String title) throws Exception {

@@ -13,11 +13,6 @@ public class Track {
     public String lyricsOverride;
     public String coverPath;
     public int duration;
-    /** Real audio specs read from the file by the scanner; 0 when unknown. */
-    public int sampleRate;
-    public int bitDepth;
-    public int channels;
-    public String codec;
     public int year;
     public int trackNo;
     public int playCount;
@@ -44,10 +39,6 @@ public class Track {
         t.lyricsOverride = lyricsOverride;
         t.coverPath = coverPath;
         t.duration = duration;
-        t.sampleRate = sampleRate;
-        t.bitDepth = bitDepth;
-        t.channels = channels;
-        t.codec = codec;
         t.year = year;
         t.trackNo = trackNo;
         t.playCount = playCount;

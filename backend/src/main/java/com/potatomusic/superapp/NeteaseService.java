@@ -54,7 +54,6 @@ public final class NeteaseService {
     private volatile Process serviceProcess;
     private volatile Map<String, Object> cachedStatus;
     private volatile long cachedAt;
-    private final java.util.Map<String, QualityProbe> qualityProbes = new java.util.concurrent.ConcurrentHashMap<>();
 
     public NeteaseService(Backend host) {
         this.host = host;
@@ -246,93 +245,6 @@ public final class NeteaseService {
         List<Map<String, Object>> songs = parseSongArray(data == null ? null : data.path("result").path("songs"));
         enrichSearchCovers(songs);
         return songs;
-    }
-
-    /** Full api-enhanced search for the assistant, without the UI summary projection. */
-    public Map<String, Object> searchRich(String keyword, int limit, int offset) {
-        requireService();
-        if (keyword == null || keyword.isBlank()) throw new IllegalArgumentException("Search keywords are required.");
-        int count = Math.max(1, Math.min(30, limit));
-        int start = Math.max(0, offset);
-        JsonNode response = get("/cloudsearch?keywords=" + encode(keyword.trim()) + "&type=1&limit=" + count + "&offset=" + start, 20);
-        requireApiResult(response, "搜索");
-        JsonNode result = response.path("result");
-        List<Map<String, Object>> songs = new ArrayList<>();
-        List<String> ids = new ArrayList<>();
-        for (JsonNode row : result.path("songs")) ids.add(row.path("id").asText());
-        Map<String, JsonNode> details = new LinkedHashMap<>();
-        Map<String, JsonNode> privileges = new LinkedHashMap<>();
-        String warning = "";
-        if (!ids.isEmpty()) {
-            try {
-                JsonNode detail = get("/song/detail?ids=" + encode(String.join(",", ids)), 20);
-                requireApiResult(detail, "歌曲详情");
-                for (JsonNode row : detail.path("songs")) details.put(row.path("id").asText(), row);
-                for (JsonNode row : detail.path("privileges")) privileges.put(row.path("id").asText(), row);
-            } catch (Exception e) { warning = "Song detail unavailable: " + e.getMessage(); }
-        }
-        for (JsonNode row : result.path("songs")) {
-            String id = row.path("id").asText();
-            Map<String, Object> song = richSong(details.getOrDefault(id, row));
-            song.put("searchData", row);
-            if (privileges.containsKey(id)) song.put("privilege", privileges.get(id));
-            songs.add(song);
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("engine", "api-enhanced /cloudsearch + /song/detail");
-        out.put("songs", songs); out.put("total", result.path("songCount").asInt(songs.size()));
-        out.put("offset", start); out.put("more", start + songs.size() < result.path("songCount").asInt());
-        if (!warning.isBlank()) out.put("warning", warning);
-        return out;
-    }
-
-    public Map<String, Object> songDetails(String id) {
-        requireService();
-        if (id == null || !id.matches("\\d{1,20}")) throw new IllegalArgumentException("Invalid NetEase song ID.");
-        JsonNode detail = get("/song/detail?ids=" + encode(id), 20);
-        requireApiResult(detail, "歌曲详情");
-        if (detail.path("songs").isEmpty()) throw new IllegalArgumentException("Song not found.");
-        JsonNode row = detail.path("songs").get(0);
-        Map<String, Object> out = richSong(row);
-        out.put("privileges", detail.path("privileges"));
-        String albumId = row.path("al").path("id").asText(row.path("album").path("id").asText(""));
-        if (!albumId.isBlank() && !albumId.equals("0")) {
-            try {
-                JsonNode album = get("/album?id=" + encode(albumId), 18).path("album");
-                out.put("albumDetails", album);
-                if (((Number) out.get("publishTime")).longValue() <= 0) setRelease(out, album.path("publishTime").asLong(0));
-            } catch (Exception e) { out.put("albumWarning", e.getMessage()); }
-        }
-        return out;
-    }
-
-    private Map<String, Object> richSong(JsonNode row) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("id", row.path("id").asText()); out.put("name", row.path("name").asText());
-        out.put("artists", artistsOf(row)); out.put("album", albumOf(row)); out.put("coverUrl", coverOf(row));
-        long duration = row.path("dt").asLong(row.path("duration").asLong());
-        out.put("durationMs", duration); out.put("durationSeconds", duration / 1000.0);
-        out.put("aliases", row.has("alia") ? row.path("alia") : row.path("alias"));
-        out.put("translatedNames", row.path("tns"));
-        long published = row.path("publishTime").asLong(row.path("al").path("publishTime").asLong(row.path("album").path("publishTime").asLong()));
-        setRelease(out, published);
-        JsonNode bpm = row.get("bpm");
-        out.put("bpm", bpm != null && bpm.isNumber() && bpm.asDouble() > 0 ? bpm : null);
-        out.put("bpmStatus", bpm != null && bpm.isNumber() && bpm.asDouble() > 0 ? "API supplied" : "API did not supply BPM; do not infer it from duration or genre");
-        out.put("raw", row); // Retain credits, artists/albums, versions and every returned detail field.
-        return out;
-    }
-
-    private void requireApiResult(JsonNode data, String operation) {
-        if (data == null) throw new IllegalStateException("api-enhanced " + operation + "未返回数据，请检查服务或网络。");
-        int code = data.path("code").asInt(200);
-        if (code != 200) throw new IllegalStateException("api-enhanced " + operation + "失败（" + code + "）：" + data.path("msg").asText(data.path("message").asText("请检查网易云登录状态")));
-    }
-
-    private void setRelease(Map<String, Object> out, long published) {
-        out.put("publishTime", published);
-        int year = published > 0 ? Instant.ofEpochMilli(published).atZone(ZoneId.of("Asia/Shanghai")).getYear() : 0;
-        out.put("year", year); out.put("decade", year > 0 ? (year / 10 * 10) + "s" : "unknown");
     }
 
     /**
@@ -620,7 +532,13 @@ public final class NeteaseService {
         JsonNode data = get("/comment/music?id=" + encode(neteaseId)
                 + "&limit=" + safeLimit + "&offset=" + safeOffset, 18);
         Map<String, Object> result = new LinkedHashMap<>();
-        requireApiResult(data, "评论读取");
+        if (data == null) {
+            result.put("total", 0);
+            result.put("more", false);
+            result.put("hot", List.of());
+            result.put("comments", List.of());
+            return result;
+        }
         int total = data.path("total").asInt(0);
         List<Map<String, Object>> comments = parseComments(data.path("comments"));
         result.put("total", total);
@@ -699,26 +617,30 @@ public final class NeteaseService {
             downloader.check();
             requireService();
             downloader.check();
-            String requestedQuality = AudioQuality.normalize(quality);
-            boolean clearBlock = DownloadTargets.clears(targetBlock);
-            boolean setBlock = DownloadTargets.specifies(targetBlock);
-            boolean clearGenre = DownloadTargets.clears(targetGenre);
-            boolean setGenre = DownloadTargets.specifies(targetGenre);
             NeteaseBindings.Binding existing = host.neteaseBindings().findByNeteaseId(neteaseId);
             Track local = host.findTrackByOnlineId(neteaseId, null);
-            Path existingPath = localPath(local, existing);
-            String existingQuality = AudioQuality.existingLabel(existing == null ? null : existing.quality,
-                    existingPath == null ? null : existingPath.toString());
-            // A higher tier replaces the audio file; anything else keeps the copy and only refreshes its info.
-            boolean replace = existingPath != null && AudioQuality.rank(requestedQuality) > AudioQuality.rank(existingQuality);
-            if (existingPath != null && !replace) {
+            if (local != null && Files.isRegularFile(Path.of(local.path))) {
                 downloader.commit();
-                Map<String, Object> done = local != null
-                        ? existingDownload(jobId, neteaseId, existing, local, targetBlock, targetGenre)
-                        : existingBindingDownload(jobId, neteaseId, existing, targetBlock, targetGenre);
-                done.put("quality", existingQuality);
-                done.put("requestedQuality", requestedQuality);
-                done.put("replaced", false);
+                Map<String, Object> done = existingDownload(
+                        jobId, neteaseId, existing, local, targetBlock, targetGenre);
+                emit("download.done", done);
+                return;
+            }
+            if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
+                downloader.commit();
+                if (!targetBlock.isBlank()) existing.block = targetBlock;
+                if (!targetGenre.isBlank()) existing.genre = targetGenre;
+                host.neteaseBindings().put(existing);
+                host.rescanAfterDownload();
+                Map<String, Object> done = new LinkedHashMap<>();
+                done.put("jobId", jobId);
+                done.put("neteaseId", neteaseId);
+                done.put("title", existing.title == null ? "" : existing.title);
+                done.put("artist", existing.artist == null ? "" : existing.artist);
+                done.put("path", existing.path);
+                done.put("source", "netease");
+                done.put("duplicate", true);
+                done.put("updated", !targetBlock.isBlank() || !targetGenre.isBlank());
                 emit("download.done", done);
                 return;
             }
@@ -734,48 +656,23 @@ public final class NeteaseService {
             int year = releaseYear(song);
             String coverUrl = coverOf(song);
             emit("download.progress", progress(jobId, neteaseId, title, 0, -1, "resolving"));
-            AudioSource audio = audioUrl(neteaseId, requestedQuality);
-            if (!audio.present()) {
+            String[] audio = audioUrl(neteaseId, quality);
+            if (audio[0] == null || audio[0].isBlank()) {
                 throw new IllegalStateException("No playable URL. The song may be region-locked or require a higher account tier.");
-            }
-            String servedQuality = audio.level().isBlank() ? requestedQuality : audio.level();
-            if (audio.preview()) {
-                throw new IllegalStateException("This tier is only a preview clip for this account. Sign in with an account that can download it.");
             }
             Path root = host.libraryRootPath();
             if (root == null || !Files.isDirectory(root)) {
                 throw new IllegalStateException("Choose a music folder before downloading.");
             }
-            String extension = extension(audio.type(), audio.url());
+            String extension = extension(audio[1], audio[0]);
             String baseName = sanitize(artist + " - " + title);
-            // Same container: replace the bytes under the old path so the track keeps its
-            // id, rating, note, play count, favorites and playlist membership.
-            boolean inPlace = existingPath != null && extension.equals(extensionOf(existingPath));
-            Path target = inPlace ? existingPath : uniquePath(root, baseName, extension);
+            Path target = uniquePath(root, baseName, extension);
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, neteaseId, title, 0, -1, "downloading"));
-            downloadFile(audio.url(), part, jobId, neteaseId, title);
+            downloadFile(audio[0], part, jobId, neteaseId, title);
             if (Files.size(part) < 32_768) {
                 Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete file. Sign in and try again.");
-            }
-
-            servedQuality = AudioQuality.existingLabel(servedQuality, part.toString());
-            if (existingPath != null && AudioQuality.rank(servedQuality)
-                    <= AudioQuality.rank(existingQuality)) {
-                // The provider has no better master for this song (or the account cannot reach it):
-                // keep the existing file so the library never goes backwards in quality.
-                Files.deleteIfExists(part);
-                downloader.commit();
-                Map<String, Object> done = local != null
-                        ? existingDownload(jobId, neteaseId, existing, local, targetBlock, targetGenre)
-                        : existingBindingDownload(jobId, neteaseId, existing, targetBlock, targetGenre);
-                done.put("quality", existingQuality);
-                done.put("requestedQuality", requestedQuality);
-                done.put("replaced", false);
-                done.put("upgradeUnavailable", true);
-                emit("download.done", done);
-                return;
             }
 
             String coverPath = cacheCover(neteaseId, coverUrl);
@@ -786,20 +683,8 @@ public final class NeteaseService {
             Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
             DownloadQueue.publishLyrics(lyrics, target);
             lyrics = null;
-            if (existingPath != null && !existingPath.equals(target)) {
-                // Upgrading across containers (mp3 → FLAC) moves the song to a new file;
-                // drop the old copy only after the new one is safely in place.
-                try {
-                    Files.deleteIfExists(existingPath);
-                } catch (IOException e) {
-                    System.err.println("[netease] could not delete replaced file " + existingPath + ": " + e.getMessage());
-                }
-            }
 
-            NeteaseBindings.Binding binding = existing == null ? new NeteaseBindings.Binding() : existing;
-            String previousBindingPath = existing == null ? null : existing.path;
-            String previousBlock = existing == null || existing.block == null ? "" : existing.block;
-            String previousGenre = existing == null || existing.genre == null ? "" : existing.genre;
+            NeteaseBindings.Binding binding = new NeteaseBindings.Binding();
             binding.neteaseId = neteaseId;
             binding.path = target.toString();
             binding.title = title;
@@ -807,20 +692,11 @@ public final class NeteaseService {
             binding.album = album;
             binding.year = year;
             binding.coverPath = coverPath;
-            binding.quality = servedQuality;
-            binding.block = clearBlock ? "" : setBlock ? targetBlock : previousBlock;
-            binding.genre = clearGenre ? "" : setGenre ? targetGenre : previousGenre;
+            binding.quality = quality;
+            binding.block = targetBlock;
+            binding.genre = targetGenre;
             binding.downloadedAt = System.currentTimeMillis();
             host.neteaseBindings().put(binding);
-            clearQualityCache(neteaseId);
-            if (previousBindingPath != null && !previousBindingPath.equals(target.toString())) {
-                // The sidecar is keyed by path: drop the entry for the container that was replaced.
-                host.neteaseBindings().remove(previousBindingPath);
-            }
-            if (existingPath != null && !existingPath.equals(target) && local != null) {
-                // Keep favorites and playlists pointing at the same song after the path change.
-                host.relocateDownloadedTrack(local.id, target.toString());
-            }
 
             Map<String, Object> done = new LinkedHashMap<>();
             done.put("jobId", jobId);
@@ -833,16 +709,8 @@ public final class NeteaseService {
             done.put("coverPath", coverPath == null ? "" : coverPath);
             done.put("source", "netease");
             done.put("duplicate", false);
-            done.put("replaced", existingPath != null);
-            done.put("quality", servedQuality);
-            done.put("requestedQuality", requestedQuality);
-            if (existingPath != null) {
-                done.put("previousQuality", existingQuality);
-            }
-            Track resultingTrack = host.findTrackByOnlineId(neteaseId, null);
-            if (resultingTrack != null) done.put("trackId", resultingTrack.id);
-            done.put("block", binding.block);
-            done.put("genre", binding.genre);
+            done.put("block", targetBlock);
+            done.put("genre", targetGenre);
             emit("download.done", done);
             host.rescanAfterDownload();
         } catch (Exception e) {
@@ -862,9 +730,8 @@ public final class NeteaseService {
     }
 
     /**
-     * The library already holds this song at the requested tier or better. A fresh
-     * block/genre selection updates the existing local track (and its binding) instead
-     * of downloading again.
+     * A song already downloaded is never fetched again. A fresh block/genre
+     * selection updates the existing local track (and its binding) instead.
      */
     private Map<String, Object> existingDownload(
             String jobId,
@@ -875,12 +742,12 @@ public final class NeteaseService {
             String targetGenre) {
         String currentBlock = track.block == null ? "" : track.block;
         String currentGenre = track.genre == null ? "" : track.genre;
-        String block = DownloadTargets.clears(targetBlock) ? "" : DownloadTargets.specifies(targetBlock) ? targetBlock : currentBlock;
-        String genre = DownloadTargets.clears(targetGenre) ? "" : DownloadTargets.specifies(targetGenre) ? targetGenre : currentGenre;
+        String block = targetBlock.isBlank() ? currentBlock : targetBlock;
+        String genre = targetGenre.isBlank() ? currentGenre : targetGenre;
         boolean changed = !block.equals(currentBlock) || !genre.equals(currentGenre);
         if (binding != null) {
-            if (DownloadTargets.specifies(targetBlock) || DownloadTargets.clears(targetBlock)) binding.block = block;
-            if (DownloadTargets.specifies(targetGenre) || DownloadTargets.clears(targetGenre)) binding.genre = genre;
+            if (!targetBlock.isBlank()) binding.block = targetBlock;
+            if (!targetGenre.isBlank()) binding.genre = targetGenre;
             host.neteaseBindings().put(binding);
         }
         if (changed) {
@@ -908,174 +775,48 @@ public final class NeteaseService {
         return done;
     }
 
-    /** Same as {@link #existingDownload} when the song is known only through its download binding. */
-    private Map<String, Object> existingBindingDownload(
-            String jobId,
-            String neteaseId,
-            NeteaseBindings.Binding existing,
-            String targetBlock,
-            String targetGenre) {
-        boolean updateBlock = !targetBlock.isBlank();
-        boolean updateGenre = !targetGenre.isBlank();
-        boolean updated = updateBlock || updateGenre;
-        if (existing != null) {
-            if (updateBlock) existing.block = DownloadTargets.clears(targetBlock) ? "" : targetBlock;
-            if (updateGenre) existing.genre = DownloadTargets.clears(targetGenre) ? "" : targetGenre;
-            host.neteaseBindings().put(existing);
-        }
-        host.rescanAfterDownload();
-        Map<String, Object> done = new LinkedHashMap<>();
-        done.put("jobId", jobId);
-        done.put("neteaseId", neteaseId);
-        done.put("title", existing == null || existing.title == null ? "" : existing.title);
-        done.put("artist", existing == null || existing.artist == null ? "" : existing.artist);
-        done.put("path", existing == null || existing.path == null ? "" : existing.path);
-        done.put("source", "netease");
-        done.put("duplicate", true);
-        done.put("updated", updated);
-        return done;
-    }
-
-    /** Existing file for this song: the library track wins, then the download binding. */
-    private static Path localPath(Track local, NeteaseBindings.Binding binding) {
-        try {
-            if (local != null && local.path != null && Files.isRegularFile(Path.of(local.path))) {
-                return Path.of(local.path);
+    private String[] audioUrl(String id, String quality) {
+        int br;
+        String level;
+        switch (quality) {
+            case "lossless" -> {
+                br = 999000;
+                level = "lossless";
             }
-            if (binding != null && binding.path != null && Files.isRegularFile(Path.of(binding.path))) {
-                return Path.of(binding.path);
+            case "standard" -> {
+                br = 128000;
+                level = "standard";
             }
-        } catch (Exception ignored) {
+            default -> {
+                br = 320000;
+                level = "exhigh";
+            }
         }
-        return null;
+        JsonNode direct = get("/song/url/v1?id=" + encode(id) + "&level=" + level, 20);
+        String url = pickUrl(direct);
+        String type = pickType(direct);
+        if (url != null) return new String[]{url, type};
+        JsonNode fallback = get("/song/download/url?id=" + encode(id) + "&br=" + br, 20);
+        url = pickUrl(fallback);
+        type = pickType(fallback);
+        if (url != null) return new String[]{url, type};
+        JsonNode legacy = get("/song/url?id=" + encode(id) + "&br=" + br, 20);
+        return new String[]{pickUrl(legacy), pickType(legacy)};
     }
 
-    private static String extensionOf(Path path) {
-        String name = path.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        return dot > 0 ? name.substring(dot).toLowerCase(java.util.Locale.ROOT) : "";
-    }
-
-    /** One resolved download source: playable URL, container, the level actually served and whether it is only a preview. */
-    private record AudioSource(String url, String type, String level, boolean trial) {
-        boolean present() {
-            return url != null && !url.isBlank();
-        }
-
-        boolean preview() {
-            return trial;
-        }
-    }
-
-    /**
-     * Resolve a playable URL for the requested tier. The provider keeps the level
-     * parameter (standard/exhigh/lossless/hires/jyeffect/sky/jymaster) and may serve a
-     * lower one when the song has no Hi-Res master or the account cannot reach it;
-     * that served level is recorded on the binding so later downloads compare fairly.
-     */
-    private AudioSource audioUrl(String id, String quality) {
-        String normalized = AudioQuality.normalize(quality);
-        String level = switch (normalized) {
-            case AudioQuality.STANDARD -> "standard";
-            case AudioQuality.LOSSLESS -> "lossless";
-            case AudioQuality.HIRES -> "hires";
-            case AudioQuality.MASTER -> "jymaster";
-            default -> "exhigh";
-        };
-        int br = switch (AudioQuality.rank(normalized)) {
-            case 0 -> 128_000;
-            case 2, 3, 4 -> 999_000;
-            default -> 320_000;
-        };
-        AudioSource source = audioSourceFrom(get("/song/url/v1?id=" + encode(id) + "&level=" + level, 20), normalized);
-        if (source.present()) return source;
-        source = audioSourceFrom(get("/song/download/url/v1?id=" + encode(id) + "&level=" + level, 20), normalized);
-        if (source.present()) return source;
-        source = audioSourceFrom(get("/song/download/url?id=" + encode(id) + "&br=" + br, 20), normalized);
-        if (source.present()) return source;
-        return audioSourceFrom(get("/song/url?id=" + encode(id) + "&br=" + br, 20), normalized);
-    }
-
-    private static AudioSource audioSourceFrom(JsonNode data, String requestedLevel) {
-        if (data == null) return new AudioSource(null, "", "", false);
+    private static String pickUrl(JsonNode data) {
+        if (data == null) return null;
         JsonNode item = data.path("data");
         if (item.isArray()) item = item.path(0);
         String url = item.path("url").asText("");
-        if (url.isBlank()) return new AudioSource(null, "", "", false);
-        String type = item.path("type").asText("");
-        String level = item.path("level").asText("");
-        if (level.isBlank()) level = guessLevel(type, item.path("br").asLong(0), requestedLevel);
-        JsonNode trial = item.path("freeTrialInfo");
-        return new AudioSource(url, type, AudioQuality.normalize(level), trial.isObject() || trial.isArray());
+        return url.isBlank() ? null : url;
     }
 
-    private static String guessLevel(String type, long br, String requestedLevel) {
-        if (type != null && type.toLowerCase(java.util.Locale.ROOT).contains("flac")) return AudioQuality.LOSSLESS;
-        if (br > 0) return br >= 300_000 ? AudioQuality.HIGH : AudioQuality.STANDARD;
-        return requestedLevel;
-    }
-
-    /**
-     * Probe the tiers above {@code fromQuality} that this song can actually reach.
-     * The provider may serve a lower level for a tier (no master for this song), so
-     * availability is only reported when the served level matches the requested tier
-     * and the URL is not a preview clip. Results are cached for ten minutes.
-     */
-    public List<Map<String, Object>> availableUpgrades(String id, String fromQuality) {
-        requireService();
-        int from = AudioQuality.rank(fromQuality);
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (String tier : List.of(AudioQuality.LOSSLESS, AudioQuality.HIRES, AudioQuality.MASTER)) {
-            if (AudioQuality.rank(tier) <= from) continue;
-            Map<String, Object> probe = probeTier(id, tier);
-            if (probe != null) out.add(probe);
-        }
-        return out;
-    }
-
-    private Map<String, Object> probeTier(String id, String tier) {
-        String key = id + "|" + tier;
-        long now = System.currentTimeMillis();
-        QualityProbe cached = qualityProbes.get(key);
-        if (cached != null && now - cached.at() < 10 * 60_000L) return cached.value();
-        Map<String, Object> value = null;
-        String level = switch (tier) {
-            case AudioQuality.LOSSLESS -> "lossless";
-            case AudioQuality.HIRES -> "hires";
-            default -> "jymaster";
-        };
-        try {
-            JsonNode data = get("/song/url/v1?id=" + encode(id) + "&level=" + level, 20);
-            if (data != null) {
-                JsonNode item = data.path("data");
-                if (item.isArray()) item = item.path(0);
-                String url = item.path("url").asText("");
-                String served = item.path("level").asText("");
-                JsonNode trial = item.path("freeTrialInfo");
-                boolean preview = trial.isObject() || trial.isArray();
-                if (!url.isBlank() && !served.isBlank() && !preview
-                        && AudioQuality.rank(served) >= AudioQuality.rank(tier)) {
-                    value = new LinkedHashMap<>();
-                    value.put("quality", tier);
-                    value.put("servedLevel", AudioQuality.normalize(served));
-                    value.put("type", item.path("type").asText(""));
-                    value.put("br", item.path("br").asLong(0));
-                    value.put("size", item.path("size").asLong(0));
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        qualityProbes.put(key, new QualityProbe(now, value));
-        return value;
-    }
-
-    /** Drop cached probes for a song after a download changed the copy on disk. */
-    public void clearQualityCache(String id) {
-        if (id == null || id.isBlank()) return;
-        qualityProbes.keySet().removeIf(key -> key.startsWith(id + "|"));
-    }
-
-    private record QualityProbe(long at, Map<String, Object> value) {
+    private static String pickType(JsonNode data) {
+        if (data == null) return "";
+        JsonNode item = data.path("data");
+        if (item.isArray()) item = item.path(0);
+        return item.path("type").asText("");
     }
 
     private void downloadFile(String url, Path part, String jobId, String neteaseId, String title) throws Exception {

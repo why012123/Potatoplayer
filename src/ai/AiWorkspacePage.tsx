@@ -300,13 +300,28 @@ export function AiWorkspacePage() {
     <div className={clsx("ai-workspace", compactHistory && "has-conversation")}>
       <header className="ai-workspace-hero">
         <div className="ai-workspace-hero-copy">
-          <h1>{tr("AI workspace", "AI 工作台")}</h1>
-          <p>{tr("Keep conversations, song notes and listening preferences together.", "把每次对话，留成记忆。管理歌曲笔记与听歌偏好。")}</p>
-        </div>
-        <div className="ai-workspace-hero-actions">
-          <button className="ai-primary" onClick={newConversation}>
-            <Plus size={15} /> {tr("New conversation", "新对话")}
-          </button>
+          <span className="ai-eyebrow">
+            <Sparkles size={13} /> AI WORKSPACE · MEMORY
+          </span>
+          <h1>
+            {tr("Every conversation leaves a trace.", "把每次对话，留成记忆。")}
+            <br />
+            <em>{tr("So the next one starts closer.", "下一次，就更懂你。")}</em>
+          </h1>
+          <p>
+            {tr(
+              "Review what you asked, keep what matters, and give the assistant a memory that belongs to your library.",
+              "回看问过什么，留下真正重要的东西，让助手拥有一份属于你曲库的记忆。",
+            )}
+          </p>
+          <div className="ai-workspace-hero-actions">
+            <button className="ai-primary" onClick={newConversation}>
+              <Plus size={15} /> {tr("New conversation", "新对话")}
+            </button>
+            <button className="ai-workspace-ghost" onClick={focusWorkspaceComposer}>
+              <MessageCircle size={15} /> {tr("Continue the conversation", "继续对话")}
+            </button>
+          </div>
         </div>
         <div className="ai-workspace-stats">
           <div>
@@ -391,7 +406,7 @@ export function AiWorkspacePage() {
             <header className="ai-conversation-head">
               <div>
                 <span className="ai-eyebrow">{active?.pinned ? `${tr("PINNED", "置顶")} · ` : ""}CONVERSATION</span>
-                <h2>{active?.title ?? tr("A new page, a new thought.", "新对话")}</h2>
+                <h2>{active?.title ?? tr("A new page, a new thought.", "新的一页，新的想法。")}</h2>
                 <p>
                   {assistant.conversationId
                     ? `${assistant.turns.length} ${tr("turns", "轮")} · ${active ? relativeTime(active.updatedAt, tr) : tr("just now", "刚刚")}`
@@ -419,7 +434,15 @@ export function AiWorkspacePage() {
                 assistant.turns.map((turn) => <AiTurnView key={turn.id} turn={turn} />)
               ) : (
                 <div className="ai-workspace-welcome">
-                  <p>{tr("Start with a song, an artist, or something you want to hear.", "从歌名、歌手，或一个听歌想法开始。")}</p>
+                  <span className="ai-workspace-welcome-mark"><Brain size={26} /></span>
+                  <span className="ai-eyebrow">A CONTINUOUS LISTENING ROOM</span>
+                  <h2>{tr("What should we remember?", "这一次，想留下什么？")}</h2>
+                  <p>
+                    {tr(
+                      "Ask about a song, build a playlist, or tell the assistant what you like. It can keep song-level notes and a long-term index you control.",
+                      "问一首歌、整理一份歌单，或直接告诉助手你喜欢什么。它可以保存每首歌的独立记忆，也有一份由你掌控的长期索引。",
+                    )}
+                  </p>
                   <div className="ai-workspace-starters">
                     {[
                       tr("What should I listen to tonight?", "今晚适合听什么？"),

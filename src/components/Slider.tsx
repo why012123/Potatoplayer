@@ -54,14 +54,14 @@ export function Slider({
         setDragging(next);
         onChange?.(next);
       }}
-      onPointerUp={(event) => {
-        onCommit?.(Number(event.currentTarget.value));
+      onPointerUp={() => {
+        if (dragging === null) return;
+        onCommit?.(dragging);
         setDragging(null);
       }}
-      onPointerCancel={() => setDragging(null)}
       onKeyUp={(event) => {
         onCommit?.(Number(event.currentTarget.value));
-        setDragging(null);
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") setDragging(null);
       }}
       onBlur={() => {
         if (dragging !== null) {

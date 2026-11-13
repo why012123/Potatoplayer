@@ -26,10 +26,6 @@ import java.util.Map;
 public final class NeteaseBindings {
     public static final class Binding {
         public String neteaseId;
-        public String qqId;
-
-        public String neteaseSongId() { return neteaseId == null || neteaseId.startsWith("qq:") ? "" : neteaseId; }
-        public String qqMid() { return qqId != null ? qqId : neteaseId != null && neteaseId.startsWith("qq:") ? neteaseId.substring(3) : ""; }
         public String path;
         public String title;
         public String artist;
@@ -72,7 +68,7 @@ public final class NeteaseBindings {
     public synchronized Binding findByNeteaseId(String id) {
         if (id == null) return null;
         for (Binding binding : byPath.values()) {
-            if ((id.equals(binding.neteaseId) || (id.startsWith("qq:") && id.substring(3).equals(binding.qqMid()))) && Files.isRegularFile(Path.of(binding.path))) {
+            if (id.equals(binding.neteaseId) && Files.isRegularFile(Path.of(binding.path))) {
                 return binding;
             }
         }
