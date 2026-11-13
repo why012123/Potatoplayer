@@ -12,6 +12,7 @@ public final class BackendSelfTest {
     private static int passed;
 
     public static void main(String[] args) throws Exception {
+        testAudioQuality();
         testFileNameParsing();
         testScannerMetadataNeed();
         testStableIds();
@@ -26,6 +27,42 @@ public final class BackendSelfTest {
         testDownloadQueue();
         testPlaylistSync();
         System.out.println("BackendSelfTest: " + passed + " checks passed.");
+    }
+
+    private static void testAudioQuality() throws Exception {
+        Path folder = Files.createTempDirectory("quality-test-");
+        try {
+            Path cd = folder.resolve("cd.wav"), hires = folder.resolve("hires.wav");
+            Files.write(cd, pcmWave(44100, 16));
+            Files.write(hires, pcmWave(96000, 24));
+            check(AudioQuality.rankOfFile(cd.toString()) == 2, "44.1 kHz/16 bit is lossless");
+            check(AudioQuality.rankOfFile(hires.toString()) == 3, "96 kHz/24 bit is Hi-Res");
+            check(AudioQuality.improves("hires", "lossless", cd.toString()), "lossless can upgrade to Hi-Res");
+            check(AudioQuality.improves("hires", "hires", cd.toString()), "legacy requested tier cannot mask CD audio");
+            check(!AudioQuality.improves("lossless", "lossless", hires.toString()), "actual Hi-Res cannot be downgraded");
+            check(AudioQuality.existingLabel(null, hires.toString()).equals("hires"), "unlabelled Hi-Res detected");
+            check(AudioQuality.existingLabel("hires", cd.toString()).equals("lossless"), "stale Hi-Res label corrected");
+            check(AudioQuality.rankOf("unknown", "missing.flac") == 2, "unknown labels fall back to container");
+            Path staged = folder.resolve("download.wav.part");
+            Files.write(staged, pcmWave(96000, 24));
+            check(AudioQuality.measuredRank(staged.toString()) == 3, "staged audio is inspected before replacement");
+            check(AudioQuality.existingLabel("jymaster", hires.toString()).equals("jymaster"), "provider master identity retained");
+            check(AudioQuality.existingLabel("jymaster", cd.toString()).equals("lossless"), "CD fallback cannot be labelled master");
+        } finally {
+            try (var files = Files.list(folder)) { for (Path file : files.toList()) Files.delete(file); }
+            Files.delete(folder);
+        }
+    }
+
+    private static byte[] pcmWave(int rate, int bits) {
+        int bytes = rate * 2 * bits / 8;
+        var out = java.nio.ByteBuffer.allocate(44 + bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        out.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + bytes);
+        out.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16);
+        out.putShort((short) 1).putShort((short) 2).putInt(rate).putInt(bytes);
+        out.putShort((short) (2 * bits / 8)).putShort((short) bits);
+        out.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(bytes);
+        return out.array();
     }
 
     private static void testPlaylistSync() {
@@ -132,11 +169,14 @@ public final class BackendSelfTest {
         legacy.year = 0;
         check(LibraryScanner.needsMetadata(legacy), "unknown year reads tags even with legacy metadata");
         legacy.year = 2007;
-        check(!LibraryScanner.needsMetadata(legacy), "known year can use the metadata fast path");
+        check(LibraryScanner.needsMetadata(legacy), "missing audio specs still read tags");
+        legacy.sampleRate = 44100;
+        check(!LibraryScanner.needsMetadata(legacy), "known year and specs can use the metadata fast path");
         Track missingDuration = new Track();
         missingDuration.title = "A";
         missingDuration.artist = "B";
         missingDuration.year = 2007;
+        missingDuration.sampleRate = 44100;
         check(LibraryScanner.needsMetadata(missingDuration), "missing duration still reads tags");
     }
 

@@ -39,7 +39,7 @@ export interface Playlist {
 
 export type PlaybackEngineId = "vlc" | "potatohq" | "mpv";
 export type OutputMode = "pcm" | "dop64" | "dop128";
-export type DownloadQuality = "standard" | "high" | "lossless";
+export type DownloadQuality = "standard" | "high" | "lossless" | "hires" | "jymaster";
 
 export interface EngineCapabilities {
   id: PlaybackEngineId;
@@ -342,6 +342,15 @@ export interface DownloadJob {
   source?: OnlineSource;
   duplicate?: boolean;
   updated?: boolean;
+  /** True when an existing copy was replaced by a better-quality download. */
+  replaced?: boolean;
+  /** The provider had nothing better for this song, so the old copy was kept. */
+  upgradeUnavailable?: boolean;
+  /** Quality level actually served (standard/high/lossless/hires/jymaster). */
+  quality?: DownloadQuality;
+  requestedQuality?: DownloadQuality;
+  /** Quality of the copy that was replaced. */
+  previousQuality?: DownloadQuality;
   block?: string;
   genre?: string;
   createdAt: number;

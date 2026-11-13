@@ -1,0 +1,72 @@
+#root .ai-app .ai-home-library { container-type: inline-size; display: grid; gap: 32px; margin-top: 30px; padding-bottom: 12px; }
+#root .ai-app .ai-home-library section { min-width: 0; }
+#root .ai-app .ai-home-library .ai-section-heading { gap: 16px; align-items: center; }
+#root .ai-app .ai-home-library .ai-section-heading p { line-height: 1.7; }
+#root .ai-app .ai-home-library .ai-section-heading > button { flex-shrink: 0; }
+#root .ai-app .ai-library-overview { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid var(--frost-edge); background: var(--frost-inset); border-radius: 18px; padding: 18px 8px; }
+#root .ai-app .ai-library-overview > :is(button,div) { display: flex; align-items: center; gap: 11px; padding: 4px 16px; min-width: 0; background: none; text-align: left; color: var(--ai-muted); border-right: 1px solid var(--ai-border); }
+#root .ai-app .ai-library-overview > :last-child { border-right: 0; }
+#root .ai-app .ai-library-overview > button:hover { color: var(--ai-green); }
+#root .ai-app .ai-library-overview > :is(button,div) > span { flex: 1; font-size: 10px; min-width: 0; }
+#root .ai-app .ai-library-overview strong { display: block; font-size: clamp(18px,2.5cqi,25px); font-weight: 600; line-height: 1.3; margin-top: 6px; color: var(--ai-ink); white-space: nowrap; }
+#root .ai-app .ai-library-overview svg { flex: none; }
+#root .ai-app .ai-home-taxonomy { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); border: 1px solid var(--frost-edge); background: var(--frost-inset); border-radius: 18px; }
+#root .ai-app .ai-home-blocks, #root .ai-app .ai-home-genres { padding: 20px; min-width: 0; }
+#root .ai-app .ai-home-blocks { border-right: 1px solid var(--ai-border); }
+#root .ai-app .ai-home-caption { display: block; font-size: 10px; font-weight: 600; color: var(--ai-muted); margin-bottom: 15px; letter-spacing: .08em; }
+#root .ai-app .ai-home-block { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 0; color: var(--ai-ink); background: none; text-align: left; }
+#root .ai-app .ai-home-block + .ai-home-block { border-top: 1px solid var(--ai-border); }
+#root .ai-app .ai-home-block-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 10px; color: var(--block-color); background: color-mix(in srgb,var(--block-color) 10%,transparent); }
+#root .ai-app .ai-home-block strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; }
+#root .ai-app .ai-home-block > :is(span:not(.ai-home-block-icon),em) { flex: none; color: var(--ai-muted); font-size: 10px; font-style: normal; }
+#root .ai-app .ai-home-block > svg { color: var(--ai-muted); flex: none; }
+#root .ai-app .ai-home-block:hover strong { color: var(--ai-green); }
+#root .ai-app .ai-home-genres > div { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+#root .ai-app .ai-home-genres > div > button { display: flex; align-items: center; gap: 8px; max-width: 100%; overflow-wrap: anywhere; text-align: left; padding: 9px 12px; border: 1px solid var(--ai-border); border-radius: 20px; background: var(--frost-control); color: var(--ai-ink); font-size: 11px; }
+#root .ai-app .ai-home-genres i { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+#root .ai-app .ai-home-genres button span { color: var(--ai-muted); font-size: 10px; }
+#root .ai-app .ai-home-more { display: inline-flex; align-items: center; gap: 6px; background: none; color: var(--ai-green); font-size: 11px; margin-top: 16px; }
+#root .ai-app .ai-home-record-shelf { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 48px) / 4); gap: 16px; overflow-x: auto; padding: 4px 2px 14px; scroll-snap-type: x proximity; }
+#root .ai-app .ai-home-record-shelf .media-card { width: 100%; min-width: 0; scroll-snap-align: start; }
+#root .ai-app .ai-home-record-shelf .media-card__cover { width: 100%; aspect-ratio: 1; }
+#root .ai-app .ai-home-record-shelf .media-card__text strong { font-size: 12px; line-height: 1.6; }
+#root .ai-app .ai-home-record-shelf .media-card__text span { font-size: 11px; }
+#root .ai-app .ai-home-repeat-list { border: 1px solid var(--frost-edge); background: var(--frost-inset); border-radius: 16px; padding: 2px 16px; }
+#root .ai-app .ai-home-repeat-row { display: grid; grid-template-columns: 20px minmax(0,1fr) 76px 48px 40px 28px; align-items: center; gap: 12px; padding: 12px 0; color: var(--ai-muted); font-size: 10px; }
+#root .ai-app .ai-home-repeat-row + .ai-home-repeat-row { border-top: 1px solid var(--ai-border); }
+#root .ai-app .ai-home-repeat-row .ai-recent-song { min-width: 0; }
+#root .ai-app .ai-home-repeat-row .ai-recent-song .cover { width: 42px; height: 42px; flex: none; }
+#root .ai-app .ai-home-repeat-row .ai-recent-song > div:last-child { min-width: 0; }
+#root .ai-app .ai-home-repeat-row .ai-recent-song :is(strong,small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .ai-app .ai-home-repeat-plays, #root .ai-app .ai-home-repeat-duration { text-align: right; }
+#root .ai-app .ai-home-repeat-rating { text-align: center; color: var(--ai-green); }
+#root .ai-app .ai-home-favorite { display: grid; place-items: center; width: 28px; height: 30px; background: none; color: var(--ai-muted); }
+#root .ai-app .ai-home-favorite.is-favorite { color: var(--accent); }
+#root .ai-app .ai-home-artist-shelf { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 80px) / 5); gap: 20px; overflow-x: auto; padding: 4px 2px 14px; scroll-snap-type: x proximity; }
+#root .ai-app .ai-home-artist { position: relative; min-width: 0; text-align: center; scroll-snap-align: start; }
+#root .ai-app .ai-home-artist-open { display: flex; width: 100%; flex-direction: column; align-items: center; background: none; color: var(--ai-ink); }
+#root .ai-app .ai-home-artist-open .cover { width: 100%; aspect-ratio: 1; height: auto; border-radius: 50%; margin-bottom: 12px; }
+#root .ai-app .ai-home-artist strong { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; }
+#root .ai-app .ai-home-artist small { font-size: 10px; color: var(--ai-muted); margin-top: 5px; }
+#root .ai-app .ai-home-artist-play { position: absolute; right: 4px; top: 4px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--frost-edge); background: var(--ai-panel-solid); color: var(--ai-ink); }
+#root .ai-app .ai-home-module-note { font-size: 11px; line-height: 1.8; color: var(--ai-muted); }
+#root .ai-app .ai-home-module-empty { display: flex; width: 100%; gap: 16px; align-items: center; padding: 24px; text-align: left; color: var(--ai-muted); background: var(--frost-inset); border: 1px solid var(--frost-edge); border-radius: 16px; }
+#root .ai-app .ai-home-module-empty > span { flex: 1; }
+#root .ai-app .ai-home-module-empty strong { display: block; color: var(--ai-ink); font-size: 13px; font-weight: 550; }
+#root .ai-app .ai-home-module-empty small { display: block; margin-top: 7px; font-size: 11px; line-height: 1.8; }
+#root .ai-app .ai-home-module-empty .ai-home-more { margin: 0; flex: none; }
+@container (max-width: 640px) {
+  #root .ai-app .ai-library-overview { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 0; }
+  #root .ai-app .ai-library-overview > :nth-child(2) { border-right: 0; }
+  #root .ai-app .ai-home-taxonomy { grid-template-columns: 1fr; }
+  #root .ai-app .ai-home-blocks { border-right: 0; border-bottom: 1px solid var(--ai-border); }
+  #root .ai-app .ai-home-record-shelf { grid-auto-columns: calc((100% - 28px) / 3); gap: 14px; }
+  #root .ai-app .ai-home-artist-shelf { grid-auto-columns: calc((100% - 42px) / 4); gap: 14px; }
+  #root .ai-app .ai-home-repeat-row { grid-template-columns: 16px minmax(0,1fr) 64px 28px; gap: 8px; }
+  #root .ai-app .ai-home-repeat-rating, #root .ai-app .ai-home-repeat-duration { display: none; }
+}
+@container (max-width: 420px) {
+  #root .ai-app .ai-home-library .ai-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  #root .ai-app .ai-home-record-shelf { grid-auto-columns: calc((100% - 14px) / 2); }
+  #root .ai-app .ai-home-artist-shelf { grid-auto-columns: calc((100% - 28px) / 3); }
+}

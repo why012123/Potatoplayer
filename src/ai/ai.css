@@ -264,3 +264,12 @@
 :root[data-atmosphere="still"] .ai-record-orbit,:root[data-atmosphere="still"] .ai-floating-label { display:none; }
 
 .ai-config-close { position:absolute; right:24px; top:22px; display:grid; place-items:center; background:none; color:var(--ai-muted); padding:6px; border-radius:6px; }
+
+/* The right rail shares one persistent selector for AI and the original player. */
+.ai-panel-switch { display:flex; align-items:center; gap:2px; padding:3px; border:1px solid var(--ai-border); border-radius:9px; flex-shrink:0; }
+.ai-topbar .ai-panel-switch button { display:flex; align-items:center; gap:5px; padding:6px 8px; border-radius:6px; font-size:11px; white-space:nowrap; }
+.ai-topbar .ai-panel-switch button.is-active { color:var(--ai-green); background:var(--ai-soft); }
+#root .ai-app .workspace-body--solo { grid-template-columns:minmax(0,1fr); }
+@media (max-width:720px) {
+  .ai-panel-switch button>span { display:none; }
+}

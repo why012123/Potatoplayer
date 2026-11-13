@@ -17,7 +17,7 @@ function backend() {
   if(method==='playback.setQueue')state.playback.queue=p.queue;
   if(method==='playlist.create') {const playlist={id:'new',name:p.name,trackIds:[]};state.playlists.push(playlist);return {playlist};}
   if(method==='playlist.addTracks') {state.playlists.find(t=>t.id===p.playlistId).trackIds.push(...p.trackIds);return {ok:true};}
-  if(method==='netease.search')return [{id:'123',name:'鳥の詩',artists:'Lia'}];
+  if((method==='netease.search'||method==='netease.searchRich'))return [{id:'123',name:'鳥の詩',artists:'Lia'}];
   return {ok:true};
  }};
 }
@@ -171,4 +171,159 @@ test('Web tools are omitted from the model request when the setting is off',asyn
  assert.ok(body.tools.some((tool)=>tool.function.name==='remember_song'));
  assert.ok(!body.tools.some((tool)=>tool.function.name==='web_search'));
  fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('song matching prioritizes identity and preserves title words',async()=>{
+ const {matchSongs,songQuery}=await import('../electron/song-match.mjs');
+ const songs=[
+  {...track('exact','寻找音乐'),rating:1,artist:'Mili'},
+  {...track('tag','别的歌曲'),rating:10,note:'寻找音乐'},
+  {...track('live','寻找音乐 (Live)'),rating:10,artist:'Mili'},
+  {...track('cover','寻找音乐'),rating:10,artist:'Cover Band'},
+  {...track('alias','鳥の詩'),aliases:['鸟之诗']},
+ ];
+ assert.equal(songQuery('请帮我播放 寻找音乐'),'寻找音乐');
+ assert.deepEqual(matchSongs(songs,'Mili 寻找音乐').map(x=>x.track.id),['exact','live']);
+ assert.equal(matchSongs(songs,'寻找音乐',{artist:'Mili'})[0].track.id,'exact');
+ assert.deepEqual(matchSongs(songs,'鸟之诗').map(x=>x.track.id),['alias']);
+ assert.deepEqual(matchSongs(songs,'Mili 寻找音乐',{version:'Live'}).map(x=>x.track.id),['live']);
+ assert.deepEqual(matchSongs(songs,'寻找音乐',{artist:'Unknown'}),[]);
+ assert.deepEqual(matchSongs(songs,'???'),[]);
+ assert.deepEqual(matchSongs([{...track('x','Oliver'),album:''}],'',{version:'Live'}),[]);
+});
+
+test('library search keeps artist/version constraints and flags identical titles',async()=>{
+ const b=backend();b.state.tracks=[{...track('a','鳥の詩'),rating:1}, {...track('b','鳥の詩 (Live)'),rating:10}, {...track('c','鳥の詩'),artist:'Other',rating:10}];
+ const e=createToolExecutor({invoke:b.invoke,emit:()=>{},getAppearance:()=>({})});
+ const exact=await e.execute('search_library',{query:'鳥の詩',artist:'Lia'});
+ assert.equal(exact.tracks[0].id,'a');assert.equal(exact.ambiguous,false);
+ assert.equal((await e.execute('search_library',{query:'鳥の詩'})).ambiguous,true);
+ assert.deepEqual((await e.execute('search_library',{query:'鳥の詩',artist:'Lia',version:'Live'})).tracks.map(t=>t.id),['b']);
+ assert.equal((await e.execute('search_library',{query:'鳥の詩',artist:'Missing'})).total,0);
+});
+
+test('online search filters unrelated singers and versions before exposing download IDs',async()=>{
+ const b=backend();const invoke=async(method,args)=>(method==='netease.search'||method==='netease.searchRich')?[
+  {id:'wrong',name:'鳥の詩',artists:[{name:'Other'}],album:{name:'Cover'}},
+  {id:'live',name:'鳥の詩 (Live)',artists:'Lia',album:'Concert'},
+  {id:'right',name:'鳥の詩',artists:'Lia',album:'Air'}
+ ]:b.invoke(method,args);
+ const e=createToolExecutor({invoke,emit:()=>{},getAppearance:()=>({})});
+ const found=await e.execute('search_netease',{keywords:'鳥の詩 Lia',artist:'Lia',album:'Air'});
+ assert.deepEqual(found.songs.map(t=>t.id),['right']);
+ await assert.rejects(e.execute('download_netease',{id:'not-returned-by-api'}));
+ await e.execute('download_netease',{id:'right'});assert.equal(b.calls.at(-1).p.id,'right');
+});
+
+test('Binding tools expose both IDs, accept platform URLs, preserve other fields and reject malformed IDs',async()=>{
+ const b=backend();Object.assign(b.state.tracks[0],{neteaseId:'123',qqId:'001AbC'});
+ const e=createToolExecutor({invoke:b.invoke,getAppearance:()=>({})});
+ let r=await e.execute('get_track_bindings',{trackIds:['a']});assert.equal(r.tracks[0].qqMid,'001AbC');assert.equal(r.tracks[0].neteaseId,'123');
+ r=await e.execute('update_track_bindings',{trackId:'a',neteaseId:'https://music.163.com/#/song?id=456'});
+ assert.equal(r.before.neteaseId,'123');assert.equal(r.after.neteaseId,'456');assert.equal(r.after.qqMid,'001AbC');
+ await e.execute('update_track_bindings',{trackId:'a',qqMid:'https://y.qq.com/n/ryqq/songDetail/002Xyz'});
+ assert.equal(b.state.tracks[0].qqId,'002Xyz');assert.equal(b.state.tracks[0].neteaseId,'456');
+ await e.execute('update_tracks',{trackIds:['a'],patch:{qqMid:'003Abc'}});assert.equal(b.state.tracks[0].qqId,'003Abc');
+ await assert.rejects(e.execute('update_tracks',{trackIds:['a'],patch:{qqMid:'one',qqId:'two'}}));
+ await assert.rejects(e.execute('update_track_bindings',{trackId:'a',neteaseId:'abc'}));
+ await assert.rejects(e.execute('update_track_bindings',{trackId:'a',neteaseId:'https://example.com/?id=123'}));
+ await e.execute('update_track_bindings',{trackId:'a',neteaseId:''});assert.equal(b.state.tracks[0].qqId,'003Abc');
+ assert.equal((await e.execute('get_tracks',{trackIds:['a']})).tracks[0].qqMid,'003Abc');
+ assert.equal((await e.execute('search_library',{qqMid:'003Abc'})).total,1);
+});
+
+test('QQ search returns verified MIDs, separate from NetEase IDs, and survives an executor turn',async()=>{
+ const b=backend();const cache=new Map();
+ const invoke=async(m,p)=>m==='qq.search'?[{id:'123',name:'鳥の詩',artists:'Lia',album:'Air'}]:b.invoke(m,p);
+ const e=createToolExecutor({invoke,getAppearance:()=>({}),onlineCache:cache});
+ assert.equal((await e.execute('search_qq',{keywords:'鳥の詩',artist:'Lia'})).songs[0].id,'123');
+ await assert.rejects(e.execute('download_netease',{id:'123'}));
+ const next=createToolExecutor({invoke,getAppearance:()=>({}),onlineCache:cache});
+ await next.execute('download_qq',{id:'123'});assert.equal(b.calls.at(-1).method,'qq.download');
+});
+
+test('Task routing proactively browses research but respects no-web and ordinary chat',()=>{
+ const {taskPolicy,initialChoice}=require('../electron/ai-policy.cjs');
+ assert.equal(initialChoice(taskPolicy('这首歌的创作背景是什么')).function.name,'web_search');
+ assert.equal(initialChoice(taskPolicy('把网易云ID改成123')),'required');
+ assert.equal(initialChoice(taskPolicy('你好呀')),'auto');
+ assert.equal(taskPolicy('不要联网，聊聊这首的背景').web,false);
+ assert.equal(taskPolicy('介绍一下这张专辑',false).web,false);
+ assert.deepEqual(taskPolicy('不要修改评分，只解释一下').writes,[]);
+});
+
+test('Chat receives current binding values and recovers a promise without action',async()=>{
+ let n=0;const requests=[];
+ const s=setup(async(url,opts)=>{requests.push(JSON.parse(opts.body));n++;return n===1?sse({content:'我来帮你修改。'}):n===2?sse({tool_calls:[call('update_track_bindings',{trackId:'a',neteaseId:'456'})]}):sse({content:'网易云 ID 已改为456。'});});
+ Object.assign(s.b.state.tracks[0],{neteaseId:'123',qqId:'001Abc'});
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ const r=await s.service.handle('ai.chat',{requestId:'repair',prompt:'把这首歌网易云ID改成456'});
+ assert.match(requests[0].messages[0].content,/"qqMid":"001Abc"/);assert.match(requests[0].messages[0].content,/"neteaseId":"123"/);
+ assert.equal(requests[0].tool_choice,'required');assert.equal(requests[1].tool_choice,'required');
+ assert.equal(s.b.state.tracks[0].neteaseId,'456');assert.equal(s.b.state.tracks[0].qqId,'001Abc');assert.equal(r.actions[0].status,'done');
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('Read-only research is forced to search, while explicit no-web removes callable web tools',async()=>{
+ const requests=[];
+ const s=setup(async(url,opts)=>{if(url.endsWith('/v1/tools/search'))return Response.json({results:[{title:'Official',url:'https://example.com',summary:'Fact'}]});
+ const body=JSON.parse(opts.body);requests.push(body);
+ return body.messages.some(m=>m.role==='tool')?sse({content:'查询完成'}):sse({tool_calls:[call('web_search',{query:'Lia 鳥の詩 发行'})]});});
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ const r=await s.service.handle('ai.chat',{requestId:'research',prompt:'这首歌什么时候发行的'});
+ assert.equal(requests[0].tool_choice.function.name,'web_search');assert.equal(r.sources.length,1);
+ requests.length=0;
+ const no=await s.service.handle('ai.chat',{requestId:'offline',prompt:'不要联网，只聊聊这首歌'});
+ assert.ok(!requests[0].tools.some(t=>t.function.name==='web_search'));assert.equal(no.actions[0].status,'error');assert.equal(no.sources.length,0);
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('A repeated write call does not enqueue/download/mutate twice',async()=>{
+ let n=0;const s=setup(async()=>++n<3?sse({tool_calls:[call('update_tracks',{trackIds:['a'],patch:{note:'一次'}})]}):sse({content:'完成'}));
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ await s.service.handle('ai.chat',{requestId:'dedup',prompt:'把备注改成一次'});
+ assert.equal(s.b.calls.filter(c=>c.method==='library.patchMetadata').length,1);
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('Transient web failures retry, authorization failures do not',async()=>{
+ for(const status of [503,401]) {
+  let searches=0,chat=0;const s=setup(async(url)=>{
+   if(url.endsWith('/v1/tools/search')){searches++;return searches===1?new Response('',{status}):Response.json({results:[]});}
+   return ++chat===1?sse({tool_calls:[call('web_search',{query:'Lia'})]}):sse({content:'已尝试查询'});
+  });
+  await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+  await s.service.handle('ai.chat',{requestId:'retry',prompt:'查一下发行信息'});
+  assert.equal(searches,status===503?2:1);fs.rmSync(s.dataDir,{recursive:true,force:true});
+ }
+});
+
+
+test('Song search rejects unrelated platform hits, resolves official aliases and retries clean queries',async()=>{
+ const b=backend();const searches=[];
+ const invoke=async(m,p)=>{
+  if(m!=='netease.searchRich')return b.invoke(m,p);
+  searches.push(p.keywords);
+  if(p.keywords==='帮我找鳥の詩')return [];
+  return [{id:'wrong',name:'Unrelated',artists:'Other'}, {id:'right',name:'鳥の詩',alias:'鸟之诗',artists:'Lia',album:'Air'}, {id:'live',name:'鳥の詩 (Live)',artists:'Lia',album:'Concert'}];
+ };
+ const e=createToolExecutor({invoke,getAppearance:()=>({})});
+ let r=await e.execute('search_netease',{keywords:'帮我找鳥の詩'});
+ assert.deepEqual(searches,['帮我找鳥の詩','鳥の詩']);assert.equal(r.songs[0].id,'right');assert.ok(!r.songs.some(s=>s.id==='wrong'));
+ await assert.rejects(e.execute('download_netease',{id:'not-returned-by-api'}));
+ r=await e.execute('search_netease',{keywords:'鸟之诗 Lia',title:'鸟之诗',artist:'Lia'});assert.deepEqual(r.songs.map(s=>s.id),['right']);
+ r=await e.execute('search_netease',{keywords:'鳥の詩 Lia',title:'鳥の詩',artist:'Lia',version:'原版'});assert.deepEqual(r.songs.map(s=>s.id),['right']);
+ r=await e.execute('search_netease',{keywords:'Missing song'});assert.equal(r.total,0);assert.ok(r.candidates.length>0);
+ assert.equal((await e.execute('search_library',{query:'请帮我播放 鳥の詩'})).tracks[0].id,'a');
+});
+
+
+test('Enhanced search preserves raw detail and current-song comments resolve the binding',async()=>{
+ const b=backend();b.state.tracks[0].neteaseId='123';const calls=[];
+ const raw={id:'123',name:'鳥の詩',artists:'Lia',album:'AIR',durationMs:336000,year:2000,bpm:null,raw:{credits:'composer',al:{id:1}}};
+ const invoke=async(m,p)=>{calls.push({m,p});if(m==='netease.searchRich')return {engine:'api-enhanced',songs:[raw],total:1};if(m==='netease.comments')return {comments:[{content:'好听'}],hot:[],total:1};return b.invoke(m,p);};
+ const e=createToolExecutor({invoke,getAppearance:()=>({})});
+ const found=await e.execute('search_netease',{keywords:'鳥の詩'});
+ assert.equal(found.songs[0].raw.credits,'composer');assert.equal(found.apiResults[0].year,2000);assert.equal(found.songs[0].bpm,null);
+ const comments=await e.execute('get_netease_comments',{});assert.equal(comments.id,'123');assert.equal(comments.comments[0].content,'好听');assert.equal(calls.find(c=>c.m==='netease.comments').p.id,'123');
 });
