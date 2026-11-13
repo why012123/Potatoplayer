@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
   AlertTriangle,
+  AudioLines,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -21,8 +22,8 @@ import {
   Tag as TagIcon,
   Trash2,
 } from "lucide-react";
-import type { TagKind, Track } from "@/types";
-import { useAppStore } from "@/store";
+import type { DownloadQuality, TagKind, Track } from "@/types";
+import { downloadQualityLabel, useAppStore } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
@@ -51,6 +52,28 @@ function draftFor(track: Track | undefined): Draft {
   };
 }
 
+interface QualityOption {
+  quality: DownloadQuality;
+  servedLevel?: string;
+  type?: string;
+  br?: number;
+  size?: number;
+}
+
+interface QualityInfo {
+  trackId: string;
+  title: string;
+  artist?: string;
+  platform: string;
+  onlineId?: string;
+  currentQuality: DownloadQuality;
+  available: QualityOption[];
+  upgradeAvailable: boolean;
+  recommended?: DownloadQuality;
+  path?: string;
+  fileSize?: number;
+}
+
 export function SongEditorPage() {
   const view = useAppStore((state) => state.viewHistory[state.viewIndex]);
   const tracks = useAppStore((state) => state.tracks);
@@ -66,6 +89,7 @@ export function SongEditorPage() {
   const setTaxonomyManager = useAppStore((state) => state.setTaxonomyManager);
   const playTrack = useAppStore((state) => state.playTrack);
   const togglePlay = useAppStore((state) => state.togglePlay);
+  const pushToast = useAppStore((state) => state.pushToast);
   const tr = useTr();
 
   const initialId =
@@ -79,6 +103,12 @@ export function SongEditorPage() {
   const [saved, setSaved] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [qualityInfo, setQualityInfo] = useState<QualityInfo | null>(null);
+  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState("");
+  const [qualityBusy, setQualityBusy] = useState(false);
+  const [upgradeTier, setUpgradeTier] = useState<DownloadQuality | "">("");
+  const [qualityReload, setQualityReload] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = tracks.find((track) => track.id === selectedId) ?? tracks[0] ?? null;
@@ -86,6 +116,69 @@ export function SongEditorPage() {
   const favoriteLabel = favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏");
   const playing = Boolean(selected && playback?.trackId === selected.id && playback.playing);
   const coverSeed = selected?.id ?? "editor";
+
+  useEffect(() => {
+    const trackId = selected?.id;
+    if (!trackId) {
+      setQualityInfo(null);
+      setQualityError("");
+      setUpgradeTier("");
+      return;
+    }
+    let alive = true;
+    setQualityLoading(true);
+    setQualityInfo(null);
+    setQualityError("");
+    setUpgradeTier("");
+    void window.potato
+      .invoke<QualityInfo>("track.qualityOptions", { trackId })
+      .then((info) => {
+        if (!alive) return;
+        setQualityInfo(info);
+        setUpgradeTier((info.recommended as DownloadQuality) || "");
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setQualityInfo(null);
+        setQualityError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (alive) setQualityLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [selected?.id, qualityReload]);
+
+  const upgradeQuality = async () => {
+    if (!selected || qualityBusy) return;
+    setQualityBusy(true);
+    try {
+      const result = await window.potato.invoke<{
+        queued?: boolean;
+        jobId?: string;
+        quality?: DownloadQuality;
+        reason?: string;
+      }>("track.upgradeQuality", { trackId: selected.id, quality: upgradeTier || "auto" });
+      if (result.queued) {
+        pushToast(
+          tr("Upgrade queued", "已加入升级队列"),
+          [downloadQualityLabel(result.quality), tr("the download panel shows progress", "可在下载面板查看进度")].filter(Boolean).join(" · "),
+          "success",
+        );
+      } else {
+        pushToast(tr("Nothing to upgrade", "没有可用的升级"), result.reason || tr("This song is already at the best available tier.", "这首歌已经是当前可用的最高档位。"), "default");
+      }
+    } catch (error) {
+      pushToast(
+        tr("Could not upgrade", "无法升级"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+    } finally {
+      setQualityBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (view.kind === "editor" && view.trackId && view.trackId !== selectedId) {
@@ -488,7 +581,6 @@ export function SongEditorPage() {
                         onChange={(event) => setDraft({
                           ...draft,
                           neteaseId: event.target.value,
-                          qqId: event.target.value ? "" : draft.qqId,
                         })}
                       />
                     </label>
@@ -501,17 +593,97 @@ export function SongEditorPage() {
                         onChange={(event) => setDraft({
                           ...draft,
                           qqId: event.target.value,
-                          neteaseId: event.target.value ? "" : draft.neteaseId,
                         })}
                       />
                     </label>
                   </div>
                   <em className="editor-source__hint">
                     {tr(
-                      "Bind one source per song. This only identifies the online comments; your audio file is untouched.",
-                      "一首歌绑定一个来源即可，只用于读取在线评论，不会改动音频文件。",
+                      "Both platform IDs can be saved independently. Comments prefer NetEase when both are present; your audio file is untouched.",
+                      "两个平台可同时绑定，修改一个不会清除另一个；同时绑定时评论优先使用网易云，不改动音频文件。",
                     )}
                   </em>
+                </div>
+
+                <div className="editor-field editor-field--wide editor-quality">
+                  <span>
+                    <AudioLines size={12} /> {tr("Audio quality", "音质")}
+                    <em>
+                      {qualityLoading
+                        ? tr("Reading…", "读取中…")
+                        : qualityInfo?.platform
+                          ? tr("Online source ready", "在线音源已连接")
+                          : tr("Bind an online ID first", "先绑定在线 ID")}
+                    </em>
+                  </span>
+                  <div className="editor-quality__body">
+                    {qualityLoading ? (
+                      <span className="editor-quality__status">
+                        <LoaderCircle size={13} className="is-spinning" /> {tr("Checking available tiers…", "正在探测可用档位…")}
+                      </span>
+                    ) : qualityError ? (
+                      <span className="editor-quality__status">
+                        {tr("Could not read available tiers.", "无法读取可用档位。")} {qualityError}
+                      </span>
+                    ) : !qualityInfo || !qualityInfo.platform ? (
+                      <span className="editor-quality__status">
+                        {tr(
+                          "Add a NetEase or QQ Music ID above to upgrade this song's audio quality.",
+                          "在上方绑定网易云或 QQ 音乐 ID 后即可升级这首歌的音质。",
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        <div className="editor-quality__current">
+                          <span>{tr("Current", "当前")}</span>
+                          <strong>{downloadQualityLabel(qualityInfo.currentQuality)}</strong>
+                          <button
+                            type="button"
+                            className="text-button"
+                            disabled={qualityLoading}
+                            onClick={() => setQualityReload((value) => value + 1)}
+                          >
+                            {tr("Refresh", "刷新")}
+                          </button>
+                        </div>
+                        {qualityInfo.upgradeAvailable ? (
+                          <div className="editor-quality__row">
+                            <select
+                              className="text-field"
+                              value={upgradeTier}
+                              onChange={(event) => setUpgradeTier(event.target.value as DownloadQuality)}
+                            >
+                              {qualityInfo.available.map((option) => (
+                                <option key={option.quality} value={option.quality}>
+                                  {downloadQualityLabel(option.quality)}
+                                  {option.type ? ` · ${option.type.toUpperCase()}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="button button--dark button--small"
+                              disabled={qualityBusy}
+                              onClick={() => void upgradeQuality()}
+                            >
+                              {qualityBusy ? <LoaderCircle size={13} className="is-spinning" /> : <RotateCcw size={13} />}
+                              {tr("Re-download & replace", "重新下载并替换")}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="editor-quality__status">
+                            {tr("Already at the highest tier this platform offers.", "已经是该平台可提供的最高档位。")}
+                          </span>
+                        )}
+                        <em className="editor-quality__hint">
+                          {tr(
+                            "The file is replaced by a higher-quality copy; block, genre, rating, note, favorite and playlists stay unchanged.",
+                            "会用更高音质的文件替换原文件；区块、流派、评分、备注、收藏和歌单保持不变。",
+                          )}
+                        </em>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="editor-field editor-field--wide">

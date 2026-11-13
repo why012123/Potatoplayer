@@ -6,6 +6,7 @@ import { useAppStore, viewKey } from "@/store";
 import { coverUrl } from "@/lib/covers";
 import { AiSidebar as Sidebar, AiTopBar as TopBar, AiPlayer } from "@/ai/AiShell";
 import { AiConnection } from "@/ai/AiConnection";
+import { AiNowPlaying } from "@/ai/AiNowPlaying";
 import { AssistantPanel } from "@/ai/AssistantPanel";
 
 import { CommandPalette } from "@/components/CommandPalette";
@@ -35,6 +36,7 @@ import { UltraPage } from "@/ai/UltraPage";
 import { CommentsPage } from "@/pages/CommentsPage";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
+import { BriefDock } from "@/components/BriefDock";
 import { DownloadTasks } from "@/components/DownloadTasks";
 import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
@@ -137,8 +139,10 @@ export default function App() {
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
+  const rightPanelMode = useAppStore((state) => state.rightPanelMode);
   const brief = useAppStore((state) => state.brief);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
+  const setRightPanelMode = useAppStore((state) => state.setRightPanelMode);
   const immersive = useAppStore((state) => state.immersive);
   const reducedMotion = useAppStore((state) => state.reducedMotion);
   const theme = useAppStore((state) => state.theme);
@@ -159,6 +163,20 @@ export default function App() {
   useEffect(() => {
     void initialize();
   }, [initialize]);
+
+  const previousPanel = useRef<{ open: boolean; mode: string } | null>(null);
+  useEffect(() => {
+    if (brief) {
+      if (previousPanel.current === null) previousPanel.current = { open: rightPanelOpen, mode: rightPanelMode };
+      setRightPanelMode("hidden");
+    } else if (previousPanel.current !== null) {
+      const previous = previousPanel.current;
+      previousPanel.current = null;
+      setRightPanelMode(previous.mode as typeof rightPanelMode);
+    }
+    // Only react to room changes; panel toggles inside a room are user actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brief]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -308,7 +326,6 @@ export default function App() {
 
   if (loading) return <LoadingScreen />;
   if (fatalError) return <FatalScreen message={fatalError} />;
-  const fullWidthPage = view.kind === "ai" || view.kind === "ultra";
 
   const page = (() => {
     if (searchQuery.trim()) return <SearchPage />;
@@ -359,7 +376,7 @@ export default function App() {
 
   return (
     <MotionConfig skipAnimations={appearance.animationLevel === "off" || !windowActive} reducedMotion={motionReduced ? "always" : "user"}>
-      <div className={clsx("app ai-app", theme === "dark" && "theme-dark", motionReduced && "reduce-motion",  !windowActive && "is-window-blurred")}>
+      <div className={clsx("app ai-app", theme === "dark" && "theme-dark", motionReduced && "reduce-motion", brief && "brief", !windowActive && "is-window-blurred")}>
       <div className="ambient" aria-hidden="true">
         <AnimatePresence>
           {ambientImage && (
@@ -384,7 +401,7 @@ export default function App() {
         <Sidebar />
         <div className="workspace">
           <TopBar />
-          <div className={clsx("workspace-body", (!rightPanelOpen || fullWidthPage) && "workspace-body--solo")}>
+          <div className={clsx("workspace-body", !rightPanelOpen && "workspace-body--solo")}>
             <main className="page-shell glass">
               <div className="page-scroll" ref={scrollRef}>
                 <AnimatePresence mode="wait" initial={false}>
@@ -404,12 +421,14 @@ export default function App() {
             {/* Do not keep NowPlaying mounted for an exit animation: during the
                 one-column grid transition it would wrap below the page and flash
                 across the lower half of the centre column. */}
-            {rightPanelOpen && !fullWidthPage && <AssistantPanel />}
+            {rightPanelMode === "ai" && <AssistantPanel />}
+            {rightPanelMode === "player" && <AiNowPlaying />}
           </div>
         </div>
       </div>
 
       <AiPlayer />
+      <BriefDock />
 
       <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>
 

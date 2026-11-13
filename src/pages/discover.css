@@ -1,0 +1,63 @@
+/* Discover shares the player's frosted palette, with a quiet search-first layout. */
+#root .app .page--discover { container-type: inline-size; max-width: 1160px; margin-inline: auto; }
+#root .app .page--discover .page-header { align-items: flex-start; flex-wrap: wrap; gap: 18px; margin-bottom: 26px; }
+#root .app .page--discover .page-header h1 { font-size: clamp(26px, 3vw, 36px); letter-spacing: -.04em; }
+#root .app .page--discover .page-header p { font-size: 12px; line-height: 1.8; max-width: 440px; }
+#root .app .page--discover .page-header__actions { flex-wrap: wrap; gap: 8px; }
+#root .app .page--discover .online-source-pill { display: inline-flex; gap: 6px; align-items: center; height: 30px; border-radius: 20px; background: var(--frost-inset, var(--surface-soft)); font-size: 9px; letter-spacing: .06em; }
+.online-connected-dot { width: 5px; height: 5px; border-radius: 50%; background: #5c9d80; }
+#root .app .page--discover .online-user { border: 0; background: transparent; padding: 0; }
+#root .app .page--discover .online-user em { font-size: 11px; }
+#root .app .page--discover .discover-search-panel { border: 1px solid var(--line); border-radius: 18px; background: var(--frost-inset, var(--surface-soft)); overflow: hidden; }
+#root .app .page--discover .online-toolbar { margin: 0; padding: 8px; background: transparent; border: 0; box-shadow: none; backdrop-filter: none; }
+#root .app .page--discover .online-search { height: 48px; min-width: 0; gap: 12px; padding: 0 4px 0 12px; background: transparent; }
+#root .app .page--discover .online-search input { font-size: 13px; }
+#root .app .page--discover .online-search .button { height: 36px; padding: 0 18px; font-size: 12px; border-radius: 11px; }
+#root .app .page--discover .discover-settings { border-top: 1px solid var(--line); }
+#root .app .page--discover .discover-settings summary { display: flex; align-items: center; gap: 8px; padding: 12px 20px; color: var(--muted); font-size: 11px; cursor: pointer; list-style: none; }
+#root .app .page--discover .discover-settings summary::-webkit-details-marker { display: none; }
+#root .app .page--discover .discover-settings summary::after { content: '+'; margin-left: auto; font-size: 16px; }
+#root .app .page--discover .discover-settings[open] summary::after { content: '−'; }
+#root .app .page--discover .discover-settings summary em { font-size: 10px; font-style: normal; color: var(--text); border: 1px solid var(--line); padding: 3px 8px; border-radius: 6px; }
+#root .app .page--discover .download-target { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 4px 20px 18px; }
+#root .app .page--discover .download-target__control { display: flex; flex-direction: column; align-items: stretch; height: auto; min-width: 0; gap: 7px; padding: 0; background: transparent; border: 0; }
+#root .app .page--discover .download-target__control > span { font-size: 11px; letter-spacing: 0; color: var(--muted); }
+#root .app .page--discover .download-target__control select { appearance: auto; width: 100%; height: 36px; padding: 0 8px; font-size: 11px; border: 1px solid var(--line); background: var(--surface-soft); color: var(--text); border-radius: 8px; }
+#root .app .page--discover .download-target__hint { grid-column: 1 / -1; margin: 0; font-size: 11px; line-height: 1.7; }
+#root .app .page--discover .online-tabs { display: flex; gap: 22px; margin: 24px 0 20px; padding: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
+#root .app .page--discover .online-tabs button { height: 42px; gap: 7px; padding: 0 2px; font-size: 12px; border-radius: 0; border-bottom: 2px solid transparent; background: none; box-shadow: none; }
+#root .app .page--discover .online-tabs button.is-active { border-bottom-color: var(--accent); color: var(--text); }
+#root .app .page--discover .online-empty { min-height: 280px; padding: 36px 24px; border: 1px solid var(--line); border-radius: 20px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%); box-shadow: none; backdrop-filter: none; }
+#root .app .page--discover .online-empty__disc { width: 64px; height: 64px; margin-bottom: 18px; }
+#root .app .page--discover .online-empty h2 { font-size: 22px; letter-spacing: -.03em; margin-bottom: 10px; }
+#root .app .page--discover .online-empty p { max-width: 360px; font-size: 12px; line-height: 1.9; }
+#root .app .page--discover .quick-searches { flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
+#root .app .page--discover .quick-searches button { padding: 8px 14px; font-size: 11px; border-radius: 20px; background: var(--frost-control, var(--surface-soft)); border: 1px solid var(--line); }
+#root .app .page--discover .online-list { border-radius: 16px; background: var(--frost-inset, var(--surface-soft)); border: 1px solid var(--line); }
+#root .app .page--discover .online-list__head { flex-wrap: wrap; gap: 8px; padding: 14px 18px; font-size: 11px; }
+#root .app .page--discover .online-song { min-height: 76px; padding: 12px 16px; gap: 14px; }
+#root .app .page--discover .online-song__copy { min-width: 0; }
+#root .app .page--discover .online-song__copy strong { font-size: 13px; }
+#root .app .page--discover .online-song__copy span { font-size: 11px; margin-top: 4px; }
+#root .app .page--discover .online-download { min-height: 34px; font-size: 11px; padding-inline: 12px; }
+#root .app .page--discover .online-footnote { font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+#root .app .page--discover .discover-search-status { display: flex; align-items: center; gap: 8px; padding: 12px 4px; font-size: 12px; color: var(--muted); }
+#root .app .page--discover .login-stage { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+#root .app .page--discover .login-card, #root .app .page--discover .login-aside { min-width: 0; }
+#root .app .page--discover :is(button, summary, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@container (max-width: 540px) {
+  #root .app .page--discover .download-target { grid-template-columns: 1fr; }
+  #root .app .page--discover .online-song { gap: 10px; padding-inline: 10px; }
+  #root .app .page--discover .online-song__meta { display: none; }
+  #root .app .page--discover .login-stage { grid-template-columns: 1fr; }
+  #root .app .page--discover .online-tabs { gap: 18px; }
+}
+#root .app .page--discover .login-aside { display: block; }
+#root .app .page--discover .login-card__head p { font-size: 12px; line-height: 1.8; }
+#root .app .page--discover .login-card h2 { font-size: 24px; }
+#root .app .page--discover .login-aside li { font-size: 12px; line-height: 1.8; }
+@container (max-width: 760px) {
+  #root .app .page--discover .login-stage { grid-template-columns: 1fr; }
+  #root .app .page--discover .login-card { width: 100%; max-width: 480px; margin-inline: auto; }
+  #root .app .page--discover .login-aside { display: none; }
+}

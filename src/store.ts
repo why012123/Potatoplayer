@@ -85,6 +85,7 @@ interface AppStore {
   lyricsLoading: boolean;
   lyricsTrackId: string | null;
   rightPanelOpen: boolean;
+  rightPanelMode: "hidden" | "ai" | "player";
   brief: boolean;
   immersive: boolean;
   eqOpen: boolean;
@@ -138,6 +139,7 @@ interface AppStore {
   enqueueMany: (trackIds: string[], next: boolean) => Promise<void>;
   removeFromQueue: (trackId: string) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
+  setRightPanelMode: (mode: "hidden" | "ai" | "player") => void;
   toggleBrief: () => void;
   setImmersive: (open: boolean) => void;
   setEqOpen: (open: boolean) => void;
@@ -327,9 +329,29 @@ function readOnlineSource(): OnlineSource {
 function readDownloadQuality(): DownloadQuality {
   try {
     const value = localStorage.getItem("potato:download-quality");
-    return value === "standard" || value === "lossless" ? value : "high";
+    return value === "standard" || value === "high" || value === "lossless" || value === "hires" || value === "jymaster"
+      ? value
+      : "high";
   } catch {
     return "high";
+  }
+}
+
+/** Human label for a requested or served download quality. */
+export function downloadQualityLabel(quality?: string): string {
+  switch (quality) {
+    case "standard":
+      return lx("Standard", "标准");
+    case "high":
+      return lx("High 320k", "高品质 320k");
+    case "lossless":
+      return lx("Lossless", "无损");
+    case "hires":
+      return lx("Hi-Res 96k/24", "Hi-Res 96k/24");
+    case "jymaster":
+      return lx("Master 192k/24", "超清母带 192k/24");
+    default:
+      return quality ?? "";
   }
 }
 
@@ -349,11 +371,13 @@ function readBrief(): boolean {
   }
 }
 
-function readRightPanel(): boolean {
+function readRightPanelMode(): "hidden" | "ai" | "player" {
   try {
-    return localStorage.getItem("potato:right-panel") !== "0";
+    const mode = localStorage.getItem("potato:right-panel-mode");
+    if (mode === "hidden" || mode === "ai" || mode === "player") return mode;
+    return localStorage.getItem("potato:right-panel") === "0" ? "hidden" : "ai";
   } catch {
-    return true;
+    return "ai";
   }
 }
 
@@ -429,7 +453,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lyrics: null,
   lyricsLoading: false,
   lyricsTrackId: null,
-  rightPanelOpen: readRightPanel(),
+  rightPanelOpen: readRightPanelMode() !== "hidden",
+  rightPanelMode: readRightPanelMode(),
   brief: readBrief(),
   immersive: false,
   eqOpen: false,
@@ -691,6 +716,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
           path?: string;
           duplicate?: boolean;
           updated?: boolean;
+          replaced?: boolean;
+          upgradeUnavailable?: boolean;
+          quality?: DownloadQuality;
+          requestedQuality?: DownloadQuality;
+          previousQuality?: DownloadQuality;
           block?: string;
           genre?: string;
           source?: OnlineSource;
@@ -713,6 +743,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
           source: payload.source ?? current?.source ?? get().onlineSource,
           duplicate: payload.duplicate ?? current?.duplicate,
           updated: payload.updated ?? current?.updated,
+          replaced: payload.replaced ?? current?.replaced,
+          upgradeUnavailable: payload.upgradeUnavailable ?? current?.upgradeUnavailable,
+          quality: payload.quality ?? current?.quality,
+          requestedQuality: payload.requestedQuality ?? current?.requestedQuality,
+          previousQuality: payload.previousQuality ?? current?.previousQuality,
           block: payload.block ?? current?.block,
           genre: payload.genre ?? current?.genre,
           createdAt: current?.createdAt ?? Date.now(),
@@ -729,7 +764,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         if (!next.importId) {
           const label = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`;
-          if (payload.duplicate) {
+          const served = payload.quality ?? payload.requestedQuality;
+          const qualityText = served ? downloadQualityLabel(served) : "";
+          if (payload.replaced) {
+            const previous = payload.previousQuality
+              ? lx("was {quality}", "原为 {quality}", { quality: downloadQualityLabel(payload.previousQuality) })
+              : "";
+            get().pushToast(
+              lx("Replaced with a higher-quality copy", "已替换为更高音质"),
+              [label, qualityText, previous].filter(Boolean).join(" · "),
+              "success",
+            );
+          } else if (payload.upgradeUnavailable) {
+            get().pushToast(lx("No higher quality available", "暂无更高音质"), label, "default");
+          } else if (payload.duplicate) {
             get().pushToast(
               payload.updated ? lx("Song info updated", "歌曲信息已更新") : lx("Already in your library", "已存在于资料库"),
               payload.updated
@@ -738,7 +786,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
               "success",
             );
           } else {
-            get().pushToast(lx("Downloaded to your library", "已下载到资料库"), label, "success");
+            get().pushToast(
+              lx("Downloaded to your library", "已下载到资料库"),
+              [label, qualityText].filter(Boolean).join(" · "),
+              "success",
+            );
           }
         }
         void get().resolvePlaylistImports();
@@ -904,6 +956,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setVolume: (volume) => {
+    if (!Number.isFinite(volume)) return;
+    volume = Math.max(0, Math.min(1, volume));
     const current = get().playback;
     if (!current) return;
     set({ playback: { ...current, volume, muted: volume === 0 ? current.muted : false } });
@@ -1113,9 +1167,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setRightPanelOpen: (open) => {
-    set({ rightPanelOpen: open });
+    get().setRightPanelMode(open ? (get().rightPanelMode === "hidden" ? "ai" : get().rightPanelMode) : "hidden");
+  },
+  setRightPanelMode: (mode) => {
+    set({ rightPanelMode: mode, rightPanelOpen: mode !== "hidden" });
     try {
-      localStorage.setItem("potato:right-panel", open ? "1" : "0");
+      localStorage.setItem("potato:right-panel-mode", mode);
+      localStorage.setItem("potato:right-panel", mode === "hidden" ? "0" : "1");
     } catch {
       // Storage is optional.
     }

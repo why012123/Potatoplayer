@@ -1209,61 +1209,7 @@
   letter-spacing: 0.06em;
 }
 
-/* Dark scene */
-#root .app.ai-app.theme-dark .ai-workspace-hero {
-  border-color: rgba(255, 255, 255, 0.08);
-  background:
-    radial-gradient(120% 150% at 0% 0%, rgba(255, 197, 160, 0.1) 0%, transparent 50%),
-    radial-gradient(120% 140% at 88% 10%, rgba(167, 148, 198, 0.16) 0%, transparent 58%),
-    linear-gradient(118deg, #2d211d 0%, #34231f 34%, #2a2329 62%, #26252e 100%);
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-hero h1 {
-  color: #f7e9da;
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-hero p {
-  color: rgba(244, 230, 214, 0.58);
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-stats > div {
-  background: rgba(255, 245, 232, 0.06);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-stats strong {
-  color: #f5e7d7;
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-stats small {
-  color: rgba(244, 230, 214, 0.46);
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-stats span {
-  color: rgba(244, 230, 214, 0.5);
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-tabs > button.is-active {
-  background: linear-gradient(120deg, #f1ddc5, #eab493);
-  color: #2c221c;
-}
-
-#root .app.ai-app.theme-dark .ai-workspace-ghost {
-  border-color: rgba(255, 255, 255, 0.13);
-  color: rgba(245, 232, 219, 0.72);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-#root .app.ai-app.theme-dark .ai-conversation-item.is-active {
-  background:
-    linear-gradient(110deg, rgba(240, 138, 109, 0.13), transparent 62%),
-    var(--ws-panel-strong);
-}
-
-#root .app.ai-app.theme-dark .ai-memory-source.is-user {
-  color: #a9cce3;
-}
-
+/* Theme colors are owned by glass.css and the shared frosted tokens. */
 @media (max-width: 1180px) {
   .ai-history-layout {
     height: auto;

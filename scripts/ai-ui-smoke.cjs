@@ -33,6 +33,33 @@ const assert = require('node:assert/strict');
  await page.getByRole('button',{name:'切换主题',exact:true}).click();
  await page.screenshot({path:'/tmp/potato-ai-dark.png'});
  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+ // Exercise the actual offline provider through the UI, including constrained recommendations.
+ async function ask(query) {
+   const count=await page.locator('.ai-turn').count();
+   await page.getByRole('textbox',{name:'向音乐助手提问',exact:true}).fill(query);
+   await page.getByRole('button',{name:'发送音乐请求',exact:true}).click();
+   await page.waitForFunction(n=>document.querySelectorAll('.ai-turn').length>n,count);
+   await page.locator('.ai-turn').last().locator('h3').waitFor();
+   return page.locator('.ai-turn').last();
+ }
+ let turn=await ask('播放 Morning');
+ assert.equal(await turn.locator('.ai-result-track').count(),1);
+ assert.equal(await turn.locator('.ai-result-track strong').innerText(),'Morning');
+ turn=await ask('为我推荐 Missing Artist 的歌曲');
+ assert.equal(await turn.locator('.ai-result-track').count(),0);
+ assert.match(await turn.innerText(),/暂时没有匹配/);
+ turn=await ask('为我推荐 Test Artist 的歌曲');
+ assert.equal(await turn.locator('.ai-result-track').count(),4);
+ // Narrow desktop layout must keep the player separate from the content and assistant.
+ await page.setViewportSize({width:980,height:740});
+ await page.screenshot({path:'/tmp/potato-ai-compact.png'});
+ const bounds=await page.evaluate(()=>{
+   const player=document.querySelector('.ai-player').getBoundingClientRect();
+   return ['.page-shell','.ai-assistant'].map(selector=>document.querySelector(selector).getBoundingClientRect().bottom<=player.top);
+ });
+ assert.deepEqual(bounds,[true,true]);
+ await page.evaluate(()=>document.documentElement.dataset.glass='off');
+ assert.equal(await page.locator('.ai-assistant').evaluate(el=>getComputedStyle(el).backdropFilter),'none');
  assert.deepEqual(errors,[]);
  console.log('AI UI smoke passed: library, local recommendations, playback, playlist dialog; screenshots /tmp/potato-ai-*.png');
  } finally {await app.close();fs.rmSync(home,{recursive:true,force:true});}

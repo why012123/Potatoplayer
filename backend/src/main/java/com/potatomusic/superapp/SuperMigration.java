@@ -117,7 +117,7 @@ public final class SuperMigration {
             String audio = t.path("path").asText(); String nid = t.path("neteaseId").asText(""); String qq = t.path("qqId").asText("");
             if (nid.isBlank() && qq.isBlank()) { bindings.remove(audio); continue; }
             ObjectNode binding = object(bindings.get(audio)).deepCopy();
-            binding.put("path", audio); binding.put("neteaseId", nid.isBlank() ? "qq:" + qq : nid);
+            binding.put("path", audio); binding.put("neteaseId", nid.isBlank() ? "qq:" + qq : nid); binding.put("qqId", qq);
             for (String f : List.of("title", "artist", "album", "year", "coverPath", "block", "genre")) if (t.has(f)) binding.set(f, t.get(f));
             bindings.set(audio, binding);
         }

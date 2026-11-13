@@ -70,12 +70,13 @@ export function AiTurnView({ turn }: { turn: AssistantTurn }) {
                   className="ai-result-track"
                   key={track.id}
                   aria-label={`播放 ${track.title}`}
+                  title={[track.title, track.artist, track.album].filter(Boolean).join(" · ")}
                   onClick={() => void s.playTrack(track, tracks.map((t) => t.id))}
                 >
                   <Cover path={track.coverPath} seed={track.id} label={track.title} radius={7} />
                   <div>
                     <strong>{track.title}</strong>
-                    <small>{track.artist}</small>
+                    <small>{[track.artist, track.album].filter(Boolean).join(" · ")}</small>
                   </div>
                   <Play size={13} />
                 </button>

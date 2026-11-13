@@ -62,6 +62,11 @@ function wav() {
 
     await page.locator(".ai-nav-item").filter({ hasText: "AI 工作台" }).click();
     await page.waitForSelector(".ai-workspace", { timeout: 15000 });
+    await page.waitForFunction(() => {
+      const composer = document.querySelector('.ai-conversation-panel .ai-workspace-composer').getBoundingClientRect();
+      const pane = document.querySelector('.page-shell').getBoundingClientRect();
+      return composer.bottom <= pane.bottom && composer.top >= pane.top;
+    });
     await page.screenshot({ path: "/tmp/ai-workspace-history.png" });
     assert.ok((await page.locator(".ai-workspace-hero").innerText()).includes("把每次对话"));
     assert.ok((await page.locator(".ai-workspace-tabs").innerText()).includes("记忆索引"));
@@ -119,6 +124,17 @@ function wav() {
     await page.waitForSelector(".ai-memory-song-row");
     assert.ok((await page.locator(".ai-memory-workspace").innerText()).includes("适合深夜听"));
     console.log("[ai-workspace] memory survived reload");
+    await page.getByRole("button", { name: "切换主题", exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+    assert.equal(await page.locator('.ai-workspace').evaluate(el => getComputedStyle(el).color), 'rgb(240, 241, 246)');
+    const darkMaterial = await page.locator('.ai-workspace-hero').evaluate(el => ({
+      background: getComputedStyle(el).backgroundImage,
+      ink: getComputedStyle(el.querySelector('h1')).color,
+    }));
+    assert.equal(darkMaterial.ink, 'rgb(240, 241, 246)');
+    assert.ok(!darkMaterial.background.includes('rgb(45, 33, 29)'));
+    await page.screenshot({ path: "/tmp/ai-workspace-dark.png" });
+
 
     const more = page.getByRole("button", { name: "音乐工具" });
     if (await more.count()) await more.click();

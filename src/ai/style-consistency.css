@@ -1,0 +1,302 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   AI workspace consistency layer.
+
+   Loaded last. It does not re-skin the app: the AI composition, spacing and
+   materials stay exactly as designed. It only makes the parts that had drifted
+   follow the same Settings → Appearance system as every other page:
+
+     · one display face (serif or sans) for every page-level heading;
+     · the same glass, control-blur, shadow, corner and density switches;
+     · the same motion budget;
+     · Brief as a second, flat-paper room for the whole app, AI shell included.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Type: page headings use the display face chosen in Settings ─────────── */
+
+#root .app.ai-app {
+  font-family: var(--font);
+}
+
+#root .app.ai-app :is(
+  .ai-hero h2,
+  .ai-welcome h2,
+  .ai-home h1,
+  .ai-workspace-hero h1,
+  .ai-workspace-welcome h2
+) {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+}
+
+/* Panel titles follow the same rule the classic panels use. */
+#root .app.ai-app :is(.ai-conversation-head h2, .ai-memory-section-head h2) {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: -0.01em;
+}
+
+/* The decorative record sleeve keeps the display face too. */
+#root .app.ai-app .ai-record-sleeve > span {
+  font-family: var(--font-display);
+}
+
+/* Chinese display type needs the tighter tracking the rest of the app uses. */
+:lang(zh) #root .app.ai-app :is(
+  .ai-hero h2,
+  .ai-welcome h2,
+  .ai-home h1,
+  .ai-workspace-hero h1,
+  .ai-workspace-welcome h2
+) {
+  letter-spacing: -0.25px;
+}
+
+:lang(zh) #root .app.ai-app :is(.ai-home h1, .ai-hero h2, .ai-workspace-hero h1) {
+  line-height: 1.14;
+}
+
+/* ── Materials: Rendering settings reach the AI shell as well ────────────── */
+
+:root[data-glass="off"] #root .app.ai-app :is(.ai-sidebar, .page-shell, .ai-assistant, .ai-player) {
+  background: var(--ai-panel-solid);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-glass="off"] #root .app.ai-app :is(
+  .ai-search,
+  .ai-history,
+  .ai-topbar .ai-toggle,
+  .ai-nav-item.is-active,
+  .ai-library-status,
+  .ai-queue
+) {
+  background: color-mix(in srgb, var(--ai-panel-solid) 86%, transparent);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none;
+}
+
+:root[data-control-blur="false"] #root .app.ai-app :is(
+  .ai-search,
+  .ai-history,
+  .ai-topbar .ai-toggle,
+  .ai-nav-item.is-active,
+  .ai-library-status
+) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── Corners: crisp mode trims the AI cards/controls like the classic ones ─ */
+
+:root[data-corners="crisp"] #root .app.ai-app :is(
+  .ai-search,
+  .ai-history,
+  .ai-topbar .ai-toggle,
+  .ai-library-status,
+  .ai-nav-item,
+  .ai-queue,
+  .ai-result-card,
+  .ai-composer,
+  .ai-hero,
+  .ai-mood,
+  .ai-home-prompt,
+  .ai-suggestions button,
+  .ai-memory-card,
+  .ai-workspace-card,
+  .ai-conversation-rail,
+  .ai-conversation-panel,
+  .toast
+) {
+  border-radius: 8px;
+}
+
+:root[data-corners="crisp"] #root .app.ai-app :is(.ai-search, .ai-history, .ai-topbar .ai-toggle) {
+  border-radius: 6px;
+}
+
+/* ── Density: compact tightens the shell chrome, not the reading column ─── */
+
+:root[data-density="compact"] #root .app.ai-app .page-scroll {
+  padding: 20px 24px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .ai-topbar {
+  height: 50px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .ai-player {
+  height: 76px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .ai-nav-item {
+  min-height: 31px;
+  padding-block: 5px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .ai-search {
+  height: 36px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .app-grid {
+  gap: 10px;
+}
+
+:root[data-density="compact"] #root .app.ai-app .ai-assistant-header {
+  padding: 14px 12px;
+}
+
+/* ── Motion: reduced mode shortens CSS transitions, not just the JS ones ── */
+
+:root[data-animation="reduced"] #root .app.ai-app *,
+:root[data-animation="reduced"] #root .app.ai-app *::before,
+:root[data-animation="reduced"] #root .app.ai-app *::after {
+  animation-duration: 0.12s !important;
+  transition-duration: 0.12s !important;
+}
+
+/* ── Classic track: the warm glass room, applied to the AI shell ────────── */
+
+:root[data-style="classic"] #root .app.ai-app {
+  --ai-bg: var(--paper);
+  --ai-ink: var(--text);
+  --ai-muted: var(--muted);
+  --ai-border: var(--line-dark);
+  --ai-surface: var(--glass);
+  --ai-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --ai-green: color-mix(in srgb, var(--accent) 62%, var(--text));
+  --ai-strong: var(--control-dark);
+  --ai-panel-solid: color-mix(in srgb, var(--paper) 92%, var(--text));
+  --ws-paper: var(--paper);
+  --ws-panel: var(--glass);
+  --ws-panel-strong: var(--glass-strong);
+  --ws-ink: var(--text);
+  --ws-muted: var(--muted);
+  --ws-line: var(--line-dark);
+  --ws-shadow: var(--shadow-soft);
+}
+
+:root[data-style="classic"] #root .app.ai-app :is(.ai-sidebar, .page-shell, .ai-assistant, .ai-player) {
+  background: var(--glass-strong);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--graphics-blur, 20px)) saturate(150%);
+}
+
+:root[data-style="classic"] #root .app.ai-app :is(
+  .ai-search,
+  .ai-history,
+  .ai-topbar .ai-toggle,
+  .ai-nav-item.is-active,
+  .ai-library-status,
+  .ai-queue
+) {
+  background: var(--glass);
+  border-color: var(--line);
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── Brief: flat paper for the AI shell as well ─────────────────────────── */
+
+#root .app.brief.ai-app {
+  --ai-bg: var(--brief-paper);
+  --ai-ink: var(--brief-ink);
+  --ai-muted: var(--brief-muted);
+  --ai-border: var(--brief-line);
+  --ai-surface: transparent;
+  --ai-panel-solid: var(--brief-paper);
+  --ai-soft: color-mix(in srgb, var(--brief-ink) 8%, transparent);
+  --ai-green: var(--brief-ink);
+  --ai-strong: var(--brief-ink);
+  --ws-paper: var(--brief-paper);
+  --ws-panel: transparent;
+  --ws-panel-strong: var(--brief-paper);
+  --ws-ink: var(--brief-ink);
+  --ws-muted: var(--brief-muted);
+  --ws-line: var(--brief-line);
+  --ws-shadow: none;
+}
+
+#root .app.brief.ai-app > .ambient {
+  display: none !important;
+}
+
+#root .app.brief.ai-app .app-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  height: calc(100dvh - 126px);
+}
+
+#root .app.brief.ai-app .ai-sidebar {
+  display: none;
+}
+
+#root .app.brief.ai-app :is(.workspace-body, .workspace-body--solo) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0;
+}
+
+#root .app.brief.ai-app .ai-assistant {
+  display: none;
+}
+
+#root .app.brief.ai-app :is(.page-shell, .ai-player) {
+  border: 0;
+  border-radius: 0;
+  background: var(--brief-paper);
+  box-shadow: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#root .app.brief.ai-app .ai-topbar {
+  padding: 0 24px;
+  border-bottom: 1px solid var(--brief-line);
+  background: transparent;
+}
+
+#root .app.brief.ai-app :is(.ai-search, .ai-history, .ai-topbar .ai-toggle) {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none !important;
+}
+
+#root .app.brief.ai-app .ai-player {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 80px;
+  border-top: 1px solid var(--brief-line);
+  border-radius: 0;
+}
+
+#root .app.brief.ai-app :is(
+  .ai-hero,
+  .ai-welcome,
+  .ai-result-card,
+  .ai-composer,
+  .ai-memory-card,
+  .ai-home-prompt,
+  .ai-conversation-rail,
+  .ai-conversation-panel,
+  .toast
+) {
+  border: 1px solid var(--brief-line);
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--brief-paper);
+  backdrop-filter: none !important;
+}
+
+#root .app.brief.ai-app .ai-nav-item.is-active {
+  border-radius: 2px;
+}
+
+#root .app.brief.ai-app .brief-dock {
+  bottom: 96px;
+}
