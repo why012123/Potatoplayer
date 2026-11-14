@@ -35,6 +35,30 @@ export interface PotatoAPI {
   openExternal(url: string): Promise<boolean>;
   coverPalette(path: string): Promise<Palette | null>;
   coverData(path: string): Promise<string | null>;
+  togetherUpload(options: {
+    id: string;
+    url: string;
+    token: string;
+    path: string;
+    fileName?: string;
+  }): Promise<{ file?: { key: string; size: number; sha256: string; ext: string } }>;
+  togetherDownload(options: {
+    id: string;
+    url: string;
+    token: string;
+    sha256: string;
+    ext?: string;
+    fileName?: string;
+  }): Promise<{ path: string; sha256: string; size: number }>;
+  onTogetherProgress(
+    listener: (progress: {
+      id: string;
+      direction: "up" | "down";
+      loaded: number;
+      total: number;
+    }) => void,
+  ): () => void;
+  cancelTogetherTransfer(id: string): Promise<boolean>;
   openUltra(): Promise<void>;
   rendererReady(): void;
   platform: string;

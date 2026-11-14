@@ -52,6 +52,7 @@ export function NowPlaying() {
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
+  const tempTrack = useAppStore((state) => state.tempTrack);
   const favorites = useAppStore((state) => state.favorites);
   const lyrics = useAppStore((state) => state.lyrics);
   const lyricsLoading = useAppStore((state) => state.lyricsLoading);
@@ -74,9 +75,14 @@ export function NowPlaying() {
   const setTrackMenu = useAppStore((state) => state.setTrackMenu);
   const settings = useAppStore((state) => state.settings);
 
-  const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
+  const trackBy = useMemo(() => {
+    const map = new Map(tracks.map((track) => [track.id, track]));
+    if (tempTrack) map.set(tempTrack.id, tempTrack);
+    return map;
+  }, [tracks, tempTrack]);
   const currentId = playback?.trackId ?? previewTrackId;
   const track = currentId ? trackBy.get(currentId) : undefined;
+  const isTemp = Boolean(track && tempTrack?.id === track.id);
   const isCurrent = Boolean(track && playback?.trackId === track.id);
   const isPlaying = Boolean(isCurrent && playback?.playing);
   const time = isCurrent ? playback?.time ?? 0 : 0;
@@ -162,7 +168,7 @@ export function NowPlaying() {
     if (!track) return;
     if (isCurrent) {
       void togglePlay();
-    } else {
+    } else if (!isTemp) {
       const queueIds = queue.length ? queue : tracks.map((item) => item.id);
       void playTrack(track, queueIds);
     }
@@ -171,7 +177,7 @@ export function NowPlaying() {
   const onSeek = (value: number) => {
     if (!track) return;
     if (isCurrent) seek(value);
-    else void playTrack(track, queue.length ? queue : [track.id], value);
+    else if (!isTemp) void playTrack(track, queue.length ? queue : [track.id], value);
   };
 
   const volumeIcon = muted || volume === 0 ? <VolumeX size={17} /> : volume < 0.45 ? <Volume1 size={17} /> : <Volume2 size={17} />;
@@ -204,7 +210,7 @@ export function NowPlaying() {
           >
             <SlidersHorizontal size={16} />
           </IconButton>
-          {track && (
+          {track && !isTemp && (
             <IconButton
               label={tr("More options", "更多操作")}
               variant="ghost"
@@ -270,31 +276,46 @@ export function NowPlaying() {
             <div className="now-playing__meta">
               <div className="now-playing__title-line">
                 <div>
-                  <h2>{track.title}</h2>
-                  <button
-                    type="button"
-                    className="now-playing__artist"
-                    onClick={() => useAppStore.getState().navigate({ kind: "artist", name: track.artist })}
-                  >
-                    {track.artist}
-                  </button>
+                  <div className="now-playing__title-row">
+                    <h2>{track.title}</h2>
+                    {isTemp && <em className="now-playing__room-tag">{tr("Together", "一起听")}</em>}
+                  </div>
+                  {isTemp ? (
+                    <span className="now-playing__artist">{track.artist || tr("Room member", "房间成员")}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="now-playing__artist"
+                      onClick={() => useAppStore.getState().navigate({ kind: "artist", name: track.artist })}
+                    >
+                      {track.artist}
+                    </button>
+                  )}
                 </div>
-                <IconButton
-                  label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
-                  variant="ghost"
-                  size="sm"
-                  className={clsx(favorite && "is-favorite")}
-                  onClick={() => void toggleFavorite(track.id)}
-                >
-                  <Heart size={19} fill={favorite ? "currentColor" : "none"} />
-                </IconButton>
+                {!isTemp && (
+                  <IconButton
+                    label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏")}
+                    variant="ghost"
+                    size="sm"
+                    className={clsx(favorite && "is-favorite")}
+                    onClick={() => void toggleFavorite(track.id)}
+                  >
+                    <Heart size={19} fill={favorite ? "currentColor" : "none"} />
+                  </IconButton>
+                )}
               </div>
               <div className="now-playing__subline">
-                <span>
-                  {track.album || tr("{artist} · Collection", "{artist} · 合集", { artist: track.artist })}
-                </span>
-                {track.year > 0 && <span>{track.year}</span>}
-                {track.rating > 0 && <span className="rating-inline">★ {track.rating.toFixed(1)}</span>}
+                {isTemp ? (
+                  <span>{tr("Room cache · not in your library", "房间缓存 · 不在资料库")}</span>
+                ) : (
+                  <>
+                    <span>
+                      {track.album || tr("{artist} · Collection", "{artist} · 合集", { artist: track.artist })}
+                    </span>
+                    {track.year > 0 && <span>{track.year}</span>}
+                    {track.rating > 0 && <span className="rating-inline">★ {track.rating.toFixed(1)}</span>}
+                  </>
+                )}
               </div>
             </div>
 

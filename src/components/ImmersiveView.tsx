@@ -43,6 +43,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const capabilities = useAppStore((state) => state.engineCapabilities);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
+  const tempTrack = useAppStore((state) => state.tempTrack);
   const favorites = useAppStore((state) => state.favorites);
   const lyrics = useAppStore((state) => state.lyrics);
   const settings = useAppStore((state) => state.settings);
@@ -68,9 +69,14 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const setView3d = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "3d" : "classic" }));
   const updatePrefs = (patch: Partial<ImmersivePreferences>) => setPrefs((current) => ({ ...current, ...patch }));
 
-  const trackBy = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
+  const trackBy = useMemo(() => {
+    const map = new Map(tracks.map((track) => [track.id, track]));
+    if (tempTrack) map.set(tempTrack.id, tempTrack);
+    return map;
+  }, [tracks, tempTrack]);
   const currentId = playback?.trackId ?? previewTrackId;
   const track = currentId ? trackBy.get(currentId) : undefined;
+  const isTemp = Boolean(track && tempTrack?.id === track.id);
   const isCurrent = Boolean(track && playback?.trackId === track.id);
   const isPlaying = Boolean(isCurrent && playback?.playing);
   const time = isCurrent ? playback?.time ?? 0 : 0;
@@ -325,7 +331,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                   <h1>{track.title}</h1>
                   <p>{track.artist}</p>
                   <div className="immerse__meta">
-                    <span>{track.album || tr("{artist} · Collection", "{artist} · 精选集", { artist: track.artist })}</span>
+                    <span>
+                      {isTemp
+                        ? tr("Room cache · Together", "房间缓存 · 一起听")
+                        : track.album || tr("{artist} · Collection", "{artist} · 精选集", { artist: track.artist })}
+                    </span>
                     <i />
                     <span>{formatTime(track.duration)}</span>
                     {track.rating > 0 && (
@@ -334,14 +344,16 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                         <span className="immerse__rating">★ {track.rating.toFixed(1)}</span>
                       </>
                     )}
-                    <button
-                      type="button"
-                      className={`immerse__favorite ${favorite ? "is-favorite" : ""}`}
-                      aria-label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加到收藏")}
-                      onClick={() => void toggleFavorite(track.id)}
-                    >
-                      <Heart size={16} fill={favorite ? "currentColor" : "none"} />
-                    </button>
+                    {!isTemp && (
+                      <button
+                        type="button"
+                        className={`immerse__favorite ${favorite ? "is-favorite" : ""}`}
+                        aria-label={favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加到收藏")}
+                        onClick={() => void toggleFavorite(track.id)}
+                      >
+                        <Heart size={16} fill={favorite ? "currentColor" : "none"} />
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               </AnimatePresence>

@@ -38,6 +38,8 @@ import { DownloadTasks } from "@/components/DownloadTasks";
 import { ImmersiveView } from "@/components/ImmersiveView";
 import { EqualizerDialog } from "@/components/EqualizerDialog";
 import { BilibiliMvDialog } from "@/components/BilibiliMvDialog";
+import { TogetherDialog } from "@/components/TogetherDialog";
+import { TogetherSync } from "@/components/TogetherSync";
 import { useAmbientImage } from "@/lib/useAmbientImage";
 import { applyTheme } from "@/lib/theme";
 import { useMediaControls } from "@/lib/mediaControls";
@@ -423,6 +425,7 @@ export default function App() {
       <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>
 
       <CommandPalette />
+      <TogetherSync />
 
       <TaxonomyManager />
       <EqualizerDialog />
@@ -433,6 +436,7 @@ export default function App() {
       <TrackMenu />
       <DownloadTray />
       <DownloadTasks />
+      <TogetherDialog />
       <Toasts />
       </div>
     </MotionConfig>
