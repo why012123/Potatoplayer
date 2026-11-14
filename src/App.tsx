@@ -26,6 +26,7 @@ import { AlbumDetailPage, ArtistDetailPage } from "@/pages/DetailPages";
 import { SongEditorPage } from "@/pages/SongEditorPage";
 import { CollectionsPage } from "@/pages/CollectionsPage";
 import { TagPage } from "@/pages/TagPage";
+import { SyncPage } from "@/pages/SyncPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
@@ -349,6 +350,8 @@ export default function App() {
       case "block":
       case "genre":
         return <TagPage />;
+      case "sync":
+        return <SyncPage />;
       case "discover":
         return <DiscoverPage />;
       case "playlist":

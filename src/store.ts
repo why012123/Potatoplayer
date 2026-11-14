@@ -187,7 +187,9 @@ interface AppStore {
   resetAppearance: () => void;
   pushToast: (title: string, detail?: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
+  cancelDownload: (jobId: string) => Promise<void>;
   dismissDownload: (jobId: string) => void;
+  movePlaylistTrack: (playlistId: string, trackId: string, beforeId: string) => Promise<void>;
   setDownloadPanelOpen: (open: boolean) => void;
   setOnlineSource: (source: OnlineSource) => void;
   setDownloadQuality: (quality: DownloadQuality) => void;
@@ -307,6 +309,8 @@ function initialView(): View {
       return { kind: "editor" };
     case "discover":
       return { kind: "discover" };
+    case "sync":
+      return { kind: "sync" };
     default:
       return { kind: "home" };
   }
@@ -391,7 +395,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.4.12",
+  version: "s1.9.0",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -652,6 +656,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       case "download.progress": {
         const job = data as Partial<DownloadJob> & { jobId: string; downloaded: number; total: number; phase: string; source?: OnlineSource };
         const current = get().downloads.find((item) => item.jobId === job.jobId);
+        if (current && current.status !== "running") break;
         const neteaseId = job.neteaseId ?? current?.neteaseId ?? "";
         const pendingImport = pendingImportEntries.find((entry) => entry.neteaseId === neteaseId);
         const next: DownloadJob = {
@@ -737,7 +742,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         void get().resolvePlaylistImports();
         break;
       }
+      case "download.cancelled":
       case "download.error": {
+        const cancelled = event === "download.cancelled";
         const payload = data as { jobId: string; neteaseId?: string; message: string; source?: OnlineSource };
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
         const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
@@ -749,8 +756,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           path: current?.path,
           downloaded: current?.downloaded ?? 0,
           total: current?.total ?? 0,
-          phase: "error",
-          status: "error",
+          phase: cancelled ? "cancelled" : "error",
+          status: cancelled ? "cancelled" : "error",
           message: payload.message,
           importId: current?.importId,
           source: payload.source ?? current?.source ?? get().onlineSource,
@@ -781,7 +788,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             });
           }
         }
-        if (!current?.importId) get().pushToast(lx("Download failed", "下载失败"), payload.message, "error");
+        if (!cancelled && !current?.importId) get().pushToast(lx("Download failed", "下载失败"), payload.message, "error");
         break;
       }
       case "backend.fatal": {
@@ -1392,6 +1399,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   dismissToast: (id) => set({ toasts: get().toasts.filter((toast) => toast.id !== id) }),
 
+  movePlaylistTrack: async (playlistId, trackId, beforeId) => {
+    try { await bridge().invoke("playlist.moveTrack", { playlistId, trackId, beforeId }); }
+    catch (error) { get().pushToast(lx("Could not reorder", "无法调整顺序"), friendlyError(error), "error"); }
+  },
+  cancelDownload: async (jobId) => {
+    const job = get().downloads.find((item) => item.jobId === jobId);
+    if (!job || job.status !== "running") return;
+    try { await bridge().invoke(`${job.source ?? "netease"}.cancelDownload`, { jobId }); }
+    catch (error) { get().pushToast(lx("Could not cancel", "取消失败"), friendlyError(error), "error"); }
+  },
   dismissDownload: (jobId) => set({ downloads: get().downloads.filter((job) => job.jobId !== jobId) }),
 
   setDownloadPanelOpen: (open) => set({ downloadPanelOpen: open }),
@@ -1436,7 +1453,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
           : preferred;
       const result = await bridge().invoke<{ jobId: string }>(`${source}.download`, {
         id: job.neteaseId,
+        title: job.title,
         quality,
+        block: job.block ?? "",
+        genre: job.genre ?? "",
       });
       const refreshed: DownloadJob = {
         ...job,
@@ -1450,7 +1470,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         createdAt: Date.now(),
       };
       set({
-        downloads: [...get().downloads.filter((item) => item.jobId !== jobId), refreshed],
+        downloads: [...get().downloads.filter((item) => item.jobId !== jobId && item.jobId !== result.jobId), get().downloads.find((item) => item.jobId === result.jobId) ?? refreshed],
       });
       get().pushToast(lx("Retry queued", "已重新排队"), job.title);
     } catch (error) {
@@ -1523,6 +1543,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         const result = await bridge().invoke<{ jobId: string }>(`${onlineSource}.download`, {
           id: song.id,
+          title: song.name,
           quality,
           block,
           genre,

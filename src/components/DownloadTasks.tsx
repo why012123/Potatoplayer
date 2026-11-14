@@ -24,6 +24,7 @@ export function DownloadTasks() {
   const imports = useAppStore((state) => state.imports);
   const retry = useAppStore((state) => state.retryDownload);
   const clear = useAppStore((state) => state.clearFinishedDownloads);
+  const cancel = useAppStore((state) => state.cancelDownload);
   const dismiss = useAppStore((state) => state.dismissDownload);
   const dismissImport = useAppStore((state) => state.dismissImport);
   const [filter, setFilter] = useState<Filter>("active");
@@ -34,7 +35,7 @@ export function DownloadTasks() {
   const failedCount = downloads.filter((job) => job.status === "error").length;
 
   const visible = useMemo(() => {
-    const sorted = [...downloads].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const sorted = [...downloads].sort((a, b) => filter === "active" ? (a.createdAt || 0) - (b.createdAt || 0) : (b.createdAt || 0) - (a.createdAt || 0));
     if (filter === "active") return sorted.filter((job) => job.status === "running");
     if (filter === "done") return sorted.filter((job) => job.status === "done");
     if (filter === "failed") return sorted.filter((job) => job.status === "error");
@@ -180,7 +181,7 @@ export function DownloadTasks() {
                       <div className="download-row__copy">
                         <strong>{job.title}</strong>
                         <span>
-                          {job.status === "error"
+                          {job.status === "cancelled" ? tr("Cancelled", "已取消") : job.status === "error"
                             ? job.message
                             : job.status === "done"
                               ? job.updated
@@ -203,7 +204,8 @@ export function DownloadTasks() {
                         )}
                       </div>
                       <div className="download-row__actions">
-                        {job.status === "error" && (
+                        {job.status === "running" && <button type="button" aria-label={tr("Cancel download", "取消下载")} title={tr("Cancel download", "取消下载")} onClick={() => void cancel(job.jobId)}><X size={13} /></button>}
+                        {(job.status === "error" || job.status === "cancelled") && (
                           <button type="button" onClick={() => void retry(job.jobId)} title={tr("Retry download", "重试下载")} aria-label={tr("Retry download", "重试下载")}>
                             <RefreshCw size={13} />
                           </button>

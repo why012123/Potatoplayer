@@ -15,6 +15,7 @@ import "./brief.css";
 import "./listening-room.css";
 import "./graphics.css";
 import "./now-playing.css";
+import "./sync.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());

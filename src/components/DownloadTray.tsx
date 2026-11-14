@@ -6,7 +6,7 @@ import { useTr } from "@/lib/i18n";
 export function DownloadTray() {
   const tr = useTr();
   const downloads = useAppStore((state) => state.downloads);
-  const dismiss = useAppStore((state) => state.dismissDownload);
+  const dismiss = useAppStore((state) => state.cancelDownload);
   const setPanelOpen = useAppStore((state) => state.setDownloadPanelOpen);
   const running = downloads.filter((job) => job.status === "running");
   if (!running.length) return null;
@@ -23,7 +23,7 @@ export function DownloadTray() {
         <em>{tr("View all tasks", "查看全部任务")}</em>
       </button>
       <AnimatePresence>
-        {running.map((job) => {
+        {running.slice(0, 3).map((job) => {
           const pct = job.total > 0 ? Math.min(100, Math.round((job.downloaded / job.total) * 100)) : 0;
           return (
             <motion.div
@@ -55,7 +55,7 @@ export function DownloadTray() {
                   <i style={{ transform: `scaleX(${Math.max(0.04, Math.min(1, pct / 100))})` }} />
                 </div>
               </div>
-              <button type="button" className="download-item__close" aria-label={tr("Dismiss", "忽略")} onClick={() => dismiss(job.jobId)}>
+              <button type="button" className="download-item__close" aria-label={tr("Cancel download", "取消下载")} onClick={() => dismiss(job.jobId)}>
                 <X size={12} />
               </button>
             </motion.div>

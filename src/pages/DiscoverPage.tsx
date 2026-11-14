@@ -433,6 +433,7 @@ export function DiscoverPage() {
     try {
       await invokeOnline("download", {
         id: song.id,
+        title: song.name,
         quality: onlineQuality(quality),
         block: downloadBlock,
         genre: downloadGenre,
@@ -452,6 +453,7 @@ export function DiscoverPage() {
       try {
         await invokeOnline("download", {
           id: song.id,
+          title: song.name,
           quality: onlineQuality(quality),
           block: downloadBlock,
           genre: downloadGenre,

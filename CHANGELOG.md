@@ -4,37 +4,89 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.12`. The line started at `s1.0.0`; patch releases use
-  the familiar `s1.0.x` sequence, while feature releases use a minor bump.
-- The `s` prefix is the user-facing Super version label. The package and Maven
-  metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
+- **Current release:** `s1.9.0`. The line started at `s1.0.0`; patch releases use
+  the familiar `s1.9.x` sequence, while feature releases use a minor bump.
+- The `s` prefix is the user-facing Super version label. The package metadata uses
+  the equivalent plain semver (`1.9.0`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
-## Unreleased — 2026-11-06
+## s1.9.0 — 2026-11-14
 
-### Added
+### 2026-11-14
+
+#### Added
+
+- **自包含 macOS 安装包**：新增 `npm run package:mac`（`scripts/package-macos.py`），一次产出 `PotatoMusic-<版本>-macOS-arm64.dmg`、可安装到 `/Applications` 的 `.pkg` 与 `SHA256SUMS.txt`；应用内打包 Java 运行时、VLC、potatoHQ、mpv、Node 以及网易云 / QQ 音乐服务，安装者不需要 npm、JDK、Homebrew 或独立 VLC。当前仅构建 arm64，使用 ad-hoc 本地签名，未做 Developer ID 签名或公证，依赖与限制记录在 `docs/macos-packaging.md`。
+- **打包后优先使用内置运行时**：`electron/backend.cjs` 检测到应用内 `runtime/` 时改用其中的 Java、VLC（`potatomusic.libvlcDir` / `jna.library.path`）、potatoHQ、mpv、Node 与服务目录；`VlcPlaybackEngine` 在指定内置 libvlc 后不再先发现宿主机已安装的 VLC；QQ 服务的可写状态落到用户数据目录 `services/qq`，不写入应用包。
+- **打包冒烟测试**：新增 `scripts/package-smoke.cjs`（`npm run test:package`），在独立数据目录、合成静音 WAV 和不含 Homebrew 的 PATH 下检查应用签名、界面、Java 后端、扫描、三个播放引擎、两个音乐服务和 Ultra 窗口；默认只读挂载 DMG 复验，不安装或覆盖 Applications 中已有应用。
+
+#### Changed
+
+- **README 与打包文档**：README 新增「云同步歌单」章节（三种方向、两种策略、跳过与冲突规则）、`playlist_sync.json` 数据说明和同步冒烟测试命令；新增 `docs/macos-packaging.md` 说明安装包产物、构建机器依赖与签名限制；`.gitignore` 忽略 `release/` 打包产物。
+
+#### Validation
+
+- 新增 `scripts/playlist-download-smoke.cjs`：隔离 Electron + 本机模拟 HTTP 音频，覆盖下载排队、取消、音频流关闭、迟到进度抑制与临时文件清理。
+- 新增 `scripts/sync-smoke.cjs`：临时资料库 + 模拟 api-enhanced，覆盖绑定管理、六种方向/策略组合、自动同步、重启恢复、下载入库与失败处理，不连接真实账号。
+- 本次发布实际执行并通过：`npm run typecheck`；`npm run build:renderer`（vite 8，主包 769.60 kB）；`npm run build:backend`（JDK 21 javac 直接编译 30 个 Java 文件，无需 Maven）；`npm run test:backend`（**2172 checks passed**）。
+- 本次未执行 Electron GUI / 安装包冒烟测试（需要显示器、VLC 与完整打包依赖）；`scripts/package-smoke.cjs`、`scripts/playlist-download-smoke.cjs`、`scripts/sync-smoke.cjs` 随源码提供，本地未运行。
+
+### 2026-11-09
+
+#### Added
+
+- **同步体验调整**：取消每分钟轮询；选择框换为支持搜索和键盘操作的玻璃菜单，缺少网易云 ID 的歌曲显示歌名与歌手并自动跳过，完全同步也保留这些本地歌曲。
+- **网易云歌单同步**：在“在线 → 发现”下新增“同步”，支持云端歌单与本地歌单、区块、流派绑定/解绑，三种方向与完全替换、仅添加两种策略；沿用现有玻璃界面和浅色/深色主题。
+- **自动同步与恢复**：本地成员修改自动同步，仅启动或手动同步时检查云端；双向替换使用增删基准与持久化中断记录，缺少网易云 ID 的歌曲自动跳过并列出名称和编辑入口，缺少的云端歌曲复用下载队列后入库。
+- **同步边界检查**：完整获取云端歌曲 ID，检查账号、歌单写入权限、资料库就绪状态与并发编辑，分类冲突时暂停，失败不冒充同步成功；替换和解绑均保留音频文件。
+
+#### Validation
+
+- 增加双向合并真值表、空列表、顺序、中断重试的后端检查，以及隔离 Electron / 模拟 API 的绑定管理、六种组合、自动同步、重启恢复、下载入库和失败处理测试。
+
+### 2026-11-06
+
+#### Added
 
 - **年份范围筛选与年份搜索**：歌曲筛选新增发行年份起止区间和年代快捷项，筛选摘要会显示当前年份范围；资料库搜索、命令面板和编辑器搜索都能直接搜年份（如 `2011` 或 `2011年`）。
 - **网易云下载自动导入发行年份**：下载时读取网易云发行时间并写入下载绑定，重新扫描后自动出现在资料库，不需要手动补年份。
 
-### Validation
+#### Validation
 
 - 隔离 Electron 测试验证 2010–2012 年份筛选、`2011` / `2011年` 搜索，以及模拟网易云下载后绑定和资料库均得到 2011。
 
-## Unreleased — 2026-11-01
+### 2026-11-04
 
-### Added
+#### Fixed
+
+- **下载真正取消**：任务面板和底部提示的取消按钮调用后端，等待任务从队列移除，进行中的请求被中断、音频流被关闭；清理临时音频和歌词，取消后迟到的进度不会让任务重新出现。
+- **入队立即可见**：任务创建时就显示歌名和排队状态，联网检查与音源解析在轮到任务后执行。网易云和 QQ 音乐共用一个先进先出的下载通道；底部只展示前三项，完整队列在任务面板中查看。
+- **歌单顺序可编辑并保存**：拖动歌曲左侧手柄排序、拖到末尾区域置底；手柄聚焦后支持 Alt + ↑ / ↓。后端只移动指定歌曲，保留并发添加的其他歌曲，顺序写入资料库。
+
+#### Changed
+
+- 歌单头部采用随明暗主题变化的半透明材质，去除厚重实色底与按钮外框。
+- 常用操作保留播放、随机播放和添加歌曲；下一首播放、加入队列、复制到其他歌单、重命名和删除统一收进更多菜单，删除不再单独挤到第二行。
+
+#### Validation
+
+- 下载队列单元测试覆盖等待/运行取消、响应流关闭、迟到事件抑制与最终写入的竞争条件。
+- 隔离 Electron 测试覆盖歌单拖动/键盘排序、持久化、菜单层级，以及本机模拟 HTTP 下载的排队、取消和临时文件清理。
+
+### 2026-11-01
+
+#### Added
 
 - **Ultra「盒脊常驻显示」开关**：默认开启，所有可见 CD 的歌名、歌手和流派色带独立于封面加载范围显示。设置立即生效并保存；关闭后恢复附近盒脊显示。
 - 常驻盒脊复用共享贴图与批量绘制，封面仍保留按需加载和缓存限制。
 - **播放队列支持移出歌曲**：Up next 中每首非当前歌曲在悬停或键盘聚焦时显示 ×，点击即从队列移除；当前歌曲不提供移除按钮，队列索引、持久化和无缝预载同步更新。
 - **搜索支持网易云别名与备注**：自动缓存本地歌曲在网易云的别名、译名和 TV/游戏备注（例如「翻滚少女」→「ローリンガール」/「Rolling Girl」），资料库搜索、歌曲页筛选、命令面板和编辑器搜索都能命中；Discover 的网易云面板可手动同步。
 
-### Changed
+#### Changed
 
 - **Super 内页面板统一毛玻璃材质**：评论页、音乐库工具栏与表头去除固定米白色底，采用随明暗主题变化的中性半透明材质；评论头部和正文统一圆角、引用和来源标签跟随主题色。共用玻璃面板沿用外层背景模糊，避免叠加大面积模糊开销；Brief 保留平面设计。
 - **右侧栏减法设计**：移除频谱外框、标签胶囊外框和队列行底色，保留细频谱线；歌词/Up next 改为纯文字切换，当前曲目用强调色标记，队列悬停只提亮文字并显示移除按钮。
@@ -45,28 +97,31 @@ All notable changes to Potatoplayer Super are documented here.
 - **切换 column 保留纵向滚动位置**：左右方向键与列切换按钮只横向移动，不再跳回目标列记忆的行；不同歌曲数量的列仍按各自长度循环。
 - **方向键恢复原生重复速度**：取消长按 90 ms 节流；跨列保留当前行，其余键盘行为不变。
 
-### Fixed
+#### Fixed
 
+- **potatoHQ 音频链路修正**：正确检查 CoreAudio 采样率是否可写，修复源采样率跟随与恢复路径；设备不支持时仍按实际速率重采样。
+- **多声道转立体声保留声道内容**：按声道布局混入中置、环绕及 LFE，归一化混音矩阵避免相干信号叠加过载；单声道保持等增益复制，普通双声道保持直通。
+- **曲尾音效一致**：重采样器排出的尾音经过完整 EQ、交叉馈电和空间处理；跳转后清理声场与交叉馈电历史，PCM 解码复用输出缓冲区，减少分块内存分配。
 - **单曲循环到结尾不重播**：结束后重新打开当前音频，替代对已关闭解码器的 seek/resume；循环统计和进度一并重置。手动下一首仍可正常跳歌。
 - **循环设置未同步预载曲目**：循环模式、随机播放及队列调整立即刷新无缝衔接目标；单曲循环优先于随机播放，并纠正旧预载曲目迟到的切换事件。
 - **快速切换盒脊色块缺失**：常驻盒脊的流派色块改为随实例颜色直接绘制，不再依赖文字贴图采样或封面加载；与盒子位置同帧更新，保持单次批量绘制。文字继续使用共享图集。
 - **暂停时右侧栏跳动**：频谱条保持固定占位，不再因为频谱整块消失而让标签和队列上下跳一下。
 
-## Unreleased — 2026-10-31
+### 2026-10-31
 
-### Added
+#### Added
 
 - **Ultra 盒装 CD 流派色带**：盒脊新增颜色带和流派名称，沿用资料库中的流派标签颜色；未分类或缺少有效颜色时使用灰色。
 - 主视图、选中的 CD 与 3D 开盒查看共用同一套盒脊绘制，颜色保持一致。色带复用现有贴图，不增加网格或绘制调用。
 
-### Fixed
+#### Fixed
 
 - **Ultra 快速切换封面加载**：优先加载当前歌曲与近处封面，最多同时处理 4 张；预读相邻歌曲并丢弃过时的排队请求。封面缓存改为按最近使用淘汰，保护仍被场景及退场动画引用的贴图。
 - 6–32 MB 的大封面通过本地缩略图读取，修复此前因 6 MB 限制直接留白的问题。
 - 封面显示槽位按距离分配，扩大候选范围，继续复用 72 个槽位和 128 张缓存预算。
 - 没有封面的歌曲也显示盒脊与流派色带。
 
-### Notes
+#### Notes
 
 - 流派及颜色随 Ultra 构建时的资料库快照更新；修改标签后需重新生成 Ultra。
 

@@ -26,6 +26,8 @@ class BackendProcess extends EventEmitter {
 
   javaBinary() {
     const executable = process.platform === "win32" ? "java.exe" : "java";
+    const bundled = path.join(this.appRoot, "runtime", "java", "bin", executable);
+    if (fs.existsSync(bundled)) return bundled;
     if (process.env.JAVA_HOME) {
       const candidate = path.join(process.env.JAVA_HOME, "bin", executable);
       if (fs.existsSync(candidate)) return candidate;
@@ -66,6 +68,21 @@ class BackendProcess extends EventEmitter {
       "-jar",
       jar,
     ];
+    const runtime = path.join(this.appRoot, "runtime");
+    const env = { ...process.env };
+    if (fs.existsSync(path.join(runtime, "java", "bin", "java"))) {
+      const vlc = path.join(runtime, "vlc");
+      args.unshift(`-Dpotatomusic.libvlcDir=${path.join(vlc, "lib")}`);
+      args.unshift(`-Djna.library.path=${path.join(vlc, "lib")}`);
+      env.VLC_PLUGIN_PATH = path.join(vlc, "plugins");
+      env.POTATOHQ_BIN = path.join(runtime, "bin", "potatohq");
+      env.MPV_BIN = path.join(runtime, "bin", "mpv");
+      env.POTATOMUSIC_NODE = path.join(runtime, "bin", "node");
+      env.POTATOMUSIC_SERVICE_HOME = path.join(this.dataDir, "services");
+      env.POTATOMUSIC_API_DIR ||= path.join(runtime, "api", "netease");
+      env.POTATOMUSIC_QQ_API_DIR ||= path.join(runtime, "api", "qq", "node_modules", "@yakult-green-tea", "qq-music-api");
+      env.PATH = path.join(runtime, "bin") + path.delimiter + (env.PATH || "/usr/bin:/bin");
+    }
     if (process.env.POTATOMUSIC_LIBRARY) {
       args.unshift(`-Dpotatomusic.library=${process.env.POTATOMUSIC_LIBRARY}`);
     }
@@ -73,7 +90,7 @@ class BackendProcess extends EventEmitter {
     this.child = spawn(this.javaBinary(), args, {
       cwd: this.appRoot,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env },
+      env,
     });
 
     const lines = readline.createInterface({ input: this.child.stdout });

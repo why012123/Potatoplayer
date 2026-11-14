@@ -48,11 +48,7 @@ public final class NeteaseService {
             .connectTimeout(Duration.ofSeconds(8))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
-    private final ExecutorService downloader = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "netease-downloader");
-        t.setDaemon(true);
-        return t;
-    });
+    private final DownloadQueue downloader = new DownloadQueue();
     private final AtomicInteger jobSequence = new AtomicInteger(1000);
     private volatile String cookie;
     private volatile Process serviceProcess;
@@ -407,21 +403,90 @@ public final class NeteaseService {
         if (uid == 0) {
             throw new IllegalStateException("Sign in to load your playlists.");
         }
-        JsonNode data = get("/user/playlist?uid=" + uid + "&limit=100", 16);
         List<Map<String, Object>> result = new ArrayList<>();
-        JsonNode list = data == null ? null : data.path("playlist");
-        if (list != null && list.isArray()) {
-            for (JsonNode item : list) {
-                Map<String, Object> playlist = new LinkedHashMap<>();
-                playlist.put("id", item.path("id").asText());
-                playlist.put("name", item.path("name").asText(""));
-                playlist.put("coverUrl", item.path("coverImgUrl").asText(""));
-                playlist.put("trackCount", item.path("trackCount").asInt(0));
-                playlist.put("creator", item.path("creator").path("nickname").asText(""));
-                result.add(playlist);
+        for (int offset = 0; ; offset += 100) {
+            JsonNode data = checked(get("/user/playlist?uid=" + uid + "&limit=100&offset=" + offset, 16));
+            JsonNode list = data.path("playlist");
+            if (list.isArray()) {
+                for (JsonNode item : list) {
+                    Map<String, Object> playlist = new LinkedHashMap<>();
+                    playlist.put("id", item.path("id").asText());
+                    playlist.put("name", item.path("name").asText(""));
+                    playlist.put("coverUrl", item.path("coverImgUrl").asText(""));
+                    playlist.put("trackCount", item.path("trackCount").asInt(0));
+                    playlist.put("creator", item.path("creator").path("nickname").asText(""));
+                    playlist.put("owned", item.path("creator").path("userId").asLong() == uid);
+                    result.add(playlist);
+                }
             }
+            if (!data.path("more").asBoolean(false) || list.isEmpty()) break;
         }
         return result;
+    }
+
+    /** Fresh account checks prevent syncing a binding into a different signed-in account. */
+    String syncAccount() {
+        JsonNode data = checked(get("/user/account", 12));
+        String id = data.path("profile").path("userId").asText("");
+        if (!id.matches("[1-9][0-9]*")) throw new IllegalStateException("请先在发现页面登录网易云音乐。");
+        return id;
+    }
+
+    PlaylistSync.Cloud syncPlaylist(String id) {
+        JsonNode playlist = checked(get("/playlist/detail?id=" + encode(id), 20)).path("playlist");
+        JsonNode ids = playlist.path("trackIds");
+        if (!ids.isArray() || playlist.path("trackCount").asInt(-1) != ids.size())
+            throw new IllegalStateException("云端歌单未完整返回，已停止同步以避免误删。");
+        List<String> tracks = new ArrayList<>();
+        for (JsonNode track : ids) {
+            String song = track.path("id").asText("");
+            if (!song.matches("[1-9][0-9]*")) throw new IllegalStateException("云端歌曲 ID 无效。");
+            tracks.add(song);
+        }
+        return new PlaylistSync.Cloud(playlist.path("name").asText(""),
+                playlist.path("creator").path("userId").asText(""), tracks);
+    }
+
+    void syncWrite(String account, String id, List<String> before, List<String> after, boolean order) {
+        String session = cookie;
+        JsonNode profile = checked(get("/user/account", session, 12)).path("profile");
+        if (!account.equals(profile.path("userId").asText("")))
+            throw new IllegalStateException("网易云账号已变化，已停止写入。");
+        List<String> add = after.stream().filter(song -> !before.contains(song)).toList();
+        List<String> remove = before.stream().filter(song -> !after.contains(song)).toList();
+        // Add first: a permission/VIP failure cannot empty a previously populated playlist.
+        for (String op : List.of("add", "del")) {
+            List<String> ids = op.equals("add") ? add : remove;
+            for (int offset = 0; offset < ids.size(); offset += 100)
+                syncPost(session, "/playlist/tracks", Map.of("op", op, "pid", id,
+                        "tracks", String.join(",", ids.subList(offset, Math.min(offset + 100, ids.size())))));
+        }
+        if (order && after.size() > 1 && !before.equals(after))
+            syncPost(session, "/song/order/update", Map.of("pid", id, "ids", Json.stringify(after)));
+    }
+
+    private void syncPost(String session, String path, Map<String, String> params) {
+        try {
+            Map<String, String> body = new LinkedHashMap<>(params);
+            body.put("cookie", session == null ? "" : session);
+            String form = body.entrySet().stream().map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
+                    .collect(java.util.stream.Collectors.joining("&"));
+            HttpRequest request = HttpRequest.newBuilder(URI.create(apiBase + path + "?timestamp=" + System.currentTimeMillis()))
+                    .timeout(Duration.ofSeconds(25)).header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(form)).build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            checked(Json.MAPPER.readTree(response.body()));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); throw new IllegalStateException("同步已中断。", e);
+        } catch (IOException e) { throw new IllegalStateException("网易云写入失败，请检查 API 服务后重试。", e); }
+    }
+
+    private static JsonNode checked(JsonNode data) {
+        if (data == null) throw new IllegalStateException("无法连接网易云 API，请在发现页面启动服务后重试。");
+        if (data.path("code").asInt(-1) != 200)
+            throw new IllegalStateException("网易云请求失败（" + data.path("code").asText("未知") + "）："
+                    + data.path("message").asText(data.path("msg").asText("请检查登录状态和歌单权限。")));
+        return data;
     }
 
     public Map<String, Object> playlistDetail(String playlistId) {
@@ -511,19 +576,25 @@ public final class NeteaseService {
         return result;
     }
 
-    public Map<String, Object> download(String neteaseId, String quality, String block, String genre) {
-        requireService();
+    public Map<String, Object> download(String neteaseId, String quality, String block, String genre, String title) {
         if (neteaseId == null || neteaseId.isBlank()) {
             throw new IllegalArgumentException("Missing song id.");
         }
         String jobId = "netease-" + jobSequence.incrementAndGet();
-        downloader.submit(() -> downloadJob(
+        downloader.submit(jobId,
+                () -> emit("download.progress", progress(jobId, neteaseId, title.isBlank() ? neteaseId : title, 0, -1, "queued")),
+                () -> downloadJob(
                 jobId,
                 neteaseId,
                 quality == null ? "high" : quality,
                 block == null ? "" : block.trim(),
-                genre == null ? "" : genre.trim()));
+                genre == null ? "" : genre.trim()),
+                () -> emit("download.cancelled", Map.of("jobId", jobId, "neteaseId", neteaseId, "source", "netease")));
         return Map.of("jobId", jobId, "neteaseId", neteaseId);
+    }
+
+    public Map<String, Object> cancelDownload(String jobId) {
+        return Map.of("cancelled", downloader.cancel(jobId));
     }
 
     public void shutdown() {
@@ -541,16 +612,22 @@ public final class NeteaseService {
 
     private void downloadJob(String jobId, String neteaseId, String quality, String targetBlock, String targetGenre) {
         Path part = null;
+        Path lyrics = null;
         try {
+            downloader.check();
+            requireService();
+            downloader.check();
             NeteaseBindings.Binding existing = host.neteaseBindings().findByNeteaseId(neteaseId);
             Track local = host.findTrackByOnlineId(neteaseId, null);
             if (local != null && Files.isRegularFile(Path.of(local.path))) {
+                downloader.commit();
                 Map<String, Object> done = existingDownload(
                         jobId, neteaseId, existing, local, targetBlock, targetGenre);
                 emit("download.done", done);
                 return;
             }
             if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
+                downloader.commit();
                 if (!targetBlock.isBlank()) existing.block = targetBlock;
                 if (!targetGenre.isBlank()) existing.genre = targetGenre;
                 host.neteaseBindings().put(existing);
@@ -593,14 +670,19 @@ public final class NeteaseService {
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, neteaseId, title, 0, -1, "downloading"));
             downloadFile(audio[0], part, jobId, neteaseId, title);
-            Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
-            if (Files.size(target) < 32_768) {
-                Files.deleteIfExists(target);
+            if (Files.size(part) < 32_768) {
+                Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete file. Sign in and try again.");
             }
 
             String coverPath = cacheCover(neteaseId, coverUrl);
-            saveLyrics(target, neteaseId);
+            downloader.check();
+            lyrics = part.resolveSibling(part.getFileName() + "-" + jobId + ".tmp");
+            saveLyrics(lyrics, neteaseId);
+            downloader.commit();
+            Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+            DownloadQueue.publishLyrics(lyrics, target);
+            lyrics = null;
 
             NeteaseBindings.Binding binding = new NeteaseBindings.Binding();
             binding.neteaseId = neteaseId;
@@ -632,6 +714,7 @@ public final class NeteaseService {
             emit("download.done", done);
             host.rescanAfterDownload();
         } catch (Exception e) {
+            DownloadQueue.cleanLyrics(lyrics);
             if (part != null) {
                 try {
                     Files.deleteIfExists(part);
@@ -737,6 +820,7 @@ public final class NeteaseService {
     }
 
     private void downloadFile(String url, Path part, String jobId, String neteaseId, String title) throws Exception {
+        downloader.check();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofMinutes(10))
                 .header("User-Agent", UA)
@@ -744,7 +828,9 @@ public final class NeteaseService {
                 .GET()
                 .build();
         HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        downloader.attach(response.body());
         if (response.statusCode() >= 400) {
+            response.body().close();
             throw new IOException("Audio server returned HTTP " + response.statusCode());
         }
         long total = response.headers().firstValueAsLong("content-length").orElse(-1L);
@@ -755,6 +841,7 @@ public final class NeteaseService {
             byte[] buffer = new byte[65_536];
             int n;
             while ((n = in.read(buffer)) >= 0) {
+                downloader.check();
                 if (n == 0) continue;
                 out.write(buffer, 0, n);
                 done += n;
@@ -765,6 +852,7 @@ public final class NeteaseService {
                 }
             }
         }
+        downloader.check();
         emit("download.progress", progress(jobId, neteaseId, title, done, total, "finishing"));
     }
 
@@ -904,6 +992,7 @@ public final class NeteaseService {
     }
 
     private JsonNode get(String path, String explicitCookie, int timeoutSeconds) {
+        downloader.check();
         try {
             String separator = path.contains("?") ? "&" : "?";
             String url = apiBase + path + separator + "timestamp=" + System.currentTimeMillis();
@@ -1007,7 +1096,7 @@ public final class NeteaseService {
     }
 
     private void emit(String event, Object data) {
-        host.emit(event, data);
+        downloader.emit(() -> host.emit(event, data));
     }
 
     private void toast(String title, String detail, String tone) {

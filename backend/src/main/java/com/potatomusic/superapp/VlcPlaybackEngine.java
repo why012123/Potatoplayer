@@ -25,7 +25,9 @@ public final class VlcPlaybackEngine implements PlaybackEngine {
         Equalizer createdEqualizer = null;
         String error = null;
         try {
-            boolean discovered = new NativeDiscovery().discover();
+            // A packaged runtime must win over another VLC installed on the host.
+            String bundledLib = System.getProperty("potatomusic.libvlcDir");
+            boolean discovered = bundledLib == null && new NativeDiscovery().discover();
             if (!discovered) {
                 String libDir = libvlcDir();
                 if (libDir != null) {

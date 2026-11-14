@@ -310,10 +310,45 @@ void Engine::decodeLoopPcm() {
     return Push::Ok;
   };
 
+  // Both regular audio and the resampler tail pass through this same chain.
+  auto processEffects = [&](std::vector<float>& samples) {
+    const uint64_t rev = eqRevision_.load(std::memory_order_acquire);
+    if (rev != appliedEqRev) {
+      std::vector<EqBand> fresh;
+      double freshPreamp = 0.0;
+      {
+        std::lock_guard lock(mutex_);
+        fresh = eqBands_;
+        freshPreamp = preampDb_;
+      }
+      eq.setTarget(outRate_, options_.channels, fresh, freshPreamp);
+      appliedEqRev = rev;
+    }
+    eq.process(samples.data(), samples.size() / ch);
+    // Crossfeed sits between EQ and the spatial panner; disabled = bypass.
+    const uint64_t crev = crossfeedRevision_.load(std::memory_order_acquire);
+    if (crossfeedEnabled_.load(std::memory_order_acquire) || crev != appliedCrossfeedRev) {
+      crossfeed.setTarget(crossfeedEnabled_.load(std::memory_order_acquire),
+                          crossfeedStrength_.load(std::memory_order_relaxed));
+      crossfeed.process(samples.data(), samples.size() / ch);
+      appliedCrossfeedRev = crev;
+    }
+    // Spatial panner runs after EQ so the cue is not re-filtered; when it is
+    // disabled the panner is a strict bypass (no samples touched).
+    const uint64_t srev = spatialRevision_.load(std::memory_order_acquire);
+    if (spatialEnabled_.load(std::memory_order_acquire) || srev != appliedSpatialRev) {
+      spatial.setTarget({spatialEnabled_.load(std::memory_order_acquire),
+                         spatialX_.load(std::memory_order_relaxed),
+                         spatialY_.load(std::memory_order_relaxed)});
+      spatial.process(samples.data(), samples.size() / ch);
+      appliedSpatialRev = srev;
+    }
+  };
+
   while (!stopRequested_.load(std::memory_order_acquire)) {
     FfmpegDecoder decoder;
     std::string err;
-    if (!decoder.open(path, &err)) {
+    if (!decoder.open(path, &err, options_.channels)) {
       std::lock_guard lock(mutex_);
       lastError_ = err.empty() ? "decode open failed" : err;
       break;
@@ -347,11 +382,15 @@ void Engine::decodeLoopPcm() {
     }
 
     std::vector<float> in(chunk * static_cast<size_t>(srcCh));
+    std::vector<float> outBuf;
+    outBuf.reserve((chunk * static_cast<size_t>(outRate_) / srcRate + 2) * ch);
     while (!stopRequested_.load(std::memory_order_acquire)) {
       if (seekRequested_.exchange(false, std::memory_order_acq_rel)) {
         ring_.clear();
         resampler.reset();
         eq.reset();
+        crossfeed.reset();
+        spatial.reset();
         std::string seekErr;
         if (!decoder.seek(pendingSeekSeconds_.load(std::memory_order_relaxed), &seekErr)) {
           std::lock_guard lock(mutex_);
@@ -361,53 +400,11 @@ void Engine::decodeLoopPcm() {
       }
       const size_t got = decoder.read(in.data(), chunk, &err);
       if (got == 0) break;
-      std::vector<float> stage(in.begin(), in.begin() + static_cast<long>(got * static_cast<size_t>(srcCh)));
-      if (srcCh != options_.channels) {
-        std::vector<float> mapped(got * ch, 0.0f);
-        for (size_t f = 0; f < got; ++f) {
-          for (int c = 0; c < options_.channels; ++c) {
-            const int sc = c < srcCh ? c : srcCh - 1;
-            mapped[f * ch + static_cast<size_t>(c)] =
-                stage[f * static_cast<size_t>(srcCh) + static_cast<size_t>(sc)];
-          }
-        }
-        stage.swap(mapped);
-      }
-      std::vector<float> outBuf;
-      if (needResample) resampler.process(stage.data(), got, outBuf);
-      else outBuf = std::move(stage);
+      outBuf.clear();
+      if (needResample) resampler.process(in.data(), got, outBuf);
+      else outBuf.assign(in.begin(), in.begin() + got * ch);
       if (outBuf.empty()) continue;
-      const uint64_t rev = eqRevision_.load(std::memory_order_acquire);
-      if (rev != appliedEqRev) {
-        std::vector<EqBand> fresh;
-        double freshPreamp = 0.0;
-        {
-          std::lock_guard lock(mutex_);
-          fresh = eqBands_;
-          freshPreamp = preampDb_;
-        }
-        eq.setTarget(outRate_, options_.channels, fresh, freshPreamp);
-        appliedEqRev = rev;
-      }
-      eq.process(outBuf.data(), outBuf.size() / ch);
-      // Crossfeed sits between EQ and the spatial panner; disabled = bypass.
-      const uint64_t crev = crossfeedRevision_.load(std::memory_order_acquire);
-      if (crossfeedEnabled_.load(std::memory_order_acquire) || crev != appliedCrossfeedRev) {
-        crossfeed.setTarget(crossfeedEnabled_.load(std::memory_order_acquire),
-                            crossfeedStrength_.load(std::memory_order_relaxed));
-        crossfeed.process(outBuf.data(), outBuf.size() / ch);
-        appliedCrossfeedRev = crev;
-      }
-      // Spatial panner runs after EQ so the cue is not re-filtered; when it is
-      // disabled the panner is a strict bypass (no samples touched).
-      const uint64_t srev = spatialRevision_.load(std::memory_order_acquire);
-      if (spatialEnabled_.load(std::memory_order_acquire) || srev != appliedSpatialRev) {
-        spatial.setTarget({spatialEnabled_.load(std::memory_order_acquire),
-                           spatialX_.load(std::memory_order_relaxed),
-                           spatialY_.load(std::memory_order_relaxed)});
-        spatial.process(outBuf.data(), outBuf.size() / ch);
-        appliedSpatialRev = srev;
-      }
+      processEffects(outBuf);
       const Push pushed = pushRing(outBuf.data(), outBuf.size() / ch);
       if (pushed == Push::Stop) break;
       // Push::Seek falls through to the top of the loop, which repositions.
@@ -419,6 +416,7 @@ void Engine::decodeLoopPcm() {
     if (needResample) {
       std::vector<float> tail;
       resampler.flush(tail);
+      processEffects(tail);
       if (!tail.empty() && pushRing(tail.data(), tail.size() / ch) == Push::Stop) break;
     }
 

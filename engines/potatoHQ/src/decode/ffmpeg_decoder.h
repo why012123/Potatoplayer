@@ -20,7 +20,8 @@ class FfmpegDecoder {
   FfmpegDecoder(const FfmpegDecoder&) = delete;
   FfmpegDecoder& operator=(const FfmpegDecoder&) = delete;
 
-  bool open(const std::string& path, std::string* error);
+  // outputChannels=0 preserves the source layout; otherwise remix by channel role.
+  bool open(const std::string& path, std::string* error, int outputChannels = 0);
   void close();
 
   bool isOpen() const { return format_ != nullptr && codec_ != nullptr; }

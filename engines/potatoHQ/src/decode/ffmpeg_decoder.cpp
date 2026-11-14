@@ -31,7 +31,7 @@ void FfmpegDecoder::close() {
   streamIndex_ = -1;
 }
 
-bool FfmpegDecoder::open(const std::string& path, std::string* error) {
+bool FfmpegDecoder::open(const std::string& path, std::string* error, int outputChannels) {
   close();
   path_ = path;
   int rc = avformat_open_input(&format_, path.c_str(), nullptr, nullptr);
@@ -61,20 +61,36 @@ bool FfmpegDecoder::open(const std::string& path, std::string* error) {
   }
 
   sampleRate_ = codec_->sample_rate > 0 ? codec_->sample_rate : 44100;
-  channels_ = codec_->ch_layout.nb_channels > 0 ? codec_->ch_layout.nb_channels : 2;
-  if (channels_ > 8) channels_ = 8;
-
-  AVChannelLayout outLayout;
-  av_channel_layout_default(&outLayout, channels_);
-  SWR_OPTIONS:;
-  if (swr_alloc_set_opts2(&swr_, &outLayout, AV_SAMPLE_FMT_FLT, sampleRate_, &codec_->ch_layout,
-                          codec_->sample_fmt, sampleRate_, 0, nullptr) < 0 ||
-      swr_init(swr_) < 0) {
-    if (error) *error = "cannot init resampler";
+  const int sourceChannels = codec_->ch_layout.nb_channels;
+  if (sourceChannels < 1 || outputChannels < 0 || outputChannels > 8) {
+    if (error) *error = "unsupported channel layout";
     close();
     return false;
   }
+  channels_ = outputChannels > 0 ? outputChannels : sourceChannels;
+  AVChannelLayout outLayout{};
+  // Preserve explicit channel order when no remix was requested.
+  if (outputChannels == 0) av_channel_layout_copy(&outLayout, &codec_->ch_layout);
+  else av_channel_layout_default(&outLayout, channels_);
+  int setup = swr_alloc_set_opts2(&swr_, &outLayout, AV_SAMPLE_FMT_FLT, sampleRate_,
+                                &codec_->ch_layout, codec_->sample_fmt, sampleRate_, 0, nullptr);
   av_channel_layout_uninit(&outLayout);
+  if (setup >= 0) {
+    // Include the LFE channel in a full-range stereo mix, and normalize the
+    // matrix to leave headroom when correlated channels sum together.
+    setup = av_opt_set_double(swr_, "lfe_mix_level", 0.7071067811865476, 0);
+    if (setup >= 0) setup = av_opt_set_double(swr_, "rematrix_maxval", 1.0, 0);
+    if (setup >= 0 && sourceChannels == 1 && channels_ == 2) {
+      // Preserve the player's existing unity-gain mono duplication.
+      const double monoMatrix[] = {1.0, 1.0};
+      setup = swr_set_matrix(swr_, monoMatrix, 1);
+    }
+  }
+  if (setup < 0 || swr_init(swr_) < 0) {
+    if (error) *error = "cannot init channel conversion";
+    close();
+    return false;
+  }
 
   packet_ = av_packet_alloc();
   frame_ = av_frame_alloc();

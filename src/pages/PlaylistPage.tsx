@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { ListEnd, ListMusic, ListPlus, Pencil, Play, Plus, Shuffle, Trash2 } from "lucide-react";
+import { MoreHorizontal, ListEnd, ListMusic, ListPlus, Pencil, Play, Plus, Shuffle, Trash2 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { Cover } from "@/components/Cover";
 import { TrackTable } from "@/components/TrackTable";
@@ -121,7 +121,7 @@ export function PlaylistPage() {
             {" · "}
             {formatLongDuration(duration)}
           </p>
-          <div className="detail-hero__actions">
+          <div className="playlist-actions">
             <button
               type="button"
               className="button button--dark"
@@ -143,67 +143,28 @@ export function PlaylistPage() {
             >
               <Shuffle size={15} /> {tr("Shuffle", "随机播放")}
             </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Play next", "下一首播放")}
-              aria-label={tr("Play next", "下一首播放")}
-              disabled={!playlistTracks.length}
-              onClick={() => void enqueueMany(queue, true)}
-            >
-              <ListEnd size={15} /> {tr("Play next", "下一首播放")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add to queue", "添加到队列")}
-              aria-label={tr("Add to queue", "添加到队列")}
-              disabled={!playlistTracks.length}
-              onClick={() => void enqueueMany(queue, false)}
-            >
-              <ListPlus size={15} /> {tr("Add to queue", "添加到队列")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Add all to another playlist", "全部添加到其他歌单")}
-              aria-label={tr("Add all to another playlist", "全部添加到其他歌单")}
-              disabled={!playlistTracks.length}
-              onClick={() => setAddToPlaylistTrackIds(queue)}
-            >
-              <ListMusic size={15} /> {tr("Add to playlist", "添加到歌单")}
-            </button>
-            <button
-              type="button"
-              className="button button--glass button--compact"
-              title={tr("Find more songs", "查找更多歌曲")}
-              aria-label={tr("Find more songs", "查找更多歌曲")}
-              onClick={() => navigate({ kind: "songs" })}
-            >
+            <button type="button" className="button button--glass" onClick={() => navigate({ kind: "songs" })}>
               <Plus size={15} /> {tr("Add songs", "添加歌曲")}
             </button>
-            <button
-              type="button"
-              className="icon-button icon-button--ghost icon-button--sm"
-              title={tr("Rename playlist", "重命名歌单")}
-              onClick={rename}
-            >
-              <Pencil size={16} />
-            </button>
-            <button
-              type="button"
-              className="icon-button icon-button--ghost icon-button--sm danger-hover"
-              title={tr("Delete playlist", "删除歌单")}
-              onClick={remove}
-            >
-              <Trash2 size={16} />
-            </button>
+            <details className="playlist-more" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) event.currentTarget.open = false; }} onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+              <summary aria-label={tr("More playlist actions", "更多歌单操作")} title={tr("More", "更多")}><MoreHorizontal size={20} /></summary>
+              <div className="playlist-more__menu" onClick={(event) => { const details = event.currentTarget.closest("details"); if (details) details.open = false; }}>
+                <button disabled={!queue.length} onClick={() => void enqueueMany(queue, true)}><ListEnd size={16} />{tr("Play next", "下一首播放")}</button>
+                <button disabled={!queue.length} onClick={() => void enqueueMany(queue, false)}><ListPlus size={16} />{tr("Add to queue", "添加到播放队列")}</button>
+                <button disabled={!queue.length} onClick={() => setAddToPlaylistTrackIds(queue)}><ListMusic size={16} />{tr("Add to another playlist", "添加到其他歌单")}</button>
+                <button onClick={rename}><Pencil size={16} />{tr("Rename playlist", "重命名歌单")}</button>
+                <button className="danger-hover" onClick={remove}><Trash2 size={16} />{tr("Delete playlist", "删除歌单")}</button>
+              </div>
+            </details>
           </div>
         </div>
       </header>
 
       {playlistTracks.length ? (
-        <TrackTable tracks={playlistTracks} queue={queue} playlistId={playlist.id} compact />
+        <>
+          <p className="playlist-sort-hint">{tr("Drag the handle to reorder · Alt + ↑ / ↓ also works", "拖动歌曲左侧手柄调整顺序 · 也可聚焦手柄后按 Alt + ↑ / ↓")}</p>
+          <TrackTable tracks={playlistTracks} queue={queue} playlistId={playlist.id} compact />
+        </>
       ) : (
         <div className="empty-stage glass empty-stage--compact">
           <div className="empty-stage__icon empty-stage__icon--plain">

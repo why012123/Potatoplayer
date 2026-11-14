@@ -35,6 +35,8 @@ public final class Backend implements PlaybackController.Host {
     private final LyricsService lyrics;
     private final PlaybackController playback;
     private final NeteaseService netease;
+    private final PlaylistSync playlistSync;
+    private String syncFingerprint = "";
     private final QQMusicService qq;
     private final BilibiliService bilibili;
     private final java.util.function.BiConsumer<String, Object> emitter;
@@ -93,6 +95,18 @@ public final class Backend implements PlaybackController.Host {
         this.netease = new NeteaseService(this);
         this.qq = new QQMusicService(this);
         this.bilibili = new BilibiliService();
+        this.playlistSync = new PlaylistSync(store.dataDir().resolve("playlist_sync.json"), new PlaylistSync.Host() {
+            public PlaylistSync.Local snapshot(String kind, String target) { return syncSnapshot(kind, target); }
+            public void apply(PlaylistSync.Binding b, PlaylistSync.Local expected, List<String> ids, boolean replace) {
+                applySync(b, expected, ids, replace);
+            }
+            public void changed(Object data) { emitter.accept("sync.updated", data); }
+        }, new PlaylistSync.Remote() {
+            public String account() { return netease.syncAccount(); }
+            public PlaylistSync.Cloud read(String id) { return netease.syncPlaylist(id); }
+            public void write(String account, String id, List<String> before, List<String> after, boolean order) { netease.syncWrite(account, id, before, after, order); }
+            public String download(String id) { return String.valueOf(netease.download(id, "high", "", "", id).get("jobId")); }
+        });
         saveNow();
     }
 
@@ -330,6 +344,21 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("playlist", playlist, "added", known.size());
     }
 
+    public Map<String, Object> movePlaylistTrack(String playlistId, String trackId, String beforeId) {
+        synchronized (lock) {
+            Playlist playlist = findPlaylist(playlistId);
+            if (playlist == null || !playlist.trackIds.contains(trackId)) throw new IllegalArgumentException("Unknown playlist track.");
+            if (trackId.equals(beforeId)) return Map.of("playlist", playlist);
+            if (!beforeId.isBlank() && !playlist.trackIds.contains(beforeId)) throw new IllegalArgumentException("Unknown destination.");
+            playlist.trackIds.remove(trackId);
+            int index = beforeId.isBlank() ? playlist.trackIds.size() : playlist.trackIds.indexOf(beforeId);
+            playlist.trackIds.add(index, trackId);
+        }
+        saveNow();
+        emitPlaylists();
+        return Map.of("ok", true);
+    }
+
     public Map<String, Object> removeTrackFromPlaylist(String playlistId, String trackId) {
         Playlist playlist = findPlaylist(playlistId);
         if (playlist == null) {
@@ -379,6 +408,7 @@ public final class Backend implements PlaybackController.Host {
                 }
             }
         }
+        playlistSync.rename(kind, oldName, clean, settings.libraryRoot);
         saveNow();
         emitTaxonomy();
         emitTracks();
@@ -1021,6 +1051,7 @@ public final class Backend implements PlaybackController.Host {
     @Override
     public void emit(String event, Object data) {
         emitter.accept(event, data);
+        if (playlistSync != null && data instanceof Map<?, ?> map) playlistSync.downloadEvent(event, map);
     }
 
     @Override
@@ -1055,6 +1086,7 @@ public final class Backend implements PlaybackController.Host {
             return;
         }
         shuttingDown = true;
+        playlistSync.shutdown();
         netease.shutdown();
         qq.shutdown();
         playback.shutdown();
@@ -1082,12 +1114,102 @@ public final class Backend implements PlaybackController.Host {
         return neteaseBindings;
     }
 
+    private PlaylistSync.Local syncSnapshot(String kind, String target) {
+        synchronized (lock) {
+            if (scanning.get() || scanNeeded || !java.util.Objects.equals(state.libraryRoot, settings.libraryRoot))
+                throw new IllegalStateException("资料库正在扫描或尚未就绪，完成后会自动重试同步。");
+            Playlist playlist = "playlist".equals(kind) ? findPlaylist(target) : null;
+            if ("playlist".equals(kind) ? playlist == null : Taxonomy.find(tagsFor(kind), target) == null)
+                throw new IllegalArgumentException("绑定的本地歌单或分类已删除，请解绑或重新选择。");
+            List<String> trackIds = playlist != null ? new ArrayList<>(playlist.trackIds)
+                    : state.tracks.stream().filter(t -> target.equals("block".equals(kind) ? blockOf(t) : genreOf(t))).map(t -> t.id).toList();
+            List<String> online = new ArrayList<>();
+            List<PlaylistSync.SkippedTrack> unmapped = new ArrayList<>();
+            Map<String, String> available = new LinkedHashMap<>();
+            for (Track t : state.tracks) if (t.neteaseId != null && t.neteaseId.matches("[1-9][0-9]*")) available.putIfAbsent(t.neteaseId, t.id);
+            for (String id : trackIds) {
+                Track t = trackIndex.get(id);
+                if (t == null || t.neteaseId == null || !t.neteaseId.matches("[1-9][0-9]*"))
+                    unmapped.add(new PlaylistSync.SkippedTrack(id, t == null ? "未找到的本地歌曲（" + id + "）" : t.title,
+                            t == null || t.artist == null ? "" : t.artist));
+                else if (!online.contains(t.neteaseId)) online.add(t.neteaseId);
+            }
+            return new PlaylistSync.Local(playlist == null ? target : playlist.name, settings.libraryRoot,
+                    trackIds, online, available, unmapped);
+        }
+    }
+
+    private void applySync(PlaylistSync.Binding b, PlaylistSync.Local expected, List<String> ids, boolean replace) {
+        synchronized (lock) {
+            PlaylistSync.Local current = syncSnapshot(b.kind, b.target);
+            if (!PlaylistSync.same(expected, current)) throw new IllegalStateException("同步期间本地内容已变化，稍后自动重试。");
+            for (String id : ids) if (!current.available().containsKey(id)) throw new IllegalStateException("歌曲尚未入库，稍后自动重试。");
+            if (!"playlist".equals(b.kind)) {
+                List<?> active = (List<?>) playlistSync.list().get("bindings");
+                for (Object row : active) {
+                    Map<?, ?> other = (Map<?, ?>) row;
+                    if (b.id.equals(other.get("id")) || !b.kind.equals(other.get("kind")) || !b.libraryRoot.equals(other.get("libraryRoot"))) continue;
+                    for (Track t : state.tracks) if (ids.contains(t.neteaseId)
+                            && other.get("target").equals("block".equals(b.kind) ? blockOf(t) : genreOf(t)))
+                        throw new IllegalStateException("歌曲已属于另一个已绑定的" + ("block".equals(b.kind) ? "区块" : "流派") + "，请先调整分类或解绑，避免反复移动。");
+                }
+            }
+            List<Track> backup = state.tracks.stream().map(Track::copy).toList();
+            Playlist playlist = "playlist".equals(b.kind) ? findPlaylist(b.target) : null;
+            List<String> oldMembers = playlist == null ? List.of() : new ArrayList<>(playlist.trackIds);
+            if (playlist != null) {
+                List<String> members = replace ? new ArrayList<>() : new ArrayList<>(playlist.trackIds);
+                for (String id : ids) {
+                    // Retain the user's chosen local copy when several files share an online ID.
+                    String trackId = oldMembers.stream().filter(t -> trackIndex.containsKey(t) && id.equals(trackIndex.get(t).neteaseId))
+                            .findFirst().orElse(current.available().get(id));
+                    if (!members.contains(trackId)) members.add(trackId);
+                }
+                // Unmapped songs are outside the sync set: replacement must retain them locally.
+                if (replace) for (PlaylistSync.SkippedTrack skipped : current.unmapped())
+                    members.add(Math.min(oldMembers.indexOf(skipped.id()), members.size()), skipped.id());
+                playlist.trackIds = members;
+            } else {
+                for (Track t : state.tracks) {
+                    if (t.neteaseId == null || !t.neteaseId.matches("[1-9][0-9]*")) continue;
+                    boolean member = b.target.equals("block".equals(b.kind) ? blockOf(t) : genreOf(t));
+                    boolean wanted = ids.contains(t.neteaseId) && (member || t.id.equals(current.available().get(t.neteaseId)));
+                    if (wanted || (member && replace)) {
+                        if ("block".equals(b.kind)) t.block = wanted ? b.target : "";
+                        else t.genre = wanted ? b.target : "";
+                    }
+                }
+            }
+            try { store.saveLibrary(state); }
+            catch (IOException e) {
+                if (playlist != null) playlist.trackIds = new ArrayList<>(oldMembers);
+                state.tracks = new ArrayList<>(backup); rebuildIndex();
+                throw new IllegalStateException("本地同步结果保存失败，已回滚。", e);
+            }
+            for (Track t : state.tracks) {
+                NeteaseBindings.Binding binding = neteaseBindings.find(t.path);
+                if (binding != null && (!java.util.Objects.equals(binding.block, t.block) || !java.util.Objects.equals(binding.genre, t.genre))) {
+                    binding.block = t.block; binding.genre = t.genre; neteaseBindings.put(binding);
+                }
+            }
+        }
+        saveNow(); emitPlaylists(); emitTracks();
+    }
+
     private void saveNow() {
         synchronized (lock) {
             try {
                 store.saveSettings(settings);
                 store.saveLibrary(state);
                 statsStore.save();
+                String fingerprint = Json.stringify(List.of(settings.libraryRoot == null ? "" : settings.libraryRoot,
+                        state.playlists, state.blocks, state.genres,
+                        state.tracks.stream().map(t -> List.of(t.id, t.neteaseId == null ? "" : t.neteaseId,
+                                blockOf(t), genreOf(t))).toList()));
+                if (!fingerprint.equals(syncFingerprint)) {
+                    syncFingerprint = fingerprint;
+                    if (playlistSync != null) playlistSync.localChanged();
+                }
             } catch (IOException e) {
                 System.err.println("[store] save failed: " + e.getMessage());
             }
@@ -1233,6 +1355,7 @@ public final class Backend implements PlaybackController.Host {
             case "playlist.delete" -> deletePlaylist(text(p, "playlistId", ""));
             case "playlist.addTrack" -> addTrackToPlaylist(text(p, "playlistId", ""), text(p, "trackId", ""));
             case "playlist.addTracks" -> addTracksToPlaylist(text(p, "playlistId", ""), stringList(p.path("trackIds")));
+            case "playlist.moveTrack" -> movePlaylistTrack(text(p, "playlistId", ""), text(p, "trackId", ""), text(p, "beforeId", ""));
             case "playlist.removeTrack" -> removeTrackFromPlaylist(text(p, "playlistId", ""), text(p, "trackId", ""));
             case "playback.play" -> playback.play(
                     text(p, "trackId", ""),
@@ -1277,6 +1400,10 @@ public final class Backend implements PlaybackController.Host {
             case "eq.restore" -> eqRestore();
             case "eq.deletePreset" -> eqDeletePreset(text(p, "name", ""));
             case "lyrics.get" -> lyrics(text(p, "trackId", ""));
+            case "sync.list" -> playlistSync.list();
+            case "sync.save" -> playlistSync.save(p);
+            case "sync.unbind" -> playlistSync.unbind(text(p, "id", ""));
+            case "sync.run" -> playlistSync.sync(text(p, "id", ""));
             case "netease.status" -> netease.status();
             case "netease.startService" -> netease.startService();
             case "netease.qrKey" -> netease.qrKey();
@@ -1302,7 +1429,8 @@ public final class Backend implements PlaybackController.Host {
                     (int) number(p, "limit", 30),
                     (int) number(p, "offset", 0));
             case "netease.lyrics" -> netease.lyrics(text(p, "id", ""));
-            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""));
+            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "netease.cancelDownload" -> netease.cancelDownload(text(p, "jobId", ""));
             case "qq.status" -> qq.status();
             case "qq.startService" -> qq.startService();
             case "qq.qrKey" -> qq.qrKey();
@@ -1313,7 +1441,8 @@ public final class Backend implements PlaybackController.Host {
             case "qq.playlistDetail" -> qq.playlistDetail(text(p, "playlistId", ""));
             case "qq.daily" -> qq.daily();
             case "qq.lyrics" -> qq.lyrics(text(p, "id", ""));
-            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""));
+            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "qq.cancelDownload" -> qq.cancelDownload(text(p, "jobId", ""));
             case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20));
             case "app.shutdown" -> {
                 Thread thread = new Thread(() -> {

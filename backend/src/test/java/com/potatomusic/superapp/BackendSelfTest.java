@@ -22,7 +22,91 @@ public final class BackendSelfTest {
         testListeningStats();
         testBilibiliParsing();
         testPlaybackRepeat();
+        testDownloadQueue();
+        testPlaylistSync();
         System.out.println("BackendSelfTest: " + passed + " checks passed.");
+    }
+
+    private static void testPlaylistSync() {
+        List<String> local = List.of("1", "2"), cloud = List.of("2", "3");
+        check(PlaylistSync.plan("push", "replace", false, List.of(), local, cloud).cloud().equals(local), "push replaces destination");
+        check(PlaylistSync.plan("pull", "replace", false, List.of(), local, cloud).local().equals(cloud), "pull replaces destination");
+        var push = PlaylistSync.plan("push", "add", false, List.of(), local, cloud);
+        check(push.cloud().equals(List.of("2", "3", "1")) && push.local().equals(local), "push add keeps remote order and local unchanged");
+        var pull = PlaylistSync.plan("pull", "add", false, List.of(), local, cloud);
+        check(pull.local().equals(List.of("1", "2", "3")) && pull.cloud().equals(cloud), "pull add retains local order and cloud unchanged");
+        var both = PlaylistSync.plan("both", "add", true, List.of("1", "2", "3"), local, cloud);
+        check(both.local().equals(List.of("1", "2", "3")) && both.cloud().equals(List.of("2", "3", "1")), "bidirectional additive never propagates deletion");
+        var first = PlaylistSync.plan("both", "replace", false, List.of(), local, cloud);
+        check(first.local().equals(List.of("1", "2", "3")) && first.local().equals(first.cloud()), "initial two-way replace merges");
+        var subsequent = PlaylistSync.plan("both", "replace", true, List.of("1", "2", "3"), local, cloud);
+        check(subsequent.local().equals(List.of("2")) && subsequent.local().equals(subsequent.cloud()), "deletions on either side propagate");
+        check(PlaylistSync.plan("push", "replace", true, local, List.of(), cloud).cloud().isEmpty(), "empty local can clear remote membership");
+        check(PlaylistSync.plan("pull", "replace", true, cloud, local, List.of()).local().isEmpty(), "empty cloud can clear local membership");
+        check(PlaylistSync.plan("both", "replace", true, local, local, List.of("2", "1")).local().equals(List.of("2", "1")), "cloud reorder propagates when local unchanged");
+        check(PlaylistSync.plan("both", "replace", true, local, List.of("2", "1"), local).cloud().equals(List.of("2", "1")), "local reorder propagates");
+        var checkpoint = new PlaylistSync.Checkpoint(List.of("1"), List.of("2"), List.of("1", "2"));
+        check(PlaylistSync.resume(checkpoint, List.of(), List.of("1", "2")).local().equals(List.of("2")), "local deletion during first remote write is not resurrected");
+        var removal = new PlaylistSync.Checkpoint(List.of("1"), List.of(), List.of());
+        check(PlaylistSync.resume(removal, List.of("1"), List.of()).local().isEmpty(), "unfinished local removal survives retry");
+        check(PlaylistSync.resume(checkpoint, List.of("1", "3"), List.of("1", "2")).local().containsAll(List.of("1", "2", "3")), "concurrent additions survive partial merge");
+        for (int baseMask = 0; baseMask < 8; baseMask++) for (int localMask = 0; localMask < 8; localMask++) for (int cloudMask = 0; cloudMask < 8; cloudMask++) {
+            List<String> base = syncSubset(baseMask), a = syncSubset(localMask), b = syncSubset(cloudMask);
+            var plan = PlaylistSync.plan("both", "replace", true, base, a, b);
+            for (String id : List.of("1", "2", "3")) {
+                boolean expected = base.contains(id) ? a.contains(id) && b.contains(id) : a.contains(id) || b.contains(id);
+                check(plan.local().contains(id) == expected && plan.cloud().contains(id) == expected, "three-way membership truth table");
+            }
+            var repeat = PlaylistSync.plan("both", "replace", true, plan.cloud(), plan.local(), plan.cloud());
+            check(repeat.equals(plan), "merge is idempotent");
+        }
+    }
+
+    private static List<String> syncSubset(int mask) {
+        var ids = new java.util.ArrayList<String>();
+        for (int i = 0; i < 3; i++) if ((mask & (1 << i)) != 0) ids.add(String.valueOf(i + 1));
+        return ids;
+    }
+
+    private static void testDownloadQueue() throws Exception {
+        DownloadQueue queue = new DownloadQueue();
+        java.util.List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var closed = new java.util.concurrent.CountDownLatch(1);
+        var ended = new java.util.concurrent.CountDownLatch(1);
+        var next = new java.util.concurrent.CountDownLatch(1);
+        queue.submit("first", () -> events.add("queued-first"), () -> {
+            try {
+                queue.attach(() -> closed.countDown());
+                started.countDown();
+                try { new java.util.concurrent.CountDownLatch(1).await(); }
+                catch (InterruptedException ignored) { }
+                queue.emit(() -> events.add("late-progress"));
+                try { queue.commit(); events.add("bad-commit"); }
+                catch (java.util.concurrent.CancellationException expected) { }
+            } catch (Exception e) { throw new RuntimeException(e); }
+            finally { ended.countDown(); }
+        }, () -> events.add("cancel-first"));
+        check(started.await(2, java.util.concurrent.TimeUnit.SECONDS), "first download starts");
+        queue.submit("second", () -> events.add("queued-second"), () -> events.add("bad-second"), () -> events.add("cancel-second"));
+        queue.submit("third", () -> events.add("queued-third"), () -> { events.add("third"); next.countDown(); }, () -> {});
+        check(events.contains("queued-second") && events.contains("queued-third") && !events.contains("third"), "waiting downloads visible before execution");
+        check(queue.cancel("second"), "cancel waiting download");
+        check(queue.cancel("first"), "cancel active download");
+        check(closed.await(2, java.util.concurrent.TimeUnit.SECONDS), "cancel closes response stream");
+        check(ended.await(2, java.util.concurrent.TimeUnit.SECONDS) && next.await(2, java.util.concurrent.TimeUnit.SECONDS), "cancellation releases next queue slot");
+        check(!events.contains("late-progress") && !events.contains("bad-commit") && !events.contains("bad-second"), "cancelled work cannot publish progress, commit or run");
+        check(!queue.cancel("first"), "repeat cancellation is idempotent");
+        var committed = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        queue.submit("commit", () -> {}, () -> {
+            queue.commit(); committed.countDown();
+            try { release.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }, () -> events.add("bad-cancel-commit"));
+        check(committed.await(2, java.util.concurrent.TimeUnit.SECONDS), "commit boundary reached");
+        check(!queue.cancel("commit"), "completed transfer commit wins cancellation race");
+        release.countDown();
+        queue.shutdownNow();
     }
 
     private static void testFileNameParsing() {

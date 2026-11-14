@@ -169,6 +169,7 @@ export type View =
   | { kind: "block"; name: string }
   | { kind: "genre"; name: string }
   | { kind: "discover" }
+  | { kind: "sync" }
   | { kind: "playlist"; id: string }
   | { kind: "album"; key: string }
   | { kind: "artist"; name: string };
@@ -258,6 +259,7 @@ export interface TrackCommentsPage extends NeteaseCommentPage {
 }
 
 export interface NeteasePlaylist {
+  owned?: boolean;
   id: string;
   name: string;
   coverUrl: string;
@@ -331,7 +333,7 @@ export interface DownloadJob {
   downloaded: number;
   total: number;
   phase: string;
-  status: "running" | "done" | "error";
+  status: "running" | "done" | "error" | "cancelled";
   message?: string;
   importId?: string;
   source?: OnlineSource;
@@ -374,3 +376,23 @@ export interface PromptState {
   destructive?: boolean;
   onSubmit: (value: string) => Promise<void> | void;
 }
+
+export type SyncDirection = "push" | "pull" | "both";
+export type SyncStrategy = "replace" | "add";
+export interface PlaylistSyncBinding {
+  skipped?: { id: string; title: string; artist: string }[];
+  id: string;
+  accountId: string;
+  cloudId: string;
+  cloudName: string;
+  kind: "playlist" | "block" | "genre";
+  target: string;
+  libraryRoot: string;
+  direction: SyncDirection;
+  strategy: SyncStrategy;
+  initialized: boolean;
+  lastSyncedAt: number;
+  status: "idle" | "syncing" | "waiting" | "success" | "error";
+  message: string;
+}
+export interface PlaylistSyncState { bindings: PlaylistSyncBinding[]; error: string }

@@ -57,12 +57,21 @@ $(BUILD)/phq_tests: $(TEST_SRC) $(BUILD)/libpotatohq.a
 	  -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -o $@
 
 app: $(BUILD)/potatohq
-tests: $(BUILD)/phq_tests
+tests: $(BUILD)/phq_tests $(BUILD)/phq_playback_tests $(BUILD)/phq_device_tests
 
 core: $(BUILD)/libpotatohq.a
 
-run-tests: $(BUILD)/phq_tests
+$(BUILD)/phq_playback_tests: tests/test_playback.cpp $(BUILD)/obj/engine.o $(BUILD)/obj/decode/ffmpeg_decoder.o $(BUILD)/libpotatohq.a
+	$(CXX) $(CXXFLAGS) $(INC) $(FFMPEG_CFLAGS) $^ $(FFMPEG_LIBS) -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -o $@
+
+$(BUILD)/phq_device_tests: tests/test_device_rate.cpp src/out/coreaudio_out.cpp src/out/coreaudio_out.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(INC) $< -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -o $@
+
+run-tests: $(BUILD)/phq_tests $(BUILD)/phq_playback_tests $(BUILD)/phq_device_tests
 	./$(BUILD)/phq_tests
+	./$(BUILD)/phq_playback_tests
+	./$(BUILD)/phq_device_tests
 
 -include $(CORE_OBJ:.o=.d) $(ENGINE_OBJ:.o=.d) $(APP_OBJ:.o=.d)
 

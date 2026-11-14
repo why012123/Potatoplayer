@@ -70,7 +70,9 @@ bool setNominalRate(AudioDeviceID dev, double rate) {
   AudioObjectPropertyAddress addr{kAudioDevicePropertyNominalSampleRate,
                                   kAudioObjectPropertyScopeGlobal,
                                   kAudioObjectPropertyElementMain};
-  if (!AudioObjectHasProperty(dev, &addr) || !AudioObjectIsPropertySettable(dev, &addr, nullptr)) {
+  Boolean settable = false;
+  if (!AudioObjectHasProperty(dev, &addr) ||
+      AudioObjectIsPropertySettable(dev, &addr, &settable) != noErr || !settable) {
     return false;
   }
   const double current = nominalRate(dev);

@@ -77,6 +77,8 @@ export function TopBar() {
         return tr("Stats", "统计");
       case "editor":
         return tr("Editor", "编辑器");
+      case "sync":
+        return tr("Sync", "同步");
       case "discover":
         return tr("Discover", "发现");
       case "playlist":

@@ -50,11 +50,7 @@ public final class QQMusicService {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .cookieHandler(cookies)
             .build();
-    private final ExecutorService downloader = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "qq-downloader");
-        t.setDaemon(true);
-        return t;
-    });
+    private final DownloadQueue downloader = new DownloadQueue();
     private final AtomicInteger jobSequence = new AtomicInteger(2000);
     private volatile Process serviceProcess;
     private volatile Map<String, Object> cachedStatus;
@@ -118,6 +114,12 @@ public final class QQMusicService {
         try {
             ProcessBuilder pb = new ProcessBuilder(node, entry.toAbsolutePath().toString());
             pb.directory(apiDir.toFile());
+            String serviceHome = System.getenv("POTATOMUSIC_SERVICE_HOME");
+            if (serviceHome != null && !serviceHome.isBlank()) {
+                Path workDir = Path.of(serviceHome, "qq");
+                Files.createDirectories(workDir);
+                pb.directory(workDir.toFile());
+            }
             pb.redirectErrorStream(true);
             int port = URI.create(apiBase).getPort();
             if (port > 0) pb.environment().put("PORT", String.valueOf(port));
@@ -323,17 +325,23 @@ public final class QQMusicService {
         return result;
     }
 
-    public Map<String, Object> download(String mid, String quality, String block, String genre) {
-        requireService();
+    public Map<String, Object> download(String mid, String quality, String block, String genre, String title) {
         if (mid == null || mid.isBlank()) throw new IllegalArgumentException("Missing QQ Music song mid.");
         String jobId = "qq-" + jobSequence.incrementAndGet();
-        downloader.submit(() -> downloadJob(
+        downloader.submit(jobId,
+                () -> emit("download.progress", progress(jobId, mid, title.isBlank() ? mid : title, 0, -1, "queued")),
+                () -> downloadJob(
                 jobId,
                 mid,
                 quality == null ? "high" : quality,
                 block == null ? "" : block.trim(),
-                genre == null ? "" : genre.trim()));
+                genre == null ? "" : genre.trim()),
+                () -> emit("download.cancelled", Map.of("jobId", jobId, "neteaseId", mid, "source", "qq")));
         return Map.of("jobId", jobId, "neteaseId", mid, "source", "qq");
+    }
+
+    public Map<String, Object> cancelDownload(String jobId) {
+        return Map.of("cancelled", downloader.cancel(jobId));
     }
 
     public void shutdown() {
@@ -351,17 +359,23 @@ public final class QQMusicService {
 
     private void downloadJob(String jobId, String mid, String quality, String targetBlock, String targetGenre) {
         Path part = null;
+        Path lyrics = null;
         try {
+            downloader.check();
+            requireService();
+            downloader.check();
             String bindingId = "qq:" + mid;
             NeteaseBindings.Binding existing = host.neteaseBindings().findByNeteaseId(bindingId);
             Track local = host.findTrackByOnlineId(null, mid);
             if (local != null && Files.isRegularFile(Path.of(local.path))) {
+                downloader.commit();
                 Map<String, Object> done = existingDownload(
                         jobId, mid, existing, local, targetBlock, targetGenre);
                 emit("download.done", done);
                 return;
             }
             if (existing != null && Files.isRegularFile(Path.of(existing.path))) {
+                downloader.commit();
                 if (!targetBlock.isBlank()) existing.block = targetBlock;
                 if (!targetGenre.isBlank()) existing.genre = targetGenre;
                 host.neteaseBindings().put(existing);
@@ -399,14 +413,19 @@ public final class QQMusicService {
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, mid, title, 0, -1, "downloading"));
             downloadFile(audio[0], part, jobId, mid, title);
-            Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
-            if (Files.size(target) < 32_768) {
-                Files.deleteIfExists(target);
+            if (Files.size(part) < 32_768) {
+                Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete QQ Music file.");
             }
 
             String coverPath = cacheCover(mid, coverUrl);
-            saveLyrics(target, mid);
+            downloader.check();
+            lyrics = part.resolveSibling(part.getFileName() + "-" + jobId + ".tmp");
+            saveLyrics(lyrics, mid);
+            downloader.commit();
+            Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+            DownloadQueue.publishLyrics(lyrics, target);
+            lyrics = null;
             NeteaseBindings.Binding binding = new NeteaseBindings.Binding();
             binding.neteaseId = bindingId;
             binding.path = target.toString();
@@ -435,6 +454,7 @@ public final class QQMusicService {
             emit("download.done", done);
             host.rescanAfterDownload();
         } catch (Exception e) {
+            DownloadQueue.cleanLyrics(lyrics);
             if (part != null) {
                 try {
                     Files.deleteIfExists(part);
@@ -520,13 +540,18 @@ public final class QQMusicService {
     }
 
     private void downloadFile(String url, Path part, String jobId, String mid, String title) throws Exception {
+        downloader.check();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofMinutes(10))
                 .header("User-Agent", UA)
                 .header("Referer", "https://y.qq.com/")
                 .GET().build();
         HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() >= 400) throw new IOException("Audio server returned HTTP " + response.statusCode());
+        downloader.attach(response.body());
+        if (response.statusCode() >= 400) {
+            response.body().close();
+            throw new IOException("Audio server returned HTTP " + response.statusCode());
+        }
         long total = response.headers().firstValueAsLong("content-length").orElse(-1L);
         long done = 0;
         long lastEmit = 0;
@@ -535,6 +560,7 @@ public final class QQMusicService {
             byte[] buffer = new byte[65_536];
             int n;
             while ((n = in.read(buffer)) >= 0) {
+                downloader.check();
                 if (n == 0) continue;
                 out.write(buffer, 0, n);
                 done += n;
@@ -545,6 +571,7 @@ public final class QQMusicService {
                 }
             }
         }
+        downloader.check();
         emit("download.progress", progress(jobId, mid, title, done, total, "finishing"));
     }
 
@@ -663,6 +690,7 @@ public final class QQMusicService {
     }
 
     private JsonNode get(String path, int timeoutSeconds) {
+        downloader.check();
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(apiBase + path))
                     .timeout(Duration.ofSeconds(timeoutSeconds))
@@ -791,7 +819,7 @@ public final class QQMusicService {
     }
 
     private void emit(String event, Object data) {
-        host.emit(event, data);
+        downloader.emit(() -> host.emit(event, data));
     }
 
     private static String systemProperty(String key) {

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { GripVertical } from "lucide-react";
 import clsx from "clsx";
 import type { Track } from "@/types";
 import { TrackRow } from "@/components/TrackRow";
@@ -30,6 +32,9 @@ export function TrackTable({
   onSelect,
 }: TrackTableProps) {
   const tr = useTr();
+  const [dragged, setDragged] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const moveTrack = useAppStore((state) => state.movePlaylistTrack);
   const playback = useAppStore((state) => state.playback);
   const favorites = useAppStore((state) => state.favorites);
   const playTrack = useAppStore((state) => state.playTrack);
@@ -68,7 +73,20 @@ export function TrackTable({
         {tracks.map((track, index) => {
           const active = playback?.trackId === track.id;
           return (
-            <div key={track.id} className="track-table__row-wrap">
+            <div key={track.id} className={clsx("track-table__row-wrap", playlistId && "is-reorderable", dropTarget === track.id && "is-drop-target")}
+              onDragOver={(event) => { if (playlistId && dragged) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(track.id); } }}
+              onDrop={(event) => { if (playlistId && dragged) { event.preventDefault(); void moveTrack(playlistId, dragged, track.id); setDragged(null); setDropTarget(null); } }}>
+              {playlistId && <button type="button" className="playlist-drag-handle" draggable
+                aria-label={tr("Reorder {title}", "调整 {title} 的顺序", { title: track.title })}
+                title={tr("Drag to reorder · Alt + ↑ / ↓", "拖动排序 · Alt + ↑ / ↓")}
+                onDragStart={(event) => { setDragged(track.id); event.dataTransfer.setData("text/plain", track.id); event.dataTransfer.effectAllowed = "move"; }}
+                onDragEnd={() => { setDragged(null); setDropTarget(null); }}
+                onKeyDown={(event) => {
+                  if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                  event.preventDefault();
+                  if (event.key === "ArrowUp" && index > 0) void moveTrack(playlistId, track.id, tracks[index - 1].id);
+                  if (event.key === "ArrowDown" && index < tracks.length - 1) void moveTrack(playlistId, track.id, tracks[index + 2]?.id ?? "");
+                }}><GripVertical size={15} /></button>}
               <TrackRow
                 track={track}
                 index={index}
@@ -112,6 +130,11 @@ export function TrackTable({
             </div>
           );
         })}
+        {playlistId && <div className={clsx("playlist-drop-end", dragged && "is-dragging")}
+          onDragOver={(event) => { if (dragged) event.preventDefault(); }}
+          onDrop={(event) => { if (dragged) { event.preventDefault(); void moveTrack(playlistId, dragged, ""); setDragged(null); setDropTarget(null); } }}>
+          {dragged ? tr("Move to end", "移动到末尾") : ""}
+        </div>}
       </div>
     </div>
   );

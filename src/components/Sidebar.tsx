@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Cloud,
+  RefreshCw,
   Disc3,
   FolderOpen,
   Gamepad2,
@@ -249,6 +250,18 @@ export function Sidebar() {
             {onlineSource === "qq" ? "QQ MUSIC" : "NETEASE"}
           </button>
         </div>
+        <button
+          type="button"
+          className={clsx("nav-item nav-item--online", current.kind === "sync" && "is-active")}
+          title={tr("Sync", "同步")}
+          aria-label={tr("Sync", "同步")}
+          onClick={() => navigate({ kind: "sync" })}
+        >
+          {current.kind === "sync" && <motion.span className="nav-item__pill" layoutId="nav-active-pill"
+            transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
+          <RefreshCw size={17} strokeWidth={1.9} />
+          <span>{tr("Sync", "同步")}</span>
+        </button>
       </div>
 
       <div className="side-playlists">
