@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   Bootstrap,
   BulkAssignState,
+  DownloadDone,
   DownloadJob,
   LyricsPayload,
   OnlineSource,
@@ -331,10 +332,47 @@ function readOnlineSource(): OnlineSource {
 function readDownloadQuality(): DownloadQuality {
   try {
     const value = localStorage.getItem("potato:download-quality");
-    return value === "standard" || value === "lossless" ? value : "high";
+    return value === "standard" || value === "high" || value === "lossless" || value === "hires" || value === "jymaster"
+      ? value
+      : "high";
   } catch {
     return "high";
   }
+}
+
+/** Human label for a requested or served download quality. */
+export function downloadQualityLabel(quality?: string): string {
+  switch (quality) {
+    case "standard":
+      return lx("Standard", "标准");
+    case "high":
+      return lx("High 320k", "高品质 320k");
+    case "lossless":
+      return lx("Lossless", "无损");
+    case "hires":
+      return lx("Hi-Res 96k/24", "Hi-Res 96k/24");
+    case "jymaster":
+      return lx("Master 192k/24", "超清母带 192k/24");
+    default:
+      return quality ?? "";
+  }
+}
+
+const QUALITY_RANK: Record<DownloadQuality, number> = {
+  standard: 0,
+  high: 1,
+  lossless: 2,
+  hires: 3,
+  jymaster: 4,
+};
+
+/**
+ * Relative tier of a download quality: standard 0, high 1, lossless 2,
+ * Hi-Res 3, master 4. Unknown or empty values return -1 so callers can treat
+ * an unrecognised tier as "cannot compare" instead of silently ranking it low.
+ */
+export function downloadQualityRank(quality?: string): number {
+  return quality && quality in QUALITY_RANK ? QUALITY_RANK[quality as DownloadQuality] : -1;
 }
 
 function readReducedMotion(): boolean {
@@ -630,10 +668,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
       case "track.updated": {
         const updated = data as Track;
+        const lyricsChanged = get().tracks.find(t => t.id === updated.id)?.lyricsOverride !== updated.lyricsOverride;
         const aliases = get().neteaseAliases;
         const values = updated.neteaseId ? aliases[updated.neteaseId] : undefined;
         const next = values?.length ? { ...updated, aliases: values } : updated;
         set({ tracks: get().tracks.map((track) => (track.id === updated.id ? next : track)) });
+        if (lyricsChanged && get().lyricsTrackId === updated.id) { set({ lyricsTrackId: null }); void get().ensureLyrics(updated.id); }
         break;
       }
       case "track.played": {
@@ -686,18 +726,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "download.done": {
-        const payload = data as {
-          jobId: string;
-          neteaseId?: string;
-          title?: string;
-          artist?: string;
-          path?: string;
-          duplicate?: boolean;
-          updated?: boolean;
-          block?: string;
-          genre?: string;
-          source?: OnlineSource;
-        };
+        const payload = data as DownloadDone;
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
         const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
         const title = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? "Song"}`;
@@ -716,6 +745,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
           source: payload.source ?? current?.source ?? get().onlineSource,
           duplicate: payload.duplicate ?? current?.duplicate,
           updated: payload.updated ?? current?.updated,
+          replaced: payload.replaced ?? current?.replaced,
+          direction: payload.direction ?? current?.direction,
+          upgradeUnavailable: payload.upgradeUnavailable ?? current?.upgradeUnavailable,
+          downgradeUnavailable: payload.downgradeUnavailable ?? current?.downgradeUnavailable,
+          quality: payload.quality ?? current?.quality,
+          requestedQuality: payload.requestedQuality ?? current?.requestedQuality,
+          previousQuality: payload.previousQuality ?? current?.previousQuality,
           block: payload.block ?? current?.block,
           genre: payload.genre ?? current?.genre,
           createdAt: current?.createdAt ?? Date.now(),
@@ -732,7 +768,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         if (!next.importId) {
           const label = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`;
-          if (payload.duplicate) {
+          const served = payload.quality ?? payload.requestedQuality;
+          const qualityText = served ? downloadQualityLabel(served) : "";
+          if (payload.replaced) {
+            const previous = payload.previousQuality
+              ? lx("was {quality}", "原为 {quality}", { quality: downloadQualityLabel(payload.previousQuality) })
+              : "";
+            get().pushToast(
+              payload.direction === "downgrade"
+                ? lx("Replaced with a lower-quality copy", "已替换为更低音质")
+                : lx("Replaced with a higher-quality copy", "已替换为更高音质"),
+              [label, qualityText, previous].filter(Boolean).join(" · "),
+              "success",
+            );
+          } else if (payload.downgradeUnavailable) {
+            get().pushToast(lx("No lower quality available", "暂无更低音质"), label, "default");
+          } else if (payload.upgradeUnavailable) {
+            get().pushToast(lx("No higher quality available", "暂无更高音质"), label, "default");
+          } else if (payload.duplicate) {
             get().pushToast(
               payload.updated ? lx("Song info updated", "歌曲信息已更新") : lx("Already in your library", "已存在于资料库"),
               payload.updated
@@ -741,7 +794,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
               "success",
             );
           } else {
-            get().pushToast(lx("Downloaded to your library", "已下载到资料库"), label, "success");
+            get().pushToast(
+              lx("Downloaded to your library", "已下载到资料库"),
+              [label, qualityText].filter(Boolean).join(" · "),
+              "success",
+            );
           }
         }
         void get().resolvePlaylistImports();
@@ -929,6 +986,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setVolume: (volume) => {
+    if (!Number.isFinite(volume)) return;
+    volume = Math.max(0, Math.min(1, volume));
     const current = get().playback;
     if (!current) return;
     set({ playback: { ...current, volume, muted: volume === 0 ? current.muted : false } });

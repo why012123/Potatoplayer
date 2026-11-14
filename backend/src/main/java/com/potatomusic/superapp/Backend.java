@@ -55,6 +55,7 @@ public final class Backend implements PlaybackController.Host {
         this.emitter = emitter;
         this.store = new DataStore();
         this.store.ensure();
+        SuperMigration.run(store);
         this.settings = store.loadSettings();
         this.state = store.loadLibrary();
         resolveLibraryRoot();
@@ -88,7 +89,9 @@ public final class Backend implements PlaybackController.Host {
             ensureTrackTaxonomyLocked();
             scanNeeded = state.tracks.isEmpty()
                     || !settings.libraryRoot.equals(state.libraryRoot)
-                    || state.schemaVersion < 2;
+                    // Schema 3 reads release years from audio tags for libraries
+                    // imported from legacy entries that already had title/artist.
+                    || state.schemaVersion < 4;
         }
         this.playback = new PlaybackController(this);
         this.playback.warmUpAsync();
@@ -172,13 +175,22 @@ public final class Backend implements PlaybackController.Host {
                             if (notBlank(old.note)) fresh.note = old.note;
                         }
                         fresh.playCount = Math.max(fresh.playCount, old.playCount);
+                        // Explicit metadata edits survive rescans, without touching audio tags.
+                        if (old.metadataOverrides != null) {
+                            fresh.metadataOverrides = new ArrayList<>(old.metadataOverrides);
+                            for (String field : old.metadataOverrides) {
+                                if (!METADATA_FIELDS.contains(field)) continue;
+                                try { Track.class.getField(field).set(fresh, Track.class.getField(field).get(old)); }
+                                catch (ReflectiveOperationException ignored) { }
+                            }
+                        }
                     }
                     state.tracks = scanned;
                     state.libraryRoot = root.toString();
                     state.scannedAt = System.currentTimeMillis();
                     rebuildIndex();
                     ensureTaxonomyLocked();
-                    state.schemaVersion = 2;
+                    state.schemaVersion = 4;
                     // Favorites and playlist membership are user data. Keep them even
                     // while switching roots; missing IDs simply resolve once the
                     // matching library is selected again.
@@ -457,6 +469,10 @@ public final class Backend implements PlaybackController.Host {
             throw new IllegalArgumentException("Unknown track.");
         }
         synchronized (lock) {
+            if (track.metadataOverrides == null) track.metadataOverrides = new ArrayList<>();
+            for (String field : List.of("block", "genre", "rating", "note", "neteaseId", "qqId")) {
+                if (!track.metadataOverrides.contains(field)) track.metadataOverrides.add(field);
+            }
             track.block = block == null ? "" : block.trim();
             track.genre = genre == null ? "" : genre.trim();
             track.rating = Math.max(0, Math.min(10, rating));
@@ -471,14 +487,432 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("track", track, "blocks", copies(state.blocks), "genres", copies(state.genres));
     }
 
+    /**
+     * After a download replaced a song's audio file under a different path
+     * (mp3 → FLAC), keep the library track pointing at the same logical song. The
+     * track id follows the path, so favorites and playlist membership are remapped
+     * to the new id before the rescan picks the file up.
+     */
+    public void relocateDownloadedTrack(String trackId, String newPath) {
+        if (trackId == null || newPath == null || newPath.isBlank()) return;
+        synchronized (lock) {
+            Track track = trackIndex.get(trackId);
+            if (track == null) return;
+            String oldId = track.id;
+            String target = Path.of(newPath).toAbsolutePath().normalize().toString();
+            track.path = target;
+            track.id = LibraryScanner.stableId(target);
+            if (!oldId.equals(track.id)) {
+                if (state.favorites.remove(oldId)) state.favorites.add(track.id);
+                for (Playlist playlist : state.playlists) {
+                    for (int index = 0; index < playlist.trackIds.size(); index++) {
+                        if (oldId.equals(playlist.trackIds.get(index))) playlist.trackIds.set(index, track.id);
+                    }
+                }
+            }
+            rebuildIndex();
+        }
+        saveNow();
+        emitTracks();
+        emitter.accept("library.favorites", Map.of("favorites", List.copyOf(state.favorites)));
+        emitPlaylists();
+    }
+
+    // ─── Song quality options / upgrades ───────────────────────────────────
+
+    private NeteaseBindings.Binding bindingForTrack(Track track) {
+        return track == null || track.path == null ? null : neteaseBindings.find(track.path);
+    }
+
+    private String currentQualityOf(Track track, NeteaseBindings.Binding binding) {
+        return AudioQuality.existingLabel(binding == null ? null : binding.quality, track.path);
+    }
+
+    private record TrackQualityOptions(
+            Track track,
+            String platform,
+            String onlineId,
+            String currentQuality,
+            List<Map<String, Object>> available,
+            List<Map<String, Object>> downgrades,
+            String recommended) {
+    }
+
+    private TrackQualityOptions qualityOptionsFor(Track track) {
+        return qualityOptionsFor(track, false);
+    }
+
+    private TrackQualityOptions qualityOptionsFor(Track track, boolean includeDowngrades) {
+        NeteaseBindings.Binding binding = bindingForTrack(track);
+        String neteaseId = binding == null ? "" : binding.neteaseSongId();
+        String qqMid = binding == null ? "" : binding.qqMid();
+        String currentQuality = currentQualityOf(track, binding);
+        String platform = "";
+        String onlineId = "";
+        List<Map<String, Object>> available = List.of();
+        List<Map<String, Object>> downgrades = List.of();
+        if (!neteaseId.isBlank()) {
+            platform = "netease";
+            onlineId = neteaseId;
+            available = netease.availableUpgrades(neteaseId, currentQuality);
+            if (includeDowngrades) downgrades = netease.availableDowngrades(neteaseId, currentQuality);
+        } else if (!qqMid.isBlank()) {
+            platform = "qq";
+            onlineId = qqMid;
+            available = qq.availableUpgrades(qqMid, currentQuality);
+            if (includeDowngrades) downgrades = qq.availableDowngrades(qqMid, currentQuality);
+        }
+        String recommended = "";
+        int bestRank = -1;
+        for (Map<String, Object> option : available) {
+            String quality = String.valueOf(option.get("quality"));
+            int rank = AudioQuality.rank(quality);
+            if (rank > bestRank) {
+                bestRank = rank;
+                recommended = quality;
+            }
+        }
+        return new TrackQualityOptions(track, platform, onlineId, currentQuality,
+                List.copyOf(available), List.copyOf(downgrades), recommended);
+    }
+
+    private Map<String, Object> qualityOptionsPayload(TrackQualityOptions options) {
+        Track track = options.track();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("trackId", track.id);
+        out.put("title", track.title == null ? "" : track.title);
+        out.put("artist", track.artist == null ? "" : track.artist);
+        out.put("path", track.path);
+        out.put("fileSize", track.fileSize);
+        out.put("sampleRate", track.sampleRate);
+        out.put("bitDepth", track.bitDepth);
+        out.put("channels", track.channels);
+        out.put("codec", track.codec == null ? "" : track.codec);
+        out.put("platform", options.platform());
+        out.put("onlineId", options.onlineId());
+        out.put("currentQuality", options.currentQuality());
+        out.put("available", options.available());
+        out.put("upgradeAvailable", !options.available().isEmpty());
+        out.put("downgrades", options.downgrades());
+        out.put("downgradeAvailable", !options.downgrades().isEmpty());
+        out.put("recommended", options.recommended());
+        return out;
+    }
+
+    /**
+     * Current quality of one library song and the tiers its online source can serve
+     * above and below the existing copy. Explicit downgrade options are probed here;
+     * the batch upgrade probe keeps skipping them for speed.
+     */
+    public Map<String, Object> trackQualityOptions(String trackId) {
+        Track track = findTrack(trackId);
+        if (track == null) throw new IllegalArgumentException("Unknown track.");
+        return qualityOptionsPayload(qualityOptionsFor(track, true));
+    }
+
+    /**
+     * Queue a higher-quality download for one library song. The track's block, genre,
+     * rating, note, favorite flag and playlist membership are kept: the download job
+     * receives empty tags, and the replacement path preserves the existing metadata.
+     */
+    public Map<String, Object> upgradeTrackQuality(String trackId, String requestedQuality) {
+        Track track = findTrack(trackId);
+        if (track == null) throw new IllegalArgumentException("Unknown track.");
+        TrackQualityOptions options = qualityOptionsFor(track);
+        if (options.available().isEmpty()) {
+            Map<String, Object> out = qualityOptionsPayload(options);
+            out.put("queued", false);
+            out.put("reason", options.platform().isBlank()
+                    ? "这首歌还没有绑定网易云或 QQ 音乐 ID。"
+                    : "当前平台/账号没有更高的可下载档位。");
+            return out;
+        }
+        String wanted = requestedQuality == null || requestedQuality.isBlank() || "auto".equalsIgnoreCase(requestedQuality)
+                ? ""
+                : AudioQuality.normalize(requestedQuality);
+        String chosen = "";
+        boolean substituted = false;
+        if (wanted.isBlank()) {
+            chosen = options.recommended();
+        } else {
+            int wantedRank = AudioQuality.rank(wanted);
+            int closestRank = Integer.MAX_VALUE;
+            for (Map<String, Object> option : options.available()) {
+                String quality = AudioQuality.normalize(String.valueOf(option.get("quality")));
+                if (wanted.equals(quality)) {
+                    chosen = wanted;
+                    break;
+                }
+                // The provider often has no separate Hi-Res tier while its master tier
+                // (jymaster) is at least as good. Treat a higher available tier as a
+                // valid answer to "upgrade to at least this level" instead of skipping.
+                int rank = AudioQuality.rank(quality);
+                if (rank >= wantedRank && rank < closestRank) {
+                    closestRank = rank;
+                    chosen = quality;
+                }
+            }
+            substituted = !chosen.isBlank() && !wanted.equals(chosen);
+            if (chosen.isBlank()) {
+                Map<String, Object> out = qualityOptionsPayload(options);
+                out.put("queued", false);
+                out.put("reason", "请求的档位当前不可用，且没有更高档位可以替代。");
+                return out;
+            }
+        }
+        return queueQualityDownload(options, chosen, wanted, substituted, AudioQuality.UPGRADE);
+    }
+
+    /**
+     * Queue a download that replaces the existing file in the resolved direction and
+     * preserves block/genre/rating/note/favorite/playlist metadata.
+     */
+    private Map<String, Object> queueQualityDownload(TrackQualityOptions options, String chosen, String wanted,
+                                                     boolean substituted, String direction) {
+        Track track = options.track();
+        String title = track.title == null ? "" : track.title;
+        boolean allowDowngrade = AudioQuality.DOWNGRADE.equals(direction);
+        Map<String, Object> job = "qq".equals(options.platform())
+                ? qq.download(options.onlineId(), chosen, "", "", title, allowDowngrade)
+                : netease.download(options.onlineId(), chosen, "", "", title, allowDowngrade);
+        Map<String, Object> out = qualityOptionsPayload(options);
+        out.put("queued", true);
+        out.put("direction", direction);
+        out.put("quality", chosen);
+        out.put("requestedQuality", wanted.isBlank() ? "auto" : wanted);
+        out.put("substituted", substituted);
+        out.put("previousQuality", options.currentQuality());
+        out.put("jobId", job.get("jobId"));
+        return out;
+    }
+
+    /**
+     * Change one library song's audio quality in either direction. {@code auto} keeps
+     * the classic "best available upgrade"; an explicit tier may be higher or lower.
+     * Downgrades are only queued from this explicit entry point (never from automatic
+     * downloads) and the download job still verifies the served tier before replacing
+     * the file, preserving block/genre/rating/note/favorite/playlist metadata.
+     */
+    public Map<String, Object> changeTrackQuality(String trackId, String requestedQuality) {
+        Track track = findTrack(trackId);
+        if (track == null) throw new IllegalArgumentException("Unknown track.");
+        String wanted = requestedQuality == null || requestedQuality.isBlank()
+                || "auto".equalsIgnoreCase(requestedQuality) ? "" : AudioQuality.normalize(requestedQuality);
+        if (wanted.isBlank()) return upgradeTrackQuality(trackId, "auto");
+        TrackQualityOptions options = qualityOptionsFor(track);
+        int wantedRank = AudioQuality.rank(wanted);
+        int currentRank = AudioQuality.rank(options.currentQuality());
+        if (wantedRank > currentRank) return upgradeTrackQuality(trackId, wanted);
+        Map<String, Object> out = qualityOptionsPayload(options);
+        if (options.platform().isBlank()) {
+            out.put("queued", false);
+            out.put("direction", AudioQuality.NEW);
+            out.put("reason", "这首歌还没有绑定网易云或 QQ 音乐 ID。");
+            return out;
+        }
+        if (wantedRank == currentRank) {
+            out.put("queued", false);
+            out.put("direction", AudioQuality.SAME);
+            out.put("reason", "这首歌已经是该档位，无需重新下载。");
+            return out;
+        }
+        // Explicit downgrade: the download job verifies the actually served tier and
+        // keeps the current file when the platform cannot go that low.
+        return queueQualityDownload(options, wanted, wanted, false, AudioQuality.DOWNGRADE);
+    }
+
+    private List<Track> upgradeCandidates(List<String> trackIds, double minRating, int limit) {
+        int max = Math.max(1, Math.min(100, limit <= 0 ? 40 : limit));
+        List<Track> candidates = new ArrayList<>();
+        synchronized (lock) {
+            if (trackIds != null && !trackIds.isEmpty()) {
+                for (String id : trackIds) {
+                    Track track = trackIndex.get(id);
+                    if (track != null && !candidates.contains(track)) candidates.add(track);
+                    if (candidates.size() >= max) break;
+                }
+            } else {
+                List<Track> sorted = new ArrayList<>(state.tracks);
+                sorted.sort((a, b) -> Double.compare(b.rating, a.rating));
+                for (Track track : sorted) {
+                    if (track.rating < minRating) continue;
+                    candidates.add(track);
+                    if (candidates.size() >= max) break;
+                }
+            }
+        }
+        return candidates;
+    }
+
+    /** Probe the given songs (or every song rated at least {@code minRating}) for higher-quality downloads. */
+    public Map<String, Object> qualityUpgrades(List<String> trackIds, double minRating, int limit) {
+        List<Track> candidates = upgradeCandidates(trackIds, minRating, limit);
+        List<Map<String, Object>> results = new ArrayList<>();
+        int upgradeable = 0;
+        for (Track track : candidates) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("trackId", track.id);
+            row.put("title", track.title == null ? "" : track.title);
+            row.put("artist", track.artist == null ? "" : track.artist);
+            row.put("rating", track.rating);
+            try {
+                TrackQualityOptions options = qualityOptionsFor(track);
+                row.put("sampleRate", track.sampleRate);
+                row.put("bitDepth", track.bitDepth);
+                row.put("codec", track.codec == null ? "" : track.codec);
+                row.put("platform", options.platform());
+                row.put("currentQuality", options.currentQuality());
+                row.put("upgradeAvailable", !options.available().isEmpty());
+                row.put("recommended", options.recommended());
+                row.put("available", options.available());
+                if (!options.available().isEmpty()) upgradeable++;
+            } catch (Exception e) {
+                row.put("error", e.getMessage() == null ? "无法查询该歌曲的音质。" : e.getMessage());
+            }
+            results.add(row);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("checked", results.size());
+        out.put("upgradeable", upgradeable);
+        out.put("results", results);
+        return out;
+    }
+
+    /** Queue the best available upgrade for every candidate and report each song. */
+    public Map<String, Object> upgradeQualities(List<String> trackIds, double minRating, int limit, String requestedQuality) {
+        List<Track> candidates = upgradeCandidates(trackIds, minRating, limit);
+        List<Map<String, Object>> queued = new ArrayList<>();
+        List<Map<String, Object>> skipped = new ArrayList<>();
+        for (Track track : candidates) {
+            try {
+                Map<String, Object> result = upgradeTrackQuality(track.id, requestedQuality);
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                if (Boolean.TRUE.equals(result.get("queued"))) {
+                    row.put("jobId", result.get("jobId"));
+                    row.put("quality", result.get("quality"));
+                    row.put("previousQuality", result.get("previousQuality"));
+                    queued.add(row);
+                } else {
+                    row.put("reason", result.get("reason"));
+                    skipped.add(row);
+                }
+            } catch (Exception e) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                row.put("error", e.getMessage() == null ? "升级失败。" : e.getMessage());
+                skipped.add(row);
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("queuedCount", queued.size());
+        out.put("queued", queued);
+        out.put("skipped", skipped);
+        return out;
+    }
+
+    /**
+     * Queue an explicit quality change for every candidate and report each song. A
+     * concrete quality may be higher or lower than the current copy; {@code auto}
+     * keeps the classic upgrade-only behaviour. This is the batch entry point used by
+     * the AI assistant, never the automatic download path.
+     */
+    public Map<String, Object> changeQualities(List<String> trackIds, double minRating, int limit, String requestedQuality) {
+        String wanted = requestedQuality == null || requestedQuality.isBlank()
+                || "auto".equalsIgnoreCase(requestedQuality) ? "" : AudioQuality.normalize(requestedQuality);
+        if (wanted.isBlank()) return upgradeQualities(trackIds, minRating, limit, "auto");
+        List<Track> candidates = upgradeCandidates(trackIds, minRating, limit);
+        List<Map<String, Object>> queued = new ArrayList<>();
+        List<Map<String, Object>> skipped = new ArrayList<>();
+        for (Track track : candidates) {
+            try {
+                Map<String, Object> result = changeTrackQuality(track.id, wanted);
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                if (Boolean.TRUE.equals(result.get("queued"))) {
+                    row.put("direction", result.get("direction"));
+                    row.put("jobId", result.get("jobId"));
+                    row.put("quality", result.get("quality"));
+                    row.put("previousQuality", result.get("previousQuality"));
+                    queued.add(row);
+                } else {
+                    row.put("direction", result.get("direction"));
+                    row.put("reason", result.get("reason"));
+                    skipped.add(row);
+                }
+            } catch (Exception e) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                row.put("error", e.getMessage() == null ? "更换音质失败。" : e.getMessage());
+                skipped.add(row);
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("quality", wanted);
+        out.put("queuedCount", queued.size());
+        out.put("queued", queued);
+        out.put("skipped", skipped);
+        return out;
+    }
+
+    private static final java.util.Set<String> METADATA_FIELDS = java.util.Set.of(
+            "title", "artist", "album", "genre", "block", "note", "rating", "year", "trackNo", "playCount", "addedAt", "neteaseId", "qqId", "coverPath", "lyricsOverride");
+
+    /** Patch the index only. Never rewrite audio files or accept a new audio path. */
+    public Map<String, Object> patchMetadata(String trackId, JsonNode patch) {
+        if (patch == null || !patch.isObject() || patch.isEmpty()) throw new IllegalArgumentException("Metadata patch must be a non-empty object.");
+        Track next;
+        synchronized (lock) {
+            Track original = findTrack(trackId);
+            if (original == null) throw new IllegalArgumentException("Unknown track.");
+            next = original.copy();
+            var fields = patch.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next(); String field = entry.getKey(); JsonNode value = entry.getValue();
+                if (!METADATA_FIELDS.contains(field)) throw new IllegalArgumentException("Read-only field: " + field);
+                try {
+                    var target = Track.class.getField(field);
+                    if (target.getType() == String.class) {
+                        if (!value.isTextual()) throw new IllegalArgumentException("Expected text: " + field);
+                        String text = value.asText().trim();
+                        if (text.length() > (field.equals("note") ? 2000 : field.equals("lyricsOverride") ? 30000 : 1000)) throw new IllegalArgumentException("Text too long: " + field);
+                        if (field.equals("title") && text.isBlank()) throw new IllegalArgumentException("Title cannot be empty.");
+                        if (field.equals("coverPath") && !text.isBlank() && state.tracks.stream().noneMatch(t -> text.equals(t.coverPath))) throw new IllegalArgumentException("Choose an existing library cover.");
+                        target.set(next, text);
+                    } else {
+                        if (!value.isNumber() || !Double.isFinite(value.asDouble()) || value.asDouble() < 0) throw new IllegalArgumentException("Invalid numeric metadata: " + field);
+                        double max = field.equals("rating") ? 10 : field.equals("addedAt") ? 8640000000000000d : field.equals("playCount") ? 100000000 : 9999;
+                        if (value.asDouble() > max || (!field.equals("rating") && value.asDouble() != Math.floor(value.asDouble()))) throw new IllegalArgumentException("Out of range: " + field);
+                        if (target.getType() == double.class) target.setDouble(next, value.asDouble());
+                        else if (target.getType() == long.class) target.setLong(next, value.asLong());
+                        else target.setInt(next, value.asInt());
+                    }
+                    if (!next.metadataOverrides.contains(field)) next.metadataOverrides.add(field);
+                } catch (ReflectiveOperationException e) { throw new IllegalArgumentException("Invalid metadata field", e); }
+            }
+            updateBindingLocked(next, next.neteaseId, next.qqId);
+            ensureTagForValueLocked(state.blocks, next.block);
+            ensureTagForValueLocked(state.genres, next.genre);
+            state.tracks.set(state.tracks.indexOf(original), next);
+            trackIndex.put(trackId, next);
+        }
+        saveNow();
+        emitter.accept("track.updated", next);
+        emitTaxonomy();
+        return Map.of("track", next, "blocks", copies(state.blocks), "genres", copies(state.genres));
+    }
+
     private void updateBindingLocked(Track track, String neteaseId, String qqId) {
         String netease = neteaseId == null ? "" : neteaseId.trim();
         String qq = qqId == null ? "" : qqId.trim();
         if (!netease.isBlank() && !netease.matches("\\d{1,20}")) {
             throw new IllegalArgumentException("NetEase ID must be numeric.");
         }
-        if (!netease.isBlank()) qq = "";
-        if (netease.isBlank() && !qq.isBlank() && !qq.matches("[A-Za-z0-9]+")) {
+        if (!qq.isBlank() && !qq.matches("[A-Za-z0-9]{1,80}")) {
             throw new IllegalArgumentException("QQ Music MID must be letters and digits.");
         }
         if (netease.isBlank() && qq.isBlank()) {
@@ -497,15 +931,10 @@ public final class Backend implements PlaybackController.Host {
         binding.genre = track.genre;
         if (binding.coverPath == null) binding.coverPath = track.coverPath;
         binding.downloadedAt = System.currentTimeMillis();
-        if (!netease.isBlank()) {
-            binding.neteaseId = netease;
-            track.neteaseId = netease;
-            track.qqId = "";
-        } else {
-            binding.neteaseId = "qq:" + qq;
-            track.neteaseId = "";
-            track.qqId = qq;
-        }
+        binding.neteaseId = !netease.isBlank() ? netease : "qq:" + qq;
+        binding.qqId = qq;
+        track.neteaseId = netease;
+        track.qqId = qq;
         neteaseBindings.put(binding);
     }
 
@@ -566,6 +995,8 @@ public final class Backend implements PlaybackController.Host {
                 } else {
                     track.genre = clean;
                 }
+                if (track.metadataOverrides == null) track.metadataOverrides = new ArrayList<>();
+                if (!track.metadataOverrides.contains(field)) track.metadataOverrides.add(field);
                 NeteaseBindings.Binding binding = neteaseBindings.find(track.path);
                 if (binding != null) {
                     binding.block = track.block;
@@ -604,6 +1035,10 @@ public final class Backend implements PlaybackController.Host {
     }
 
     /** Fill metadata lost by older root-switch builds from the legacy source files. */
+    private static boolean hasMetadataOverride(Track track, String field) {
+        return track.metadataOverrides != null && track.metadataOverrides.contains(field);
+    }
+
     private boolean repairLegacyMetadataLocked() {
         if (settings.libraryRoot == null || settings.libraryRoot.isBlank()) return false;
         LegacyData legacy = LegacyData.load(Path.of(settings.libraryRoot));
@@ -613,27 +1048,27 @@ public final class Backend implements PlaybackController.Host {
             if (track.path == null) continue;
             LegacyData.Entry entry = legacy.find(track.path);
             if (entry == null) continue;
-            if ((track.rating <= 0) && entry.rating > 0) {
+            if (!hasMetadataOverride(track, "rating") && ((track.rating <= 0) && entry.rating > 0)) {
                 track.rating = entry.rating;
                 changed = true;
             }
-            if (blank(track.note) && !blank(entry.note)) {
+            if (!hasMetadataOverride(track, "note") && (blank(track.note) && !blank(entry.note))) {
                 track.note = entry.note;
                 changed = true;
             }
-            if (blank(track.block) && !blank(entry.block)) {
+            if (!hasMetadataOverride(track, "block") && (blank(track.block) && !blank(entry.block))) {
                 track.block = entry.block;
                 changed = true;
             }
-            if (blank(track.genre) && !blank(entry.genre)) {
+            if (!hasMetadataOverride(track, "genre") && (blank(track.genre) && !blank(entry.genre))) {
                 track.genre = entry.genre;
                 changed = true;
             }
-            if (blank(track.title) && !blank(entry.title)) {
+            if (!hasMetadataOverride(track, "title") && (blank(track.title) && !blank(entry.title))) {
                 track.title = entry.title;
                 changed = true;
             }
-            if (blank(track.artist) && !blank(entry.artist)) {
+            if (!hasMetadataOverride(track, "artist") && (blank(track.artist) && !blank(entry.artist))) {
                 track.artist = entry.artist;
                 changed = true;
             }
@@ -641,11 +1076,11 @@ public final class Backend implements PlaybackController.Host {
                 track.duration = entry.duration;
                 changed = true;
             }
-            if (track.playCount < entry.playCount) {
+            if (!hasMetadataOverride(track, "playCount") && (track.playCount < entry.playCount)) {
                 track.playCount = entry.playCount;
                 changed = true;
             }
-            if (blank(track.coverPath) && !blank(entry.cover)) {
+            if (!hasMetadataOverride(track, "coverPath") && (blank(track.coverPath) && !blank(entry.cover))) {
                 Path cover = Path.of(entry.cover);
                 if (Files.isRegularFile(cover)) {
                     track.coverPath = cover.toAbsolutePath().normalize().toString();
@@ -1249,16 +1684,8 @@ public final class Backend implements PlaybackController.Host {
                 if (track.genre == null) track.genre = "";
                 if (track.note == null) track.note = "";
                 NeteaseBindings.Binding binding = track.path == null ? null : neteaseBindings.find(track.path);
-                if (binding == null || binding.neteaseId == null || binding.neteaseId.isBlank()) {
-                    track.neteaseId = "";
-                    track.qqId = "";
-                } else if (binding.neteaseId.startsWith("qq:")) {
-                    track.neteaseId = "";
-                    track.qqId = binding.neteaseId.substring(3);
-                } else {
-                    track.neteaseId = binding.neteaseId;
-                    track.qqId = "";
-                }
+                track.neteaseId = binding == null ? "" : binding.neteaseSongId();
+                track.qqId = binding == null ? "" : binding.qqMid();
                 trackIndex.put(track.id, track);
             }
         }
@@ -1338,6 +1765,7 @@ public final class Backend implements PlaybackController.Host {
             case "taxonomy.delete" -> deleteTag(text(p, "kind", "block"), text(p, "name", ""));
             case "taxonomy.color" -> setTagColor(text(p, "kind", "block"), text(p, "name", ""), text(p, "color", ""));
             case "library.deleteTrack" -> deleteTrack(text(p, "trackId", ""));
+            case "library.patchMetadata" -> patchMetadata(text(p, "trackId", ""), p.path("patch"));
             case "library.updateTrack" -> updateTrack(
                     text(p, "trackId", ""),
                     text(p, "block", ""),
@@ -1418,6 +1846,8 @@ public final class Backend implements PlaybackController.Host {
             case "netease.qrCheck" -> netease.qrCheck(text(p, "key", ""));
             case "netease.loginCookie" -> netease.loginCookie(text(p, "cookie", ""));
             case "netease.logout" -> netease.logout();
+            case "netease.searchRich" -> netease.searchRich(text(p, "keywords", ""), (int) number(p, "limit", 15), (int) number(p, "offset", 0));
+            case "netease.songDetails" -> netease.songDetails(text(p, "id", ""));
             case "netease.search" -> netease.search(text(p, "keywords", ""), (int) number(p, "limit", 30));
             case "netease.aliases" -> netease.aliases();
             case "netease.syncAliases" -> netease.syncAliases();
@@ -1437,7 +1867,7 @@ public final class Backend implements PlaybackController.Host {
                     (int) number(p, "limit", 30),
                     (int) number(p, "offset", 0));
             case "netease.lyrics" -> netease.lyrics(text(p, "id", ""));
-            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""), bool(p, "allowDowngrade", false));
             case "netease.cancelDownload" -> netease.cancelDownload(text(p, "jobId", ""));
             case "qq.status" -> qq.status();
             case "qq.startService" -> qq.startService();
@@ -1449,7 +1879,24 @@ public final class Backend implements PlaybackController.Host {
             case "qq.playlistDetail" -> qq.playlistDetail(text(p, "playlistId", ""));
             case "qq.daily" -> qq.daily();
             case "qq.lyrics" -> qq.lyrics(text(p, "id", ""));
-            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""), bool(p, "allowDowngrade", false));
+            case "track.qualityOptions" -> trackQualityOptions(text(p, "trackId", ""));
+            case "track.upgradeQuality" -> upgradeTrackQuality(text(p, "trackId", ""), text(p, "quality", "auto"));
+            case "track.changeQuality" -> changeTrackQuality(text(p, "trackId", ""), text(p, "quality", "auto"));
+            case "library.qualityUpgrades" -> qualityUpgrades(
+                    stringList(p.path("trackIds")),
+                    number(p, "minRating", 0),
+                    (int) number(p, "limit", 40));
+            case "library.upgradeQualities" -> upgradeQualities(
+                    stringList(p.path("trackIds")),
+                    number(p, "minRating", 0),
+                    (int) number(p, "limit", 40),
+                    text(p, "quality", "auto"));
+            case "library.changeQualities" -> changeQualities(
+                    stringList(p.path("trackIds")),
+                    number(p, "minRating", 0),
+                    (int) number(p, "limit", 40),
+                    text(p, "quality", "auto"));
             case "qq.cancelDownload" -> qq.cancelDownload(text(p, "jobId", ""));
             case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20));
             case "app.shutdown" -> {

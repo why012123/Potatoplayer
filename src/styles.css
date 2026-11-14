@@ -3618,6 +3618,15 @@ img {
   transform: translateX(14px);
 }
 
+.settings-select {
+  width: auto;
+  min-width: 190px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
 .settings-note {
   display: flex;
   align-items: center;
@@ -7662,6 +7671,54 @@ img {
 .immerse__eq:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.09);
+}
+
+/* Audio quality upgrade for a song with an online binding. */
+.editor-quality__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-quality__current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.editor-quality__current strong {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.editor-quality__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-quality__row .text-field {
+  flex: 1;
+  min-width: 150px;
+}
+
+.editor-quality__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.editor-quality__hint {
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--faint);
 }
 
 @media (max-width: 760px) {

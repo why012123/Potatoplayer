@@ -45,7 +45,9 @@ export interface Playlist {
 
 export type PlaybackEngineId = "vlc" | "potatohq" | "mpv";
 export type OutputMode = "pcm" | "dop64" | "dop128";
-export type DownloadQuality = "standard" | "high" | "lossless";
+export type DownloadQuality = "standard" | "high" | "lossless" | "hires" | "jymaster";
+/** Which way an explicit quality change moved the library file. */
+export type DownloadDirection = "upgrade" | "downgrade";
 
 export interface EngineCapabilities {
   id: PlaybackEngineId;
@@ -347,9 +349,52 @@ export interface DownloadJob {
   source?: OnlineSource;
   duplicate?: boolean;
   updated?: boolean;
+  /** True when an existing copy was replaced by a better-quality download. */
+  replaced?: boolean;
+  /** Direction of a replacement: a higher tier (upgrade) or an explicit lower tier (downgrade). */
+  direction?: DownloadDirection;
+  /** The provider had nothing better for this song, so the old copy was kept. */
+  upgradeUnavailable?: boolean;
+  /** An explicit downgrade could not be honored, so the higher-quality copy was kept. */
+  downgradeUnavailable?: boolean;
+  /** Quality level actually served (standard/high/lossless/hires/jymaster). */
+  quality?: DownloadQuality;
+  requestedQuality?: DownloadQuality;
+  /** Quality of the copy that was replaced. */
+  previousQuality?: DownloadQuality;
   block?: string;
   genre?: string;
   createdAt: number;
+}
+
+/**
+ * Payload of a `download.done` event.
+ *
+ * `replaced` means the previous file was swapped for the freshly downloaded one;
+ * `direction` then says whether that was a higher tier (upgrade) or an explicit
+ * lower tier (downgrade). `upgradeUnavailable` / `downgradeUnavailable` mean the
+ * requested direction was not possible and the existing copy was kept.
+ */
+export interface DownloadDone {
+  jobId: string;
+  neteaseId?: string;
+  /** Library id of the resulting track, present when the file was indexed. */
+  trackId?: string;
+  title?: string;
+  artist?: string;
+  path?: string;
+  duplicate?: boolean;
+  updated?: boolean;
+  replaced?: boolean;
+  direction?: DownloadDirection;
+  upgradeUnavailable?: boolean;
+  downgradeUnavailable?: boolean;
+  quality?: DownloadQuality;
+  requestedQuality?: DownloadQuality;
+  previousQuality?: DownloadQuality;
+  block?: string;
+  genre?: string;
+  source?: OnlineSource;
 }
 
 export interface PlaylistImport {

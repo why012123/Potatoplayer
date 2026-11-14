@@ -61,6 +61,14 @@ public final class LyricsService {
         if (track == null || track.path == null) {
             return Payload.missing();
         }
+        if (track.lyricsOverride != null && !track.lyricsOverride.isBlank()) {
+            Payload payload = new Payload();
+            var original = parseText(track.lyricsOverride);
+            payload.found = !original.isEmpty();
+            payload.source = "library metadata override";
+            for (var entry : original.entrySet()) payload.lines.add(new Line(entry.getKey(), entry.getValue(), ""));
+            return payload;
+        }
         String key = track.path + "::" + fileStamp(track.path);
         return cache.computeIfAbsent(key, ignored -> find(track));
     }
@@ -133,8 +141,12 @@ public final class LyricsService {
         if (file == null || !Files.isRegularFile(file)) {
             return result;
         }
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        for (String raw : lines) {
+        return parseText(Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    public static Map<Double, String> parseText(String content) {
+        TreeMap<Double, String> result = new TreeMap<>();
+        for (String raw : content.split("\\R")) {
             String line = raw.strip();
             if (line.isEmpty()) {
                 continue;

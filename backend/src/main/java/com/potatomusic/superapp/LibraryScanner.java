@@ -127,7 +127,7 @@ public final class LibraryScanner {
             }
         }
 
-        if (track.duration <= 0 || !notBlank(track.title) || !notBlank(track.artist)) {
+        if (needsMetadata(track)) {
             Metadata metadata = readMetadata(absolute, track.id);
             if (metadata != null) {
                 if (notBlank(metadata.title)) {
@@ -151,6 +151,10 @@ public final class LibraryScanner {
                 if (track.duration <= 0) {
                     track.duration = metadata.duration;
                 }
+                if (metadata.sampleRate > 0) track.sampleRate = metadata.sampleRate;
+                if (metadata.bitDepth > 0) track.bitDepth = metadata.bitDepth;
+                if (metadata.channels > 0) track.channels = metadata.channels;
+                if (notBlank(metadata.codec)) track.codec = metadata.codec;
                 if (track.coverPath == null && notBlank(metadata.coverPath)) {
                     track.coverPath = metadata.coverPath;
                 }
@@ -173,14 +177,8 @@ public final class LibraryScanner {
                 // so they win over whatever the audio tags happen to contain.
                 if (notBlank(binding.block)) track.block = binding.block.trim();
                 if (notBlank(binding.genre)) track.genre = binding.genre.trim();
-                String bindingId = binding.neteaseId == null ? "" : binding.neteaseId;
-                if (bindingId.startsWith("qq:")) {
-                    track.neteaseId = "";
-                    track.qqId = bindingId.substring(3);
-                } else {
-                    track.neteaseId = bindingId;
-                    track.qqId = "";
-                }
+                track.neteaseId = binding.neteaseSongId();
+                track.qqId = binding.qqMid();
             }
         }
         if (track.coverPath == null) {
@@ -210,11 +208,44 @@ public final class LibraryScanner {
         return track;
     }
 
+    /**
+     * Legacy entries carry title/artist/duration, so the old fast path skipped
+     * reading audio tags entirely. Read when the year is unknown too: FLACs
+     * frequently store the release year as a DATE/Vorbis tag.
+     */
+    static boolean needsMetadata(Track track) {
+        return track.duration <= 0
+                || !notBlank(track.title)
+                || !notBlank(track.artist)
+                || track.year <= 0
+                || track.sampleRate <= 0;
+    }
+
     private Metadata readMetadata(Path file, String id) {
         try {
             AudioFile audio = AudioFileIO.read(file.toFile());
             Metadata metadata = new Metadata();
-            metadata.duration = Math.max(0, audio.getAudioHeader().getTrackLength());
+            org.jaudiotagger.audio.AudioHeader header = audio.getAudioHeader();
+            metadata.duration = Math.max(0, header.getTrackLength());
+            // Real audio specs: the model needs them to answer sample-rate questions
+            // instead of guessing from the download tier or the file name.
+            try {
+                metadata.sampleRate = Math.max(0, header.getSampleRateAsNumber());
+            } catch (Exception ignored) {
+            }
+            try {
+                metadata.bitDepth = Math.max(0, header.getBitsPerSample());
+            } catch (Exception ignored) {
+            }
+            try {
+                String channels = header.getChannels();
+                metadata.channels = channels == null ? 0 : Integer.parseInt(channels.trim());
+            } catch (Exception ignored) {
+            }
+            try {
+                metadata.codec = clean(header.getFormat());
+            } catch (Exception ignored) {
+            }
             Tag tag = audio.getTag();
             if (tag != null) {
                 metadata.title = clean(tag.getFirst(FieldKey.TITLE));
@@ -368,6 +399,10 @@ public final class LibraryScanner {
         String genre;
         String coverPath;
         int duration;
+        int sampleRate;
+        int bitDepth;
+        int channels;
+        String codec;
         int year;
         int trackNo;
     }

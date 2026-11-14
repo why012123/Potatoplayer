@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import clsx from "clsx";
-import { useAppStore } from "@/store";
+import { downloadQualityLabel, useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 
 type Filter = "active" | "done" | "failed" | "all";
@@ -181,21 +181,36 @@ export function DownloadTasks() {
                       <div className="download-row__copy">
                         <strong>{job.title}</strong>
                         <span>
-                          {job.status === "cancelled" ? tr("Cancelled", "已取消") : job.status === "error"
-                            ? job.message
-                            : job.status === "done"
-                              ? job.updated
-                                ? tr("Library info updated", "资料库信息已更新")
-                                : job.duplicate
-                                  ? tr("Already in your library", "已存在于资料库")
-                                  : tr("Added to your library", "已添加到资料库")
-                              : job.phase === "resolving"
-                                ? tr("Resolving the best audio…", "正在解析最佳音质…")
-                                : job.phase === "queued"
-                                  ? tr("Waiting in the queue…", "正在排队…")
-                                  : job.total > 0
-                                    ? `${pct}% · ${Math.round(job.total / 1024 / 1024)} MB`
-                                    : tr("Downloading…", "下载中…")}
+                          {job.status === "done"
+                            ? (job.replaced
+                                ? job.direction === "downgrade"
+                                  ? tr("Replaced with a lower-quality copy", "已替换为更低音质")
+                                  : tr("Replaced with a higher-quality copy", "已替换为更高音质")
+                                : job.downgradeUnavailable
+                                  ? tr("No lower quality available", "暂无更低音质")
+                                  : job.upgradeUnavailable
+                                    ? tr("No higher quality available", "暂无更高音质")
+                                    : job.updated
+                                      ? tr("Library info updated", "资料库信息已更新")
+                                      : job.duplicate
+                                        ? tr("Already in your library", "已存在于资料库")
+                                        : tr("Added to your library", "已添加到资料库")) +
+                              (job.quality && !job.duplicate ? ` · ${downloadQualityLabel(job.quality)}` : "")
+                            : job.status === "cancelled"
+                              ? tr("Cancelled", "已取消")
+                              : job.status === "error"
+                                ? job.message
+                                : job.phase === "resolving"
+                                  ? tr("Resolving the best audio…", "正在解析最佳音质…")
+                                  : job.phase === "queued"
+                                    ? tr("Waiting in the queue…", "正在排队…")
+                                    : job.phase === "verifying"
+                                      ? tr("Checking audio quality…", "正在校验音频与音质…")
+                                    : job.phase === "finalizing"
+                                      ? tr("Preparing library files…", "正在整理封面、歌词与文件…")
+                                    : job.total > 0
+                                      ? `${pct}% · ${Math.round(job.total / 1024 / 1024)} MB`
+                                      : tr("Downloading…", "下载中…")}
                         </span>
                         {job.status === "running" && (
                           <div className="download-row__bar">
