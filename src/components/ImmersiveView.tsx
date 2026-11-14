@@ -37,6 +37,8 @@ import {
   type ImmersivePreferences,
 } from "@/lib/immersive";
 
+const SILENT_BARS = Array.from({ length: 48 }, () => 0);
+
 export function ImmersiveView({ palette }: { palette: { primary: string; secondary: string } | null }) {
   const playback = useAppStore((state) => state.playback);
   const vizBars = useAppStore((state) => state.vizBars);
@@ -65,7 +67,11 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const view3d = prefs.lyricView === "3d";
   const spectrumAvailable = Boolean(capabilities?.visualizer);
-  const showSpectrum = Boolean(prefs.showSpectrum && spectrumAvailable && vizBars.length > 0);
+  // Keep the spectrum slot mounted while paused: the store clears `vizBars` on
+  // pause, and unmounting the strip would collapse the footer and make the whole
+  // immersive scene jump when toggling playback.
+  const spectrumBars = vizBars.length ? vizBars : SILENT_BARS;
+  const showSpectrum = Boolean(prefs.showSpectrum && spectrumAvailable);
   const setView3d = (value: boolean) => setPrefs((current) => ({ ...current, lyricView: value ? "3d" : "classic" }));
   const updatePrefs = (patch: Partial<ImmersivePreferences>) => setPrefs((current) => ({ ...current, ...patch }));
 
@@ -227,7 +233,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
         />
         {showSpectrum && (
           <div className="lyric3d-spectrum-wrap" aria-hidden="true">
-            <SpectrumBars bars={vizBars} className="lyric3d-spectrum" />
+            <SpectrumBars bars={spectrumBars} className="lyric3d-spectrum" />
           </div>
         )}
         {customizerModal}
@@ -401,7 +407,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
           <footer className="immerse__bottom">
             {showSpectrum && (
               <div className="immerse__spectrum-wrap" aria-hidden="true">
-                <SpectrumBars bars={vizBars} className="immerse__spectrum" />
+                <SpectrumBars bars={spectrumBars} className={vizBars.length ? "immerse__spectrum" : "immerse__spectrum is-empty"} />
               </div>
             )}
             <div className="immerse__timeline">

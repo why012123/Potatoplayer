@@ -97,6 +97,11 @@
   color: color-mix(in srgb, var(--accent) 56%, #fff);
 }
 
+/* Paused: keep the slot height, hide the flat bars instead of collapsing. */
+.immerse__spectrum.is-empty {
+  opacity: 0;
+}
+
 .immerse__spectrum i {
   min-width: 1px;
   border-radius: 2px 2px 1px 1px;
