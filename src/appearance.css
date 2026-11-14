@@ -4,16 +4,31 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --font-display: "New York", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", "Noto Serif CJK SC", ui-serif, Georgia, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", "Noto Serif CJK SC", Georgia, serif;
+  --font-code: "SF Mono", "SFMono-Regular", Menlo, monospace;
+}
+
+:root,
+:root[data-style][data-display="serif"] {
+  --font: var(--font-serif);
+  --font-display: var(--font-serif);
+  --mono: var(--font-serif);
   --display-weight: 600;
   --display-tracking: -1.1px;
 }
 
-:root[data-display="sans"] {
-  --font-display: var(--font);
+:root[data-style][data-display="sans"] {
+  --font: var(--font-sans);
+  --font-display: var(--font-sans);
+  --mono: var(--font-sans);
   --display-weight: 700;
   --display-tracking: -1.55px;
 }
+
+/* Small labels and numbers use the chosen UI face too. Only literal code
+   needs a separate monospace face; tabular numbers retain aligned columns. */
+#root .app :is(code, pre) { font-family: var(--font-code); }
 
 .page-header h1,
 .hero h1,

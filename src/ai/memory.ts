@@ -1,3 +1,5 @@
+import { documentLanguage, pickText, type TextVars } from "@/lib/text";
+const lx = (en: string, zh: string, vars?: TextVars) => pickText(documentLanguage(), en, zh, vars);
 import { create } from "zustand";
 import type { MemorySnapshot, ProfileMemory, SongMemory } from "./types";
 
@@ -41,7 +43,7 @@ export const useAiMemory = create<AiMemoryStore>((set, get) => ({
       const snapshot = await invoke<MemorySnapshot>("ai.memory.snapshot");
       if (snapshot?.stats) set({ snapshot });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "无法读取 AI 记忆" });
+      set({ error: error instanceof Error ? error.message : lx("Could not load AI memory", "无法读取 AI 记忆") });
     } finally {
       set({ loading: false });
     }
@@ -61,7 +63,7 @@ export const useAiMemory = create<AiMemoryStore>((set, get) => ({
       await get().refresh();
       return result?.memory ?? null;
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "无法保存歌曲记忆" });
+      set({ error: error instanceof Error ? error.message : lx("Could not save song memory", "无法保存歌曲记忆") });
       return null;
     }
   },
@@ -70,7 +72,7 @@ export const useAiMemory = create<AiMemoryStore>((set, get) => ({
       await invoke("ai.memory.song.delete", { trackId, factId });
       await get().refresh();
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "无法删除歌曲记忆" });
+      set({ error: error instanceof Error ? error.message : lx("Could not delete song memory", "无法删除歌曲记忆") });
     }
   },
   saveProfile: async (input) => {
@@ -79,7 +81,7 @@ export const useAiMemory = create<AiMemoryStore>((set, get) => ({
       await get().refresh();
       return result?.memory ?? null;
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "无法保存长期记忆" });
+      set({ error: error instanceof Error ? error.message : lx("Could not save preference", "无法保存长期记忆") });
       return null;
     }
   },
@@ -88,7 +90,7 @@ export const useAiMemory = create<AiMemoryStore>((set, get) => ({
       await invoke("ai.memory.profile.delete", { id });
       await get().refresh();
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "无法删除长期记忆" });
+      set({ error: error instanceof Error ? error.message : lx("Could not delete preference", "无法删除长期记忆") });
     }
   },
 }));

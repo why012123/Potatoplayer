@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { applyTheme, readTheme } from "./lib/theme";
+import { applyAppearance, loadAppearance } from "./lib/appearance";
 import "./styles.css";
 import "./theme-dark.css";
 import "./editorial.css";
@@ -20,9 +21,12 @@ import "./ai/ai.css";
 import "./ai/workspace.css";
 import "./ai/glass.css";
 import "./ai/now-playing.css";
+import "./ai/appearance.css";
+import "./ai/sidebar-super.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());
+applyAppearance(loadAppearance());
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element missing");

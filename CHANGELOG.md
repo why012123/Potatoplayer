@@ -1,11 +1,13 @@
 # Changelog
 
-All notable changes to Potatoplayer Super are documented here.
+All notable changes to Potato Music AI (the `s-ai` line) are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.4.12`. The line started at `s1.0.0`; patch releases use
-  the familiar `s1.0.x` sequence, while feature releases use a minor bump.
+- **Current release:** `s-ai1.9.0`. The `s-ai` prefix is the AI edition label;
+  the package and Maven metadata use the equivalent plain semver (`1.9.0`).
+  AI-edition patch releases keep the familiar `x.y.z` sequence, while feature
+  releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
   metadata use the equivalent plain semver (`1.0.0`, `1.0.1`, …).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
@@ -14,42 +16,55 @@ All notable changes to Potatoplayer Super are documented here.
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
-## Unreleased — 2026-11-14
+## s-ai1.9.0 — 2026-11-14
 
-### Added
+### 2026-11-14
+
+#### Added
 
 - **下载音质扩展**：在线下载新增 Hi-Res（96k/24）与超清母带（192k/24）两档；网易云按接口实际返回的 `level` 记录档位（平台可能降级），QQ 以 FLAC 为最高可用档。播放器设置与 AI 工具同步提供五档选择。
-- **更高音质替换**：同一首歌再次下载时先比较档位——更高档重新下载并替换音频文件（同容器原地替换；跨容器迁移曲目并保留收藏/歌单），同档或更低只更新信息；平台给不出更高档时不动文件并给出提示。
-- **歌曲编辑页音质区块**：显示当前档位与平台真实可升级档位，可一键重新下载替换；区块、流派、评分、备注、收藏和歌单保持不变。
-- **AI 音质工具**：新增 `get_quality_options` / `find_quality_upgrades` / `upgrade_track_quality`；`download_netease` / `download_qq` 支持五档；支持按评分筛选批量探测和批量升级。
+- **音质双向替换（升级 / 降级）**：同一首歌再次下载时先比较档位——更高档重新下载并替换音频文件（同容器原地替换；跨容器迁移曲目并保留收藏/歌单），同档只更新信息；**显式选择更低档位时也可降级替换**（仅在歌曲编辑页、`track.changeQuality` / `library.changeQualities` 或 RPC 显式传入 `allowDowngrade: true` 时允许）。降级同样保留区块、流派、评分、备注、收藏和歌单；平台给不出目标方向时不动文件并给出原因。自动下载与批量升级默认仍然只升不降，避免误降。
+- **歌曲编辑页音质区块**：显示当前档位、平台真实可升级档位与可降级档位，可一键重新下载替换（降级需二次确认）；区块、流派、评分、备注、收藏和歌单保持不变。
+- **AI 音质工具**：新增 `get_quality_options` / `find_quality_upgrades` / `upgrade_track_quality` / `change_track_quality`；`download_netease` / `download_qq` 支持五档；支持按评分筛选批量探测和批量升级，`change_track_quality` 支持用户明确要求的批量升级或降级。
 - **AI 可读取真实音频规格**：扫描器写入 `sampleRate` / `bitDepth` / `channels` / `codec`，AI 的曲库工具、`get_context`、音质探测与批量结果都能读到；资料库 schema 升到 4，旧库首次启动自动重扫补全。
+- **界面中英双语**：新增 `useTr` 文案层，AI 侧栏、工作台、播放详情、设置、歌曲编辑、下载任务等页面的按钮、提示、占位符与无障碍标签随界面语言即时切换；日期和数字按 `zh-CN` / `en-US` 格式化，AI 回复默认跟随界面语言。新增 `npm run test:localization`，通过 TypeScript AST 扫描 JSX，拦截写死的中文文案。
+- **侧栏 Super 排列重建**：侧栏恢复原 Super 版的信息层级——品牌标识与徽标、资料库导航、可展开的音乐工具、在线来源、歌单、资料库概览卡片和底部设置与版本号；在 AI 壳层下用共享毛玻璃变量重写材质、圆角、字体和间距，深浅色与圆角/密度预设均生效。
+- **歌词跟随**：播放详情的歌词与播放队列自动居中跟随当前行；手动滚动、触摸、拖动滚动条或用键盘浏览时暂停，停止操作 4 秒后自动恢复，也可点「回到当前歌词」立即恢复。
 
-### Changed
+#### Changed
 
+- **AI 版侧边栏改为旧版 SUPER 排列**：左侧栏按旧版 SUPER 的分组重排为「资料库（首页/歌曲/专辑/艺术家/合集/收藏/评论/更多）」「在线（发现/同步）」「歌单」；AI 工作台、每日推荐、聆听统计、歌曲编辑与 Ultra 收进可展开的「更多」（保留 Ultra，去掉 Dive）。沿用旧版 active 胶囊与展开动效，字体与材质跟随当前 AI 外壳的设置，窄窗口自动收成图标栏。
+- **每日推荐页头材质统一**：今日推荐头卡不再使用旧版暖色玻璃渐变，改为与 AI 外壳一致的 frost 材质，修复与周围控件透明度不一致的突兀感（专辑/歌单/艺术家/标签详情页头同步统一）。
 - **AI 下载与音质提示词修正**：不再禁止以更高音质替换音频文件；音质结论必须来自真实探测，不得从 `hr` 字段、`privileges.maxBrLevel` 或 `sq` 码率推断。
 - **区块/流派下载目标**：新增「无（清空）」选项；「不指定」保持沿用原值，AI 下载工具同样支持。
 - **音质探测缓存**：单曲档位探测缓存 10 分钟，替换完成后自动失效；仅试听片段（`freeTrialInfo`）视为不可下载。
+- **经典与新版共用外观**：字体预设由「标题字体」扩展为「界面字体」，标题、导航、歌词、控件和小字统一使用所选衬线/无衬线字体；经典页面与 AI 页面共用同一套字体、毛玻璃、圆角、密度和动效设置，详情/歌单/专辑/艺术家页头改用共享毛玻璃材质。
+- **封面氛围与默认外观**：AI 首页与播放页面恢复封面驱动的氛围背景，受图形设置中的「封面背景」「背景细节」开关控制；默认外观为编辑风 / 衬线 / 鼠尾草强调色 / 中文。
+- **下载提示**：浮动下载提示只展示运行中任务，出现 8 秒后自动淡出，悬停或键盘聚焦时暂停；下载面板与浮动提示新增「校验音频与音质」「整理封面、歌词与文件」两个阶段。
 
-### Fixed
+#### Fixed
 
 - **升级档位回退**：请求 Hi-Res 而平台只提供超清母带时，接受更高可用档位并返回 `substituted: true`，不再整批跳过。
 - **扫描器标签读取**：已知年份/时长但缺少音频规格时仍读取标签，保证采样率等信息完整。
+- **首屏外观闪变**：React 绘制前先应用外观偏好，`theme-init` 的预绘制默认值（编辑风、衬线、鼠尾草、中文）与 `appearance.ts` 对齐，页面加载后不再出现字体、强调色和语言跳变。
+- **下载方向文案**：下载任务与浮动提示区分升级/降级替换，并分别显示「暂无更高音质」「暂无更低音质」；批量下载仍只升不降。
 
-### Validation
+#### Validation
 
-- `npm run typecheck`、`npm run build:backend`、`npm run build:renderer`、`npm run test:backend`（2187 checks）。
+- `npm run typecheck`、`npm run build:backend`、`npm run build:renderer`、`npm run test:localization`、`npm run test:ai`（26/26，含新增音质双向工具与策略用例）、`npm run test:backend`（2197 checks；新增音质方向/替换判定 10 项）、`npm run test:appearance`、`npm run test:ai-workspace`、`npm run test:ai-ui`、`npm run test:discover`、`npm run test:personalization`（英文文案/字体/圆角审计）。
 - 真实接口端到端：档位探测/升级替换/「无」语义 16/16 通过；Hi-Res→超清母带档位回退通过；扫描器输出的采样率、位深、编码与 ffprobe 一致。
+- 新增隔离端到端（`npm run test:discover`）：默认下载低档位仍只升不降且不传输音频；显式 `allowDowngrade` 时跨容器 MP3 降级替换并保留评分/备注/收藏/歌单；`track.changeQuality` 同容器 FLAC 降级原地替换；`track.qualityOptions` 同时探测升降档；同档位请求返回 `direction: "same"`。
 
-## Unreleased — 2026-11-12
+### 2026-11-12
 
-### Added
+#### Added
 
 - **AI 工作台**：新增「AI 工作台」页面，管理持久化的历史对话、歌曲独立记忆与长期偏好索引。支持搜索、置顶、重命名、删除、继续对话；每首歌可保存摘要和事实列表，长期记忆带标签与重要度。对话写入 `ai-conversations.json`，记忆写入 `ai-memory.json`，均在本机原子写入。
 - **记忆注入与工具**：新增 `remember_song` / `remember_preference` / `get_song_memory` / `list_memories` / `forget_*` 工具。当前歌曲、提问中提到的歌名/歌手和长期偏好会自动进入系统提示；AI 工作台也可以手动新增、编辑、删除记忆。
 - **联网查资料**：接入 DeepSeek 官方 Search / Fetch API，新增 `web_search` / `web_fetch` 工具，可查询歌曲背景、发行、创作者和版本信息；回答保留来源，界面显示可点击的「网页来源」卡片。联网搜索可在 AI 连接设置中单独开关，按官方规则计费。
 - **Ultra 目的地**：AI 版用 Ultra 三维 CD 档案页替换 Dive 导航入口；页面读取实时曲库，按需构建并在独立窗口打开 Ultra，首次打开会现场构建 `ultra-rhine/dist`。Ultra 数据源改为 AI 版曲库，并兼容 `POTATOMUSIC_HOME` / `POTATOMUSIC_ULTRA_LIBRARY` 与旧版回退。
 
-### Changed
+#### Changed
 
 - **AI 版回归 Super 毛玻璃风格**：停用不透明暖纸配色层，首页、侧栏、助手、工作台及记忆页沿用原版玻璃材质、封面氛围和用户强调色，同时适配深色模式。毛玻璃开关继续有效，卡片内部不再重复叠加模糊。
 - **页面减负**：移除首页宣传大图与重复 AI 入口，保留找歌、场景快捷入口、精选和最近加入；工作台缩成标题栏，让对话输入区留在可视区域。提示消息移到播放栏上方，结果卡片增加专辑信息与完整悬停提示。
@@ -58,7 +73,7 @@ All notable changes to Potatoplayer Super are documented here.
 - AI 工作台在进入具体对话后收起大幅 hero，让对话、结果卡片和输入框适配一屏高度。
 - 对话、歌曲结果卡片和来源卡片统一由 `AiTurnView` 渲染，侧栏与工作台保持一致。
 
-### Fixed
+#### Fixed
 
 - **找歌匹配**：本地助手与 AI 曲库工具共享匹配规则，完整歌名／别名、歌名与歌手组合优先于备注和评分；英文词按词匹配，避免 Live 误中 Oliver。查询支持分词、大小写与全角标点归一化。
 - **保留歌曲限定**：修正本地推荐忽略歌手条件、全局删除“音乐”等歌名内容的问题。曲库及网易云搜索工具新增歌名、歌手、专辑和版本筛选；未满足条件的在线结果不进入该次搜索返回的可下载候选。
@@ -66,7 +81,7 @@ All notable changes to Potatoplayer Super are documented here.
 
 - **FLAC 年份补全**：旧索引已经带有标题/歌手/时长时，扫描器过去会跳过音频标签；现在只要年份未知也会读取 `DATE` / `YEAR` 标签。资料库 schema 升到 3，旧库升级后首次启动会自动重扫补全。真实曲库验证：384 首中 380 首有年份，剩余 4 首没有年份标签；示例 `KAKO - 15cm.flac` 从 0 补到 2007，`Train - 50 Ways to Say Goodbye.flac` 补到 2012。
 
-### Validation
+#### Validation
 
 - 本轮：类型检查、渲染器构建和 14 组 AI 工具回归通过（含精确匹配优先、别名、同名歌手、版本限制和在线候选过滤）；隔离 Electron 检查覆盖本地精确找歌、带歌手的推荐、无匹配结果、播放、歌单、浅深色及窄窗口布局、毛玻璃开关和工作台记忆持久化。模型工具测试使用模拟服务，未对真实模型的所有自然语言表达作准确率承诺。
 
@@ -74,58 +89,58 @@ All notable changes to Potatoplayer Super are documented here.
 - 隔离 Electron 测试覆盖 AI 工作台对话持久化、刷新后恢复、手动歌曲/长期记忆保存与刷新后保留、Ultra 页面导航。
 - Ultra 构建实测通过，读取 `~/.potatomusic-ai/library.json` 生成 384 条档案记录。
 
-## Unreleased — 2026-11-09
+### 2026-11-09
 
-### Added
+#### Added
 
 - **同步体验调整**：取消每分钟轮询；选择框换为支持搜索和键盘操作的玻璃菜单，缺少网易云 ID 的歌曲显示歌名与歌手并自动跳过，完全同步也保留这些本地歌曲。
 - **网易云歌单同步**：在“在线 → 发现”下新增“同步”，支持云端歌单与本地歌单、区块、流派绑定/解绑，三种方向与完全替换、仅添加两种策略；沿用现有玻璃界面和浅色/深色主题。
 - **自动同步与恢复**：本地成员修改自动同步，仅启动或手动同步时检查云端；双向替换使用增删基准与持久化中断记录，缺少网易云 ID 的歌曲自动跳过并列出名称和编辑入口，缺少的云端歌曲复用下载队列后入库。
 - **同步边界检查**：完整获取云端歌曲 ID，检查账号、歌单写入权限、资料库就绪状态与并发编辑，分类冲突时暂停，失败不冒充同步成功；替换和解绑均保留音频文件。
 
-### Validation
+#### Validation
 
 - 增加双向合并真值表、空列表、顺序、中断重试的后端检查，以及隔离 Electron / 模拟 API 的绑定管理、六种组合、自动同步、重启恢复、下载入库和失败处理测试。
 
-## Unreleased — 2026-11-06
+### 2026-11-06
 
-### Added
+#### Added
 
 - **年份范围筛选与年份搜索**：歌曲筛选新增发行年份起止区间和年代快捷项，筛选摘要会显示当前年份范围；资料库搜索、命令面板和编辑器搜索都能直接搜年份（如 `2011` 或 `2011年`）。
 - **网易云下载自动导入发行年份**：下载时读取网易云发行时间并写入下载绑定，重新扫描后自动出现在资料库，不需要手动补年份。
 
-### Validation
+#### Validation
 
 - 隔离 Electron 测试验证 2010–2012 年份筛选、`2011` / `2011年` 搜索，以及模拟网易云下载后绑定和资料库均得到 2011。
 
-## Unreleased — 2026-11-04
+### 2026-11-04
 
-### Fixed
+#### Fixed
 
 - **下载真正取消**：任务面板和底部提示的取消按钮调用后端，等待任务从队列移除，进行中的请求被中断、音频流被关闭；清理临时音频和歌词，取消后迟到的进度不会让任务重新出现。
 - **入队立即可见**：任务创建时就显示歌名和排队状态，联网检查与音源解析在轮到任务后执行。网易云和 QQ 音乐共用一个先进先出的下载通道；底部只展示前三项，完整队列在任务面板中查看。
 - **歌单顺序可编辑并保存**：拖动歌曲左侧手柄排序、拖到末尾区域置底；手柄聚焦后支持 Alt + ↑ / ↓。后端只移动指定歌曲，保留并发添加的其他歌曲，顺序写入资料库。
 
-### Changed
+#### Changed
 
 - 歌单头部采用随明暗主题变化的半透明材质，去除厚重实色底与按钮外框。
 - 常用操作保留播放、随机播放和添加歌曲；下一首播放、加入队列、复制到其他歌单、重命名和删除统一收进更多菜单，删除不再单独挤到第二行。
 
-### Validation
+#### Validation
 
 - 下载队列单元测试覆盖等待/运行取消、响应流关闭、迟到事件抑制与最终写入的竞争条件。
 - 隔离 Electron 测试覆盖歌单拖动/键盘排序、持久化、菜单层级，以及本机模拟 HTTP 下载的排队、取消和临时文件清理。
 
-## Unreleased — 2026-11-01
+### 2026-11-01
 
-### Added
+#### Added
 
 - **Ultra「盒脊常驻显示」开关**：默认开启，所有可见 CD 的歌名、歌手和流派色带独立于封面加载范围显示。设置立即生效并保存；关闭后恢复附近盒脊显示。
 - 常驻盒脊复用共享贴图与批量绘制，封面仍保留按需加载和缓存限制。
 - **播放队列支持移出歌曲**：Up next 中每首非当前歌曲在悬停或键盘聚焦时显示 ×，点击即从队列移除；当前歌曲不提供移除按钮，队列索引、持久化和无缝预载同步更新。
 - **搜索支持网易云别名与备注**：自动缓存本地歌曲在网易云的别名、译名和 TV/游戏备注（例如「翻滚少女」→「ローリンガール」/「Rolling Girl」），资料库搜索、歌曲页筛选、命令面板和编辑器搜索都能命中；Discover 的网易云面板可手动同步。
 
-### Changed
+#### Changed
 
 - **Super 内页面板统一毛玻璃材质**：评论页、音乐库工具栏与表头去除固定米白色底，采用随明暗主题变化的中性半透明材质；评论头部和正文统一圆角、引用和来源标签跟随主题色。共用玻璃面板沿用外层背景模糊，避免叠加大面积模糊开销；Brief 保留平面设计。
 - **右侧栏减法设计**：移除频谱外框、标签胶囊外框和队列行底色，保留细频谱线；歌词/Up next 改为纯文字切换，当前曲目用强调色标记，队列悬停只提亮文字并显示移除按钮。
@@ -136,7 +151,7 @@ All notable changes to Potatoplayer Super are documented here.
 - **切换 column 保留纵向滚动位置**：左右方向键与列切换按钮只横向移动，不再跳回目标列记忆的行；不同歌曲数量的列仍按各自长度循环。
 - **方向键恢复原生重复速度**：取消长按 90 ms 节流；跨列保留当前行，其余键盘行为不变。
 
-### Fixed
+#### Fixed
 
 - **potatoHQ 音频链路修正**：正确检查 CoreAudio 采样率是否可写，修复源采样率跟随与恢复路径；设备不支持时仍按实际速率重采样。
 - **多声道转立体声保留声道内容**：按声道布局混入中置、环绕及 LFE，归一化混音矩阵避免相干信号叠加过载；单声道保持等增益复制，普通双声道保持直通。
@@ -146,21 +161,21 @@ All notable changes to Potatoplayer Super are documented here.
 - **快速切换盒脊色块缺失**：常驻盒脊的流派色块改为随实例颜色直接绘制，不再依赖文字贴图采样或封面加载；与盒子位置同帧更新，保持单次批量绘制。文字继续使用共享图集。
 - **暂停时右侧栏跳动**：频谱条保持固定占位，不再因为频谱整块消失而让标签和队列上下跳一下。
 
-## Unreleased — 2026-10-31
+### 2026-10-31
 
-### Added
+#### Added
 
 - **Ultra 盒装 CD 流派色带**：盒脊新增颜色带和流派名称，沿用资料库中的流派标签颜色；未分类或缺少有效颜色时使用灰色。
 - 主视图、选中的 CD 与 3D 开盒查看共用同一套盒脊绘制，颜色保持一致。色带复用现有贴图，不增加网格或绘制调用。
 
-### Fixed
+#### Fixed
 
 - **Ultra 快速切换封面加载**：优先加载当前歌曲与近处封面，最多同时处理 4 张；预读相邻歌曲并丢弃过时的排队请求。封面缓存改为按最近使用淘汰，保护仍被场景及退场动画引用的贴图。
 - 6–32 MB 的大封面通过本地缩略图读取，修复此前因 6 MB 限制直接留白的问题。
 - 封面显示槽位按距离分配，扩大候选范围，继续复用 72 个槽位和 128 张缓存预算。
 - 没有封面的歌曲也显示盒脊与流派色带。
 
-### Notes
+#### Notes
 
 - 流派及颜色随 Ultra 构建时的资料库快照更新；修改标签后需重新生成 Ultra。
 

@@ -328,6 +328,16 @@ public final class QQMusicService {
     }
 
     public Map<String, Object> download(String mid, String quality, String block, String genre, String title) {
+        return download(mid, quality, block, genre, title, false);
+    }
+
+    /**
+     * @param allowDowngrade when true an explicitly requested lower tier may replace
+     *                       the file on disk. Automatic and batch downloads keep the
+     *                       historical "upgrade only" behaviour ({@code false}).
+     */
+    public Map<String, Object> download(String mid, String quality, String block, String genre, String title,
+                                        boolean allowDowngrade) {
         if (mid == null || mid.isBlank()) throw new IllegalArgumentException("Missing QQ Music song mid.");
         String jobId = "qq-" + jobSequence.incrementAndGet();
         downloader.submit(jobId,
@@ -337,7 +347,8 @@ public final class QQMusicService {
                 mid,
                 quality == null ? "high" : quality,
                 block == null ? "" : block.trim(),
-                genre == null ? "" : genre.trim()),
+                genre == null ? "" : genre.trim(),
+                allowDowngrade),
                 () -> emit("download.cancelled", Map.of("jobId", jobId, "neteaseId", mid, "source", "qq")));
         return Map.of("jobId", jobId, "neteaseId", mid, "source", "qq");
     }
@@ -359,7 +370,8 @@ public final class QQMusicService {
         }
     }
 
-    private void downloadJob(String jobId, String mid, String quality, String targetBlock, String targetGenre) {
+    private void downloadJob(String jobId, String mid, String quality, String targetBlock, String targetGenre,
+                             boolean allowDowngrade) {
         Path part = null;
         Path lyrics = null;
         try {
@@ -377,8 +389,12 @@ public final class QQMusicService {
             Path existingPath = localPath(local, existing);
             String existingQuality = AudioQuality.existingLabel(existing == null ? null : existing.quality,
                     existingPath == null ? null : existingPath.toString());
-            // A higher tier replaces the audio file; anything else keeps the copy and only refreshes its info.
-            boolean replace = existingPath != null && AudioQuality.rank(requestedQuality) > AudioQuality.rank(existingQuality);
+            String direction = AudioQuality.direction(requestedQuality, existingQuality,
+                    existingPath == null ? null : existingPath.toString());
+            // Upgrades always replace; downgrades only when the caller explicitly asked for one.
+            boolean replace = existingPath != null
+                    && (AudioQuality.UPGRADE.equals(direction)
+                    || (allowDowngrade && AudioQuality.DOWNGRADE.equals(direction)));
             if (existingPath != null && !replace) {
                 downloader.commit();
                 Map<String, Object> done = local != null
@@ -387,6 +403,8 @@ public final class QQMusicService {
                 done.put("quality", existingQuality);
                 done.put("requestedQuality", requestedQuality);
                 done.put("replaced", false);
+                done.put("direction", direction);
+                if (AudioQuality.DOWNGRADE.equals(direction)) done.put("downgradeUnavailable", true);
                 emit("download.done", done);
                 return;
             }
@@ -404,6 +422,22 @@ public final class QQMusicService {
                 throw new IllegalStateException("No QQ Music playback URL. Sign in with a QQ Music account that can play this song.");
             }
             String servedQuality = audio.level().isBlank() ? requestedQuality : audio.level();
+            // Skip known fallback tiers before transferring bytes. A container-only
+            // estimate (especially FLAC) is not proof of its physical audio specs.
+            if (existingPath != null && !audio.type().equals("flac")
+                    && !AudioQuality.replacementAccepted(direction, servedQuality, existingQuality)) {
+                downloader.commit();
+                Map<String, Object> done = local != null
+                        ? existingDownload(jobId, mid, existing, local, targetBlock, targetGenre)
+                        : existingBindingDownload(jobId, mid, existing, targetBlock, targetGenre);
+                done.put("quality", existingQuality);
+                done.put("requestedQuality", requestedQuality);
+                done.put("replaced", false);
+                done.put("direction", direction);
+                done.put(AudioQuality.DOWNGRADE.equals(direction) ? "downgradeUnavailable" : "upgradeUnavailable", true);
+                emit("download.done", done);
+                return;
+            }
             Path root = host.libraryRootPath();
             if (root == null || !Files.isDirectory(root)) throw new IllegalStateException("Choose a music folder before downloading.");
             String extension = extension(audio.type(), audio.url());
@@ -415,15 +449,17 @@ public final class QQMusicService {
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, mid, title, 0, -1, "downloading"));
             downloadFile(audio.url(), part, jobId, mid, title);
+            downloader.check();
+            emit("download.progress", progress(jobId, mid, title, Files.size(part), Files.size(part), "verifying"));
             if (Files.size(part) < 32_768) {
                 Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete QQ Music file.");
             }
 
             servedQuality = AudioQuality.existingLabel(servedQuality, part.toString());
-            if (existingPath != null && AudioQuality.rank(servedQuality)
-                    <= AudioQuality.rank(existingQuality)) {
-                // QQ has no better container for this song: keep the existing file.
+            if (existingPath != null
+                    && !AudioQuality.replacementAccepted(direction, servedQuality, existingQuality)) {
+                // QQ has no container in the requested direction for this song: keep the existing file.
                 Files.deleteIfExists(part);
                 downloader.commit();
                 Map<String, Object> done = local != null
@@ -432,11 +468,13 @@ public final class QQMusicService {
                 done.put("quality", existingQuality);
                 done.put("requestedQuality", requestedQuality);
                 done.put("replaced", false);
-                done.put("upgradeUnavailable", true);
+                done.put("direction", direction);
+                done.put(AudioQuality.DOWNGRADE.equals(direction) ? "downgradeUnavailable" : "upgradeUnavailable", true);
                 emit("download.done", done);
                 return;
             }
 
+            emit("download.progress", progress(jobId, mid, title, Files.size(part), Files.size(part), "finalizing"));
             String coverPath = cacheCover(mid, coverUrl);
             downloader.check();
             lyrics = part.resolveSibling(part.getFileName() + "-" + jobId + ".tmp");
@@ -489,6 +527,7 @@ public final class QQMusicService {
             done.put("source", "qq");
             done.put("duplicate", false);
             done.put("replaced", existingPath != null);
+            done.put("direction", existingPath == null ? AudioQuality.NEW : direction);
             done.put("quality", servedQuality);
             done.put("requestedQuality", requestedQuality);
             if (existingPath != null) {
@@ -667,6 +706,58 @@ public final class QQMusicService {
         if (AudioQuality.rank(fromQuality) >= 2) return List.of();
         Map<String, Object> value = probeFlac(mid);
         return value == null ? List.of() : List.of(value);
+    }
+
+    /**
+     * Probe the lower containers this QQ song can still serve. QQ exposes FLAC plus the
+     * 320/128 kbps MP3 tiers; each option reports the container the endpoint actually
+     * resolves (a FLAC request can fall back to 320) and duplicate levels are collapsed.
+     * Explicit downgrades only: automatic and batch downloads stay upgrade-only.
+     */
+    public List<Map<String, Object>> availableDowngrades(String mid, String fromQuality) {
+        requireService();
+        int current = AudioQuality.rank(fromQuality);
+        if (current <= 0) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String tier : List.of(AudioQuality.LOSSLESS, AudioQuality.HIGH, AudioQuality.STANDARD)) {
+            if (AudioQuality.rank(tier) >= current) continue;
+            String key = mid + "|downgrade|" + tier;
+            long now = System.currentTimeMillis();
+            Long at = qualityProbedAt.get(key);
+            Map<String, Object> cached = qualityProbes.get(key);
+            Map<String, Object> row = null;
+            if (at != null && cached != null && now - at < 10 * 60_000L) {
+                row = cached.isEmpty() ? null : cached;
+            } else {
+                try {
+                    QqAudioSource source = audioUrl(mid, tier);
+                    if (source.present()) {
+                        String served = AudioQuality.normalize(source.level());
+                        if (AudioQuality.rank(served) < current) {
+                            row = new LinkedHashMap<>();
+                            row.put("quality", served);
+                            row.put("requestedQuality", tier);
+                            row.put("servedLevel", served);
+                            row.put("type", source.type());
+                            row.put("br", 0);
+                            row.put("size", 0);
+                            row.put("substituted", !served.equals(tier));
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+                qualityProbes.put(key, row == null ? Map.of() : row);
+                qualityProbedAt.put(key, now);
+            }
+            if (row == null) continue;
+            String served = String.valueOf(row.get("quality"));
+            if (!seen.add(served)) continue;
+            out.add(row);
+        }
+        out.sort((a, b) -> Integer.compare(AudioQuality.rank(String.valueOf(b.get("quality"))),
+                AudioQuality.rank(String.valueOf(a.get("quality")))));
+        return out;
     }
 
     private Map<String, Object> probeFlac(String mid) {

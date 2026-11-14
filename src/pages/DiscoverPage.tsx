@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Cloud,
@@ -20,10 +21,11 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { DownloadQuality, NeteasePlaylist, NeteaseSong, NeteaseStatus, OnlineSource } from "@/types";
-import { useAppStore } from "@/store";
+import { downloadQualityLabel, downloadQualityRank, useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { isCommitEnter } from "@/lib/keyboard";
 import { PageHeader } from "@/components/Headers";
+import { Modal } from "@/components/Modal";
 import { coverGradient, onlineImageUrl } from "@/lib/covers";
 import { formatTime, initials } from "@/lib/format";
 
@@ -31,6 +33,18 @@ import { connectOnline, onlineStatus, rememberOnlineStatus } from "@/lib/online-
 import "./discover.css";
 
 type Mode = "search" | "daily" | "playlists";
+
+/** Snapshot of a library song's current tier, used to warn before a lower-tier replacement. */
+interface TrackQualityInfo {
+  currentQuality: DownloadQuality;
+}
+
+/** A queued single-song downgrade waiting for the user's confirmation. */
+interface PendingDowngrade {
+  song: NeteaseSong;
+  currentQuality: DownloadQuality;
+  targetQuality: DownloadQuality;
+}
 
 function Artwork({
   src,
@@ -105,7 +119,10 @@ function SongRow({
         disabled={downloading}
         title={
           owned
-            ? tr("Already downloaded — choosing a higher quality re-downloads and replaces the file", "已下载过；选择更高音质会重新下载并替换文件")
+            ? tr(
+                "Already downloaded — a higher tier replaces the file; a lower tier asks for confirmation first",
+                "已下载过；更高档位会直接替换文件，更低档位会先征求确认",
+              )
             : tr("Download and add to your library", "下载并添加到资料库")
         }
       >
@@ -214,6 +231,9 @@ function DiscoverContent() {
   const [cookie, setCookie] = useState("");
   const [cookieBusy, setCookieBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qualityCheck, setQualityCheck] = useState<string | null>(null);
+  const [pendingDowngrade, setPendingDowngrade] = useState<PendingDowngrade | null>(null);
+  const [downgradeBusy, setDowngradeBusy] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     views.set(onlineSource, { mode, query, results, daily, playlists, activePlaylist });
@@ -435,7 +455,7 @@ function DiscoverContent() {
     }
   };
 
-  const download = async (song: NeteaseSong) => {
+  const queueDownload = async (song: NeteaseSong, allowDowngrade = false) => {
     try {
       await invokeOnline("download", {
         id: song.id,
@@ -443,12 +463,50 @@ function DiscoverContent() {
         quality: quality,
         block: downloadBlock,
         genre: downloadGenre,
+        ...(allowDowngrade ? { allowDowngrade: true } : {}),
       });
       if (!ownedIds.has(song.id)) {
         pushToast(tr("Download queued", "已加入下载队列"), `${song.artists} — ${song.name}`);
       }
+      return true;
     } catch (e) {
       pushToast(tr("Could not queue download", "无法加入下载队列"), e instanceof Error ? e.message : String(e), "error");
+      return false;
+    }
+  };
+
+  const download = async (song: NeteaseSong) => {
+    const targetRank = downloadQualityRank(quality);
+    const ownedTrack = ownedIds.has(song.id)
+      ? tracks.find((track) => (onlineSource === "qq" ? track.qqId : track.neteaseId) === song.id)
+      : undefined;
+    // A lower tier may only replace the file once the user has confirmed it; the
+    // highest tier can never be a downgrade, so it skips the extra probe.
+    if (ownedTrack && targetRank >= 0 && targetRank < downloadQualityRank("jymaster")) {
+      setQualityCheck(song.id);
+      try {
+        const info = await window.potato.invoke<TrackQualityInfo>("track.qualityOptions", { trackId: ownedTrack.id });
+        const currentRank = downloadQualityRank(info.currentQuality);
+        if (currentRank >= 0 && targetRank < currentRank) {
+          setPendingDowngrade({ song, currentQuality: info.currentQuality, targetQuality: quality });
+          return;
+        }
+      } catch {
+        // Probing only decides whether to warn first; fall back to the upgrade-only path.
+      } finally {
+        setQualityCheck(null);
+      }
+    }
+    await queueDownload(song);
+  };
+
+  const confirmDowngrade = async () => {
+    if (!pendingDowngrade || downgradeBusy) return;
+    setDowngradeBusy(true);
+    try {
+      if (await queueDownload(pendingDowngrade.song, true)) setPendingDowngrade(null);
+    } finally {
+      setDowngradeBusy(false);
     }
   };
 
@@ -836,8 +894,8 @@ function DiscoverContent() {
         </label>
         <em className="download-target__hint">
           {tr(
-            "Higher quality upgrades the file and keeps ratings and favourites. Availability depends on the source and account.",
-            "更高音质会升级已有文件，保留评分与收藏。实际音质以音源和账号权限为准。",
+            "A higher tier replaces the file directly; a lower tier asks first and shrinks it. Ratings and favourites are kept either way. Availability depends on the source and account.",
+            "更高档位会直接替换文件；更低档位会先征求确认并减小文件体积。两种情况都会保留评分与收藏。实际音质以音源和账号权限为准。",
           )}
         </em>
       </div>
@@ -906,7 +964,7 @@ function DiscoverContent() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  downloading={isDownloading(song.id)}
+                  downloading={isDownloading(song.id) || qualityCheck === song.id}
                   owned={ownedIds.has(song.id)}
                 />
               ))}
@@ -943,7 +1001,7 @@ function DiscoverContent() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  downloading={isDownloading(song.id)}
+                  downloading={isDownloading(song.id) || qualityCheck === song.id}
                   owned={ownedIds.has(song.id)}
                 />
               ))}
@@ -993,7 +1051,12 @@ function DiscoverContent() {
                     {importingPlaylist ? <LoaderCircle size={15} className="is-spinning" /> : <ListPlus size={15} />}
                     {importingPlaylist ? tr("Importing…", "正在导入…") : tr("Import to playlist", "导入到歌单")}
                   </button>
-                  <button type="button" className="button button--dark" onClick={() => void downloadAll()}>
+                  <button
+                    type="button"
+                    className="button button--dark"
+                    title={tr("Batch downloads only replace files with a higher tier", "批量下载只会用更高档位替换文件")}
+                    onClick={() => void downloadAll()}
+                  >
                     <CloudDownload size={15} /> {tr("Download all", "全部下载")}
                   </button>
                 </div>
@@ -1004,7 +1067,7 @@ function DiscoverContent() {
                   key={song.id}
                   song={song}
                   onDownload={() => void download(song)}
-                  downloading={isDownloading(song.id)}
+                  downloading={isDownloading(song.id) || qualityCheck === song.id}
                   owned={ownedIds.has(song.id)}
                 />
                 ))}
@@ -1061,6 +1124,68 @@ function DiscoverContent() {
         {tr("and are indexed automatically.", "并自动加入索引。")}
         {status.vipType ? <span className="vip-chip">{tr("VIP active", "VIP 已生效")}</span> : null}
       </div>
+
+      <AnimatePresence>
+        {pendingDowngrade && (
+          <Modal className="delete-track-dialog" labelledBy="discover-downgrade-title" onClose={() => setPendingDowngrade(null)}>
+            <div className="modal__eyebrow">
+              <AlertTriangle size={12} /> {tr("Confirm lower quality", "确认降低音质")}
+            </div>
+            <h2 id="discover-downgrade-title">{tr("Replace with a lower-quality copy?", "替换为更低音质？")}</h2>
+            <p className="modal__description">
+              {tr(
+                "“{title}” is already in your library at a higher tier. Downloading the {quality} version replaces that file: it takes less space, but audio quality drops. Ratings, favourites and playlists stay unchanged.",
+                "《{title}》已在资料库中且音质更高。下载 {quality} 版本会替换该文件：体积更小，但音质会降低。评分、收藏与歌单保持不变。",
+                {
+                  title: pendingDowngrade.song.name,
+                  quality: downloadQualityLabel(pendingDowngrade.targetQuality),
+                },
+              )}
+            </p>
+            <div className="delete-track-target">
+              <div
+                className="online-song__cover online-cover"
+                style={{ width: 46, height: 46, flex: "none", borderRadius: 9 }}
+              >
+                <Artwork
+                  src={pendingDowngrade.song.coverUrl}
+                  alt={pendingDowngrade.song.name}
+                  fallback={
+                    <div
+                      className="online-song__cover--fallback"
+                      style={{ width: "100%", height: "100%", background: coverGradient(pendingDowngrade.song.name) }}
+                    >
+                      <span>{initials(pendingDowngrade.song.name)}</span>
+                    </div>
+                  }
+                />
+              </div>
+              <div>
+                <strong>{pendingDowngrade.song.name}</strong>
+                <span>
+                  {`${downloadQualityLabel(pendingDowngrade.currentQuality)} → ${downloadQualityLabel(pendingDowngrade.targetQuality)}`}
+                </span>
+              </div>
+            </div>
+            <div className="delete-track-warning">
+              <AlertTriangle size={14} />
+              {tr(
+                "The lower quality cannot be undone without downloading the higher tier again.",
+                "除非重新下载更高档位，否则无法恢复当前音质。",
+              )}
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="button button--glass" disabled={downgradeBusy} onClick={() => setPendingDowngrade(null)}>
+                {tr("Cancel", "取消")}
+              </button>
+              <button type="button" className="button button--dark" disabled={downgradeBusy} onClick={() => void confirmDowngrade()}>
+                {downgradeBusy ? <LoaderCircle size={15} className="is-spinning" /> : <CloudDownload size={15} />}
+                {tr("Download lower quality", "下载更低音质")}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

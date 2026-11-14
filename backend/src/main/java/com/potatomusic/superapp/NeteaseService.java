@@ -659,6 +659,16 @@ public final class NeteaseService {
     }
 
     public Map<String, Object> download(String neteaseId, String quality, String block, String genre, String title) {
+        return download(neteaseId, quality, block, genre, title, false);
+    }
+
+    /**
+     * @param allowDowngrade when true an explicitly requested lower tier may replace
+     *                       the file on disk. Automatic and batch downloads keep the
+     *                       historical "upgrade only" behaviour ({@code false}).
+     */
+    public Map<String, Object> download(String neteaseId, String quality, String block, String genre, String title,
+                                        boolean allowDowngrade) {
         if (neteaseId == null || neteaseId.isBlank()) {
             throw new IllegalArgumentException("Missing song id.");
         }
@@ -670,7 +680,8 @@ public final class NeteaseService {
                 neteaseId,
                 quality == null ? "high" : quality,
                 block == null ? "" : block.trim(),
-                genre == null ? "" : genre.trim()),
+                genre == null ? "" : genre.trim(),
+                allowDowngrade),
                 () -> emit("download.cancelled", Map.of("jobId", jobId, "neteaseId", neteaseId, "source", "netease")));
         return Map.of("jobId", jobId, "neteaseId", neteaseId);
     }
@@ -692,7 +703,8 @@ public final class NeteaseService {
         }
     }
 
-    private void downloadJob(String jobId, String neteaseId, String quality, String targetBlock, String targetGenre) {
+    private void downloadJob(String jobId, String neteaseId, String quality, String targetBlock, String targetGenre,
+                             boolean allowDowngrade) {
         Path part = null;
         Path lyrics = null;
         try {
@@ -709,8 +721,12 @@ public final class NeteaseService {
             Path existingPath = localPath(local, existing);
             String existingQuality = AudioQuality.existingLabel(existing == null ? null : existing.quality,
                     existingPath == null ? null : existingPath.toString());
-            // A higher tier replaces the audio file; anything else keeps the copy and only refreshes its info.
-            boolean replace = existingPath != null && AudioQuality.rank(requestedQuality) > AudioQuality.rank(existingQuality);
+            String direction = AudioQuality.direction(requestedQuality, existingQuality,
+                    existingPath == null ? null : existingPath.toString());
+            // Upgrades always replace; downgrades only when the caller explicitly asked for one.
+            boolean replace = existingPath != null
+                    && (AudioQuality.UPGRADE.equals(direction)
+                    || (allowDowngrade && AudioQuality.DOWNGRADE.equals(direction)));
             if (existingPath != null && !replace) {
                 downloader.commit();
                 Map<String, Object> done = local != null
@@ -719,6 +735,8 @@ public final class NeteaseService {
                 done.put("quality", existingQuality);
                 done.put("requestedQuality", requestedQuality);
                 done.put("replaced", false);
+                done.put("direction", direction);
+                if (AudioQuality.DOWNGRADE.equals(direction)) done.put("downgradeUnavailable", true);
                 emit("download.done", done);
                 return;
             }
@@ -742,6 +760,22 @@ public final class NeteaseService {
             if (audio.preview()) {
                 throw new IllegalStateException("This tier is only a preview clip for this account. Sign in with an account that can download it.");
             }
+            // Skip known fallback tiers before transferring bytes. A container-only
+            // estimate (especially FLAC) is not proof of its physical audio specs.
+            if (existingPath != null && audio.qualityKnown()
+                    && !AudioQuality.replacementAccepted(direction, servedQuality, existingQuality)) {
+                downloader.commit();
+                Map<String, Object> done = local != null
+                        ? existingDownload(jobId, neteaseId, existing, local, targetBlock, targetGenre)
+                        : existingBindingDownload(jobId, neteaseId, existing, targetBlock, targetGenre);
+                done.put("quality", existingQuality);
+                done.put("requestedQuality", requestedQuality);
+                done.put("replaced", false);
+                done.put("direction", direction);
+                done.put(AudioQuality.DOWNGRADE.equals(direction) ? "downgradeUnavailable" : "upgradeUnavailable", true);
+                emit("download.done", done);
+                return;
+            }
             Path root = host.libraryRootPath();
             if (root == null || !Files.isDirectory(root)) {
                 throw new IllegalStateException("Choose a music folder before downloading.");
@@ -755,16 +789,19 @@ public final class NeteaseService {
             part = target.resolveSibling(target.getFileName() + ".part");
             emit("download.progress", progress(jobId, neteaseId, title, 0, -1, "downloading"));
             downloadFile(audio.url(), part, jobId, neteaseId, title);
+            downloader.check();
+            emit("download.progress", progress(jobId, neteaseId, title, Files.size(part), Files.size(part), "verifying"));
             if (Files.size(part) < 32_768) {
                 Files.deleteIfExists(part);
                 throw new IllegalStateException("The server returned an incomplete file. Sign in and try again.");
             }
 
             servedQuality = AudioQuality.existingLabel(servedQuality, part.toString());
-            if (existingPath != null && AudioQuality.rank(servedQuality)
-                    <= AudioQuality.rank(existingQuality)) {
-                // The provider has no better master for this song (or the account cannot reach it):
-                // keep the existing file so the library never goes backwards in quality.
+            if (existingPath != null
+                    && !AudioQuality.replacementAccepted(direction, servedQuality, existingQuality)) {
+                // The provider has no file in the requested direction for this song (or the
+                // account cannot reach it): keep the existing copy so the library never
+                // changes quality by accident.
                 Files.deleteIfExists(part);
                 downloader.commit();
                 Map<String, Object> done = local != null
@@ -773,11 +810,13 @@ public final class NeteaseService {
                 done.put("quality", existingQuality);
                 done.put("requestedQuality", requestedQuality);
                 done.put("replaced", false);
-                done.put("upgradeUnavailable", true);
+                done.put("direction", direction);
+                done.put(AudioQuality.DOWNGRADE.equals(direction) ? "downgradeUnavailable" : "upgradeUnavailable", true);
                 emit("download.done", done);
                 return;
             }
 
+            emit("download.progress", progress(jobId, neteaseId, title, Files.size(part), Files.size(part), "finalizing"));
             String coverPath = cacheCover(neteaseId, coverUrl);
             downloader.check();
             lyrics = part.resolveSibling(part.getFileName() + "-" + jobId + ".tmp");
@@ -787,8 +826,8 @@ public final class NeteaseService {
             DownloadQueue.publishLyrics(lyrics, target);
             lyrics = null;
             if (existingPath != null && !existingPath.equals(target)) {
-                // Upgrading across containers (mp3 → FLAC) moves the song to a new file;
-                // drop the old copy only after the new one is safely in place.
+                // Changing container (mp3 → FLAC, or FLAC → mp3 when downgrading) moves the
+                // song to a new file; drop the old copy only after the new one is in place.
                 try {
                     Files.deleteIfExists(existingPath);
                 } catch (IOException e) {
@@ -834,6 +873,7 @@ public final class NeteaseService {
             done.put("source", "netease");
             done.put("duplicate", false);
             done.put("replaced", existingPath != null);
+            done.put("direction", existingPath == null ? AudioQuality.NEW : direction);
             done.put("quality", servedQuality);
             done.put("requestedQuality", requestedQuality);
             if (existingPath != null) {
@@ -957,7 +997,7 @@ public final class NeteaseService {
     }
 
     /** One resolved download source: playable URL, container, the level actually served and whether it is only a preview. */
-    private record AudioSource(String url, String type, String level, boolean trial) {
+    private record AudioSource(String url, String type, String level, boolean trial, boolean qualityKnown) {
         boolean present() {
             return url != null && !url.isBlank();
         }
@@ -997,16 +1037,17 @@ public final class NeteaseService {
     }
 
     private static AudioSource audioSourceFrom(JsonNode data, String requestedLevel) {
-        if (data == null) return new AudioSource(null, "", "", false);
+        if (data == null) return new AudioSource(null, "", "", false, false);
         JsonNode item = data.path("data");
         if (item.isArray()) item = item.path(0);
         String url = item.path("url").asText("");
-        if (url.isBlank()) return new AudioSource(null, "", "", false);
+        if (url.isBlank()) return new AudioSource(null, "", "", false, false);
         String type = item.path("type").asText("");
         String level = item.path("level").asText("");
+        boolean qualityKnown = AudioQuality.known(level);
         if (level.isBlank()) level = guessLevel(type, item.path("br").asLong(0), requestedLevel);
         JsonNode trial = item.path("freeTrialInfo");
-        return new AudioSource(url, type, AudioQuality.normalize(level), trial.isObject() || trial.isArray());
+        return new AudioSource(url, type, AudioQuality.normalize(level), trial.isObject() || trial.isArray(), qualityKnown);
     }
 
     private static String guessLevel(String type, long br, String requestedLevel) {
@@ -1033,17 +1074,75 @@ public final class NeteaseService {
         return out;
     }
 
+    /**
+     * Probe the tiers this song can still serve that are strictly lower than the copy
+     * on disk. Each option reports the level the provider actually serves, because a
+     * lower request can be substituted upward (e.g. asking for standard on a
+     * lossless-only release). Duplicate served levels are collapsed and the least
+     * destructive downgrade comes first. Explicit downgrades only: automatic and
+     * batch downloads keep the historical upgrade-only behaviour.
+     */
+    public List<Map<String, Object>> availableDowngrades(String id, String fromQuality) {
+        requireService();
+        int current = AudioQuality.rank(fromQuality);
+        if (current <= 0) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String tier : List.of(AudioQuality.MASTER, AudioQuality.HIRES, AudioQuality.LOSSLESS,
+                AudioQuality.HIGH, AudioQuality.STANDARD)) {
+            if (AudioQuality.rank(tier) >= current) continue;
+            Map<String, Object> raw = probeLevel(id, levelForTier(tier));
+            if (raw == null) continue;
+            String served = AudioQuality.normalize(String.valueOf(raw.get("servedLevel")));
+            if (AudioQuality.rank(served) >= current) continue; // provider substituted upward
+            if (!seen.add(served)) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("quality", served);
+            row.put("requestedQuality", tier);
+            row.put("servedLevel", served);
+            row.put("type", raw.get("type"));
+            row.put("br", raw.get("br"));
+            row.put("size", raw.get("size"));
+            row.put("substituted", !served.equals(tier));
+            out.add(row);
+        }
+        out.sort((a, b) -> Integer.compare(AudioQuality.rank(String.valueOf(b.get("quality"))),
+                AudioQuality.rank(String.valueOf(a.get("quality")))));
+        return out;
+    }
+
+    private static String levelForTier(String tier) {
+        return switch (AudioQuality.normalize(tier)) {
+            case AudioQuality.STANDARD -> "standard";
+            case AudioQuality.LOSSLESS -> "lossless";
+            case AudioQuality.HIRES -> "hires";
+            case AudioQuality.MASTER -> "jymaster";
+            default -> "exhigh";
+        };
+    }
+
+    /** Upgrade probe: only accepted when the served tier reaches the requested tier. */
     private Map<String, Object> probeTier(String id, String tier) {
-        String key = id + "|" + tier;
+        Map<String, Object> raw = probeLevel(id, levelForTier(tier));
+        if (raw == null) return null;
+        String served = String.valueOf(raw.get("servedLevel"));
+        if (AudioQuality.rank(served) < AudioQuality.rank(tier)) return null;
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("quality", tier);
+        value.put("servedLevel", served);
+        value.put("type", raw.get("type"));
+        value.put("br", raw.get("br"));
+        value.put("size", raw.get("size"));
+        return value;
+    }
+
+    /** Raw level probe shared by upgrade and downgrade detection (10 minute cache). */
+    private Map<String, Object> probeLevel(String id, String level) {
+        String key = id + "|raw|" + level;
         long now = System.currentTimeMillis();
         QualityProbe cached = qualityProbes.get(key);
         if (cached != null && now - cached.at() < 10 * 60_000L) return cached.value();
         Map<String, Object> value = null;
-        String level = switch (tier) {
-            case AudioQuality.LOSSLESS -> "lossless";
-            case AudioQuality.HIRES -> "hires";
-            default -> "jymaster";
-        };
         try {
             JsonNode data = get("/song/url/v1?id=" + encode(id) + "&level=" + level, 20);
             if (data != null) {
@@ -1051,16 +1150,19 @@ public final class NeteaseService {
                 if (item.isArray()) item = item.path(0);
                 String url = item.path("url").asText("");
                 String served = item.path("level").asText("");
+                String type = item.path("type").asText("");
+                long br = item.path("br").asLong(0);
                 JsonNode trial = item.path("freeTrialInfo");
                 boolean preview = trial.isObject() || trial.isArray();
-                if (!url.isBlank() && !served.isBlank() && !preview
-                        && AudioQuality.rank(served) >= AudioQuality.rank(tier)) {
-                    value = new LinkedHashMap<>();
-                    value.put("quality", tier);
-                    value.put("servedLevel", AudioQuality.normalize(served));
-                    value.put("type", item.path("type").asText(""));
-                    value.put("br", item.path("br").asLong(0));
-                    value.put("size", item.path("size").asLong(0));
+                if (!url.isBlank() && !preview) {
+                    if (served.isBlank()) served = guessLevel(type, br, level);
+                    if (AudioQuality.known(served)) {
+                        value = new LinkedHashMap<>();
+                        value.put("servedLevel", AudioQuality.normalize(served));
+                        value.put("type", type);
+                        value.put("br", br);
+                        value.put("size", item.path("size").asLong(0));
+                    }
                 }
             }
         } catch (Exception ignored) {

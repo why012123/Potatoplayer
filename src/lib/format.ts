@@ -33,7 +33,7 @@ export function formatRelativeDate(timestamp: number): string {
   if (days === 1) return zh ? "昨天" : "Yesterday";
   if (days < 7) return zh ? `${days} 天前` : `${days} days ago`;
   if (days < 30) return zh ? `${Math.floor(days / 7)} 周前` : `${Math.floor(days / 7)} weeks ago`;
-  return new Date(timestamp).toLocaleDateString(zh ? "zh-CN" : undefined, { month: "short", day: "numeric" });
+  return new Date(timestamp).toLocaleDateString(zh ? "zh-CN" : "en-US", { month: "short", day: "numeric" });
 }
 
 export function initials(value: string): string {

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "ai0.3.0";
+    public static final String VERSION = "s-ai1.9.0";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -534,10 +534,15 @@ public final class Backend implements PlaybackController.Host {
             String onlineId,
             String currentQuality,
             List<Map<String, Object>> available,
+            List<Map<String, Object>> downgrades,
             String recommended) {
     }
 
     private TrackQualityOptions qualityOptionsFor(Track track) {
+        return qualityOptionsFor(track, false);
+    }
+
+    private TrackQualityOptions qualityOptionsFor(Track track, boolean includeDowngrades) {
         NeteaseBindings.Binding binding = bindingForTrack(track);
         String neteaseId = binding == null ? "" : binding.neteaseSongId();
         String qqMid = binding == null ? "" : binding.qqMid();
@@ -545,14 +550,17 @@ public final class Backend implements PlaybackController.Host {
         String platform = "";
         String onlineId = "";
         List<Map<String, Object>> available = List.of();
+        List<Map<String, Object>> downgrades = List.of();
         if (!neteaseId.isBlank()) {
             platform = "netease";
             onlineId = neteaseId;
             available = netease.availableUpgrades(neteaseId, currentQuality);
+            if (includeDowngrades) downgrades = netease.availableDowngrades(neteaseId, currentQuality);
         } else if (!qqMid.isBlank()) {
             platform = "qq";
             onlineId = qqMid;
             available = qq.availableUpgrades(qqMid, currentQuality);
+            if (includeDowngrades) downgrades = qq.availableDowngrades(qqMid, currentQuality);
         }
         String recommended = "";
         int bestRank = -1;
@@ -564,7 +572,8 @@ public final class Backend implements PlaybackController.Host {
                 recommended = quality;
             }
         }
-        return new TrackQualityOptions(track, platform, onlineId, currentQuality, List.copyOf(available), recommended);
+        return new TrackQualityOptions(track, platform, onlineId, currentQuality,
+                List.copyOf(available), List.copyOf(downgrades), recommended);
     }
 
     private Map<String, Object> qualityOptionsPayload(TrackQualityOptions options) {
@@ -584,15 +593,21 @@ public final class Backend implements PlaybackController.Host {
         out.put("currentQuality", options.currentQuality());
         out.put("available", options.available());
         out.put("upgradeAvailable", !options.available().isEmpty());
+        out.put("downgrades", options.downgrades());
+        out.put("downgradeAvailable", !options.downgrades().isEmpty());
         out.put("recommended", options.recommended());
         return out;
     }
 
-    /** Current quality of one library song and the better tiers its online source can serve. */
+    /**
+     * Current quality of one library song and the tiers its online source can serve
+     * above and below the existing copy. Explicit downgrade options are probed here;
+     * the batch upgrade probe keeps skipping them for speed.
+     */
     public Map<String, Object> trackQualityOptions(String trackId) {
         Track track = findTrack(trackId);
         if (track == null) throw new IllegalArgumentException("Unknown track.");
-        return qualityOptionsPayload(qualityOptionsFor(track));
+        return qualityOptionsPayload(qualityOptionsFor(track, true));
     }
 
     /**
@@ -645,18 +660,65 @@ public final class Backend implements PlaybackController.Host {
                 return out;
             }
         }
+        return queueQualityDownload(options, chosen, wanted, substituted, AudioQuality.UPGRADE);
+    }
+
+    /**
+     * Queue a download that replaces the existing file in the resolved direction and
+     * preserves block/genre/rating/note/favorite/playlist metadata.
+     */
+    private Map<String, Object> queueQualityDownload(TrackQualityOptions options, String chosen, String wanted,
+                                                     boolean substituted, String direction) {
+        Track track = options.track();
         String title = track.title == null ? "" : track.title;
+        boolean allowDowngrade = AudioQuality.DOWNGRADE.equals(direction);
         Map<String, Object> job = "qq".equals(options.platform())
-                ? qq.download(options.onlineId(), chosen, "", "", title)
-                : netease.download(options.onlineId(), chosen, "", "", title);
+                ? qq.download(options.onlineId(), chosen, "", "", title, allowDowngrade)
+                : netease.download(options.onlineId(), chosen, "", "", title, allowDowngrade);
         Map<String, Object> out = qualityOptionsPayload(options);
         out.put("queued", true);
+        out.put("direction", direction);
         out.put("quality", chosen);
         out.put("requestedQuality", wanted.isBlank() ? "auto" : wanted);
         out.put("substituted", substituted);
         out.put("previousQuality", options.currentQuality());
         out.put("jobId", job.get("jobId"));
         return out;
+    }
+
+    /**
+     * Change one library song's audio quality in either direction. {@code auto} keeps
+     * the classic "best available upgrade"; an explicit tier may be higher or lower.
+     * Downgrades are only queued from this explicit entry point (never from automatic
+     * downloads) and the download job still verifies the served tier before replacing
+     * the file, preserving block/genre/rating/note/favorite/playlist metadata.
+     */
+    public Map<String, Object> changeTrackQuality(String trackId, String requestedQuality) {
+        Track track = findTrack(trackId);
+        if (track == null) throw new IllegalArgumentException("Unknown track.");
+        String wanted = requestedQuality == null || requestedQuality.isBlank()
+                || "auto".equalsIgnoreCase(requestedQuality) ? "" : AudioQuality.normalize(requestedQuality);
+        if (wanted.isBlank()) return upgradeTrackQuality(trackId, "auto");
+        TrackQualityOptions options = qualityOptionsFor(track);
+        int wantedRank = AudioQuality.rank(wanted);
+        int currentRank = AudioQuality.rank(options.currentQuality());
+        if (wantedRank > currentRank) return upgradeTrackQuality(trackId, wanted);
+        Map<String, Object> out = qualityOptionsPayload(options);
+        if (options.platform().isBlank()) {
+            out.put("queued", false);
+            out.put("direction", AudioQuality.NEW);
+            out.put("reason", "这首歌还没有绑定网易云或 QQ 音乐 ID。");
+            return out;
+        }
+        if (wantedRank == currentRank) {
+            out.put("queued", false);
+            out.put("direction", AudioQuality.SAME);
+            out.put("reason", "这首歌已经是该档位，无需重新下载。");
+            return out;
+        }
+        // Explicit downgrade: the download job verifies the actually served tier and
+        // keeps the current file when the platform cannot go that low.
+        return queueQualityDownload(options, wanted, wanted, false, AudioQuality.DOWNGRADE);
     }
 
     private List<Track> upgradeCandidates(List<String> trackIds, double minRating, int limit) {
@@ -745,6 +807,52 @@ public final class Backend implements PlaybackController.Host {
             }
         }
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("queuedCount", queued.size());
+        out.put("queued", queued);
+        out.put("skipped", skipped);
+        return out;
+    }
+
+    /**
+     * Queue an explicit quality change for every candidate and report each song. A
+     * concrete quality may be higher or lower than the current copy; {@code auto}
+     * keeps the classic upgrade-only behaviour. This is the batch entry point used by
+     * the AI assistant, never the automatic download path.
+     */
+    public Map<String, Object> changeQualities(List<String> trackIds, double minRating, int limit, String requestedQuality) {
+        String wanted = requestedQuality == null || requestedQuality.isBlank()
+                || "auto".equalsIgnoreCase(requestedQuality) ? "" : AudioQuality.normalize(requestedQuality);
+        if (wanted.isBlank()) return upgradeQualities(trackIds, minRating, limit, "auto");
+        List<Track> candidates = upgradeCandidates(trackIds, minRating, limit);
+        List<Map<String, Object>> queued = new ArrayList<>();
+        List<Map<String, Object>> skipped = new ArrayList<>();
+        for (Track track : candidates) {
+            try {
+                Map<String, Object> result = changeTrackQuality(track.id, wanted);
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                if (Boolean.TRUE.equals(result.get("queued"))) {
+                    row.put("direction", result.get("direction"));
+                    row.put("jobId", result.get("jobId"));
+                    row.put("quality", result.get("quality"));
+                    row.put("previousQuality", result.get("previousQuality"));
+                    queued.add(row);
+                } else {
+                    row.put("direction", result.get("direction"));
+                    row.put("reason", result.get("reason"));
+                    skipped.add(row);
+                }
+            } catch (Exception e) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("trackId", track.id);
+                row.put("title", track.title == null ? "" : track.title);
+                row.put("error", e.getMessage() == null ? "更换音质失败。" : e.getMessage());
+                skipped.add(row);
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("quality", wanted);
         out.put("queuedCount", queued.size());
         out.put("queued", queued);
         out.put("skipped", skipped);
@@ -1751,7 +1859,7 @@ public final class Backend implements PlaybackController.Host {
                     (int) number(p, "limit", 30),
                     (int) number(p, "offset", 0));
             case "netease.lyrics" -> netease.lyrics(text(p, "id", ""));
-            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "netease.download" -> netease.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""), bool(p, "allowDowngrade", false));
             case "netease.cancelDownload" -> netease.cancelDownload(text(p, "jobId", ""));
             case "qq.status" -> qq.status();
             case "qq.startService" -> qq.startService();
@@ -1763,14 +1871,20 @@ public final class Backend implements PlaybackController.Host {
             case "qq.playlistDetail" -> qq.playlistDetail(text(p, "playlistId", ""));
             case "qq.daily" -> qq.daily();
             case "qq.lyrics" -> qq.lyrics(text(p, "id", ""));
-            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""));
+            case "qq.download" -> qq.download(text(p, "id", ""), text(p, "quality", "high"), text(p, "block", ""), text(p, "genre", ""), text(p, "title", ""), bool(p, "allowDowngrade", false));
             case "track.qualityOptions" -> trackQualityOptions(text(p, "trackId", ""));
             case "track.upgradeQuality" -> upgradeTrackQuality(text(p, "trackId", ""), text(p, "quality", "auto"));
+            case "track.changeQuality" -> changeTrackQuality(text(p, "trackId", ""), text(p, "quality", "auto"));
             case "library.qualityUpgrades" -> qualityUpgrades(
                     stringList(p.path("trackIds")),
                     number(p, "minRating", 0),
                     (int) number(p, "limit", 40));
             case "library.upgradeQualities" -> upgradeQualities(
+                    stringList(p.path("trackIds")),
+                    number(p, "minRating", 0),
+                    (int) number(p, "limit", 40),
+                    text(p, "quality", "auto"));
+            case "library.changeQualities" -> changeQualities(
                     stringList(p.path("trackIds")),
                     number(p, "minRating", 0),
                     (int) number(p, "limit", 40),

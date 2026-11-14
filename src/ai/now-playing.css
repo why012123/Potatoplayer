@@ -34,7 +34,7 @@
 .ai-np-tabs>button[aria-selected="true"] { background:var(--frost-control); border-color:var(--frost-edge); color:var(--ai-ink); box-shadow:0 1px 4px rgb(20 25 40 / .04); }
 .ai-np-tabs small { font-size:9px; opacity:.65; font-variant-numeric:tabular-nums; }
 .ai-np-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--ai-border) transparent; position:relative; }
-.ai-np-lyrics { padding:24px 24px 80px; }
+.ai-np-lyrics { padding:var(--lyric-inset, 24px) 24px; }
 .ai-np-lyrics button { display:block; width:100%; text-align:left; padding:10px 0; color:var(--ai-muted); opacity:.65; line-height:1.6; transition:color .2s,opacity .2s; }
 .ai-np-lyrics button>span { display:block; font-size:15px; font-weight:550; overflow-wrap:anywhere; }
 .ai-np-lyrics button>small { display:block; font-size:11px; font-weight:400; margin-top:4px; opacity:.7; }
@@ -78,5 +78,4 @@
   #root .ai-app .ai-now-playing { right:8px; top:74px; bottom:104px; width:min(310px,calc(100vw - 84px)); }
 }
 :root[data-glass="off"] #root .ai-app .ai-now-playing { backdrop-filter:none; }
-:root[data-corners="crisp"] #root .ai-app .ai-now-playing { border-radius:8px; }
 @media (prefers-reduced-motion:reduce) { .ai-np-lyrics button,.ai-np-expand { transition:none; } }

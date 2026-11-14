@@ -34,6 +34,8 @@ npm start
 - 编排播放队列、创建和管理歌单。
 - 连接已有网易云 API 搜索并加入下载任务。
 - 调整主题、强调色、字体风格、密度、圆角和动效。
+- 经典与新版共用自定义字体、玻璃材质和动效设置；侧栏歌词手动滚动后 4 秒恢复跟随，也可点击回到当前歌词。
+- 助手可读取文件中的采样率、位深等音频规格；下载区分传输、校验和整理阶段，浮动提示 8 秒后自动收起，完整进度保留在下载任务中。
 
 独立数据目录：`~/.potatomusic-ai`。会话写入 `ai-conversations.json`，歌曲记忆与长期索引写入 `ai-memory.json`；原 `potatomusic` 源码没有改动。音乐目录可共用，新增下载仍会进入你选定的音乐目录。
 
@@ -52,6 +54,9 @@ npm run test:ai-metadata
 npm run test:migration
 npm run test:ai-ui
 npm run test:ai-workspace
+npm run test:localization  # 扫描 JSX 文案、提示和无障碍标签，防止写死中文
+npm run test:personalization  # 先构建前后端；逐页核对中英文、全部文字字体和圆角
+npm run test:appearance  # 先构建前后端；隔离验证外观、歌词跟随、音频规格与下载提示
 ```
 
 类型检查、构建、11 组 AI 模拟接口与工具测试、真实 Java 后端元数据测试、AI 桌面交互测试，以及 AI 工作台/记忆/Ultra 页面的隔离 Electron 测试均已通过。真实 DeepSeek 对话、联网搜索与网易云账号操作需要自行配置 Key/登录后验证。Ultra 第一次打开会现场构建 `ultra-rhine/dist`，可能需要几分钟和网络下载三维依赖。

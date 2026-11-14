@@ -8,6 +8,11 @@ const fs=require('node:fs');const os=require('node:os');const path=require('node
  const scan=async()=>{const complete=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{backend.off('event',handler);reject(Error('scan timeout'));},20000);const handler=m=>{if(m.event==='scan.done'||m.event==='scan.error'){clearTimeout(timer);backend.off('event',handler);m.event==='scan.done'?resolve(m.data):reject(Error(m.data.message));}};backend.on('event',handler);});await backend.invoke('library.scan');return complete;};
  try {
   await backend.start();await scan();let boot=await backend.invoke('bootstrap');assert.equal(boot.tracks.length,1);const id=boot.tracks[0].id;
+  assert.equal(boot.tracks[0].sampleRate,8000,'sample rate comes from real WAV header');
+  assert.equal(boot.tracks[0].bitDepth,16,'bit depth comes from real WAV header');
+  const {createToolExecutor}=require('../electron/ai-tools.cjs');
+  const tools=createToolExecutor({invoke:(method,params)=>backend.invoke(method,params),emit:()=>{},getAppearance:()=>({}),setAppearance:async()=>{},confirm:async()=>false});
+  const actual=(await tools.execute('get_tracks',{trackIds:[id]})).tracks[0];assert.equal(actual.sampleRate,8000);assert.equal(actual.bitDepth,16);
   const patch={title:'Edited title',artist:'Edited artist',album:'Edited album',year:2026,trackNo:2,note:'AI test note',rating:9.6,block:'My block',genre:'Ambient',playCount:0,addedAt:1234567890,lyricsOverride:'[00:00.00]Test line\n[00:00.50]Second line'};
   await backend.invoke('library.patchMetadata',{trackId:id,patch});
   await assert.rejects(backend.invoke('library.patchMetadata',{trackId:id,patch:{title:'Bad partial',rating:99}}));

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   Bootstrap,
   BulkAssignState,
+  DownloadDone,
   DownloadJob,
   LyricsPayload,
   OnlineSource,
@@ -355,6 +356,23 @@ export function downloadQualityLabel(quality?: string): string {
   }
 }
 
+const QUALITY_RANK: Record<DownloadQuality, number> = {
+  standard: 0,
+  high: 1,
+  lossless: 2,
+  hires: 3,
+  jymaster: 4,
+};
+
+/**
+ * Relative tier of a download quality: standard 0, high 1, lossless 2,
+ * Hi-Res 3, master 4. Unknown or empty values return -1 so callers can treat
+ * an unrecognised tier as "cannot compare" instead of silently ranking it low.
+ */
+export function downloadQualityRank(quality?: string): number {
+  return quality && quality in QUALITY_RANK ? QUALITY_RANK[quality as DownloadQuality] : -1;
+}
+
 function readReducedMotion(): boolean {
   try {
     return localStorage.getItem("potato:reduced-motion") === "1";
@@ -419,7 +437,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s1.4.12",
+  version: "s-ai1.9.0",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -708,23 +726,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "download.done": {
-        const payload = data as {
-          jobId: string;
-          neteaseId?: string;
-          title?: string;
-          artist?: string;
-          path?: string;
-          duplicate?: boolean;
-          updated?: boolean;
-          replaced?: boolean;
-          upgradeUnavailable?: boolean;
-          quality?: DownloadQuality;
-          requestedQuality?: DownloadQuality;
-          previousQuality?: DownloadQuality;
-          block?: string;
-          genre?: string;
-          source?: OnlineSource;
-        };
+        const payload = data as DownloadDone;
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
         const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
         const title = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? "Song"}`;
@@ -744,7 +746,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           duplicate: payload.duplicate ?? current?.duplicate,
           updated: payload.updated ?? current?.updated,
           replaced: payload.replaced ?? current?.replaced,
+          direction: payload.direction ?? current?.direction,
           upgradeUnavailable: payload.upgradeUnavailable ?? current?.upgradeUnavailable,
+          downgradeUnavailable: payload.downgradeUnavailable ?? current?.downgradeUnavailable,
           quality: payload.quality ?? current?.quality,
           requestedQuality: payload.requestedQuality ?? current?.requestedQuality,
           previousQuality: payload.previousQuality ?? current?.previousQuality,
@@ -771,10 +775,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
               ? lx("was {quality}", "原为 {quality}", { quality: downloadQualityLabel(payload.previousQuality) })
               : "";
             get().pushToast(
-              lx("Replaced with a higher-quality copy", "已替换为更高音质"),
+              payload.direction === "downgrade"
+                ? lx("Replaced with a lower-quality copy", "已替换为更低音质")
+                : lx("Replaced with a higher-quality copy", "已替换为更高音质"),
               [label, qualityText, previous].filter(Boolean).join(" · "),
               "success",
             );
+          } else if (payload.downgradeUnavailable) {
+            get().pushToast(lx("No lower quality available", "暂无更低音质"), label, "default");
           } else if (payload.upgradeUnavailable) {
             get().pushToast(lx("No higher quality available", "暂无更高音质"), label, "default");
           } else if (payload.duplicate) {

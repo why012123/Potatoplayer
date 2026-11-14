@@ -16,6 +16,7 @@ API Key 只交给 Electron 主进程：优先使用 Electron `safeStorage` 加�
 - 「用我喜欢的歌曲新建一个歌单，叫夜晚散步。」
 - 「把这个歌单按评分从高到低重排。」
 - 「在网易云搜索 Lia 的鳥の詩，找到后下载高音质版本。」
+- 「把这首超清母带降到无损，文件太大了。」（降级必须由用户明确要求）
 - 「界面改为深色，强调色改为海蓝，减少动画。」
 - 普通聊天、讨论听感与推荐理由。
 
@@ -28,6 +29,15 @@ API Key 只交给 Electron 主进程：优先使用 Electron `safeStorage` 加�
 资料修改仅写入应用索引，歌词覆盖也保存在索引中，清空覆盖可恢复原歌词。元数据覆盖会跨重扫保留。音频内容、音频文件路径、稳定歌曲 ID、文件大小和解码时长不对模型开放修改。AI 不具备删除音频文件、运行命令或任意访问文件的工具。
 
 用户明确要求的修改会立即执行，工具执行过程显示在对话的操作记录中。删除歌单有原生确认框。停止请求会取消后续工具与网络读取，已经完成的操作不会回滚。
+
+## 音质升级与降级
+
+`get_quality_options` 返回一首歌的当前档位、真实音频规格，以及在线音源真实可下载的更高档位（`available` / `upgradeAvailable`）和实测更低档位（`downgrades` / `downgradeAvailable`）。升级和降级都通过下载队列重新下载并替换音频文件，区块、流派、评分、备注、收藏和歌单保持不变；同容器（flac/mp3）原地替换、路径不变，跨容器替换沿用现有的新路径与收藏/歌单迁移逻辑。
+
+- `upgrade_track_quality` / `find_quality_upgrades` 只处理升级；`quality=auto` 只自动选最高可用档位，不会降级。
+- `change_track_quality` 同时支持升级和降级：`quality` 指定目标档位（`standard` / `high` / `lossless` / `hires` / `jymaster`，或 `auto` 只升级），`trackIds` / `minRating` / `limit` 选择歌曲；执行后端的 `library.changeQualities`，返回已排队/跳过的歌曲及每首的方向。
+- 安全边界：默认下载与批量流程“只升不降”；降级只在用户本轮明确要求时发生（例如「降到无损，文件太大了」），AI 不得因为文件较大、想省空间等自行推断降级。降级会替换音频文件且不能自动回滚（只能再次升级）。
+- `download_netease` / `download_qq` 选择更高档位时会自动替换已有文件；选择更低档位默认只刷新信息、不替换（`downgradeUnavailable`），需要显式降级时改用 `change_track_quality`。`download.done` 事件在替换时带 `direction`（upgrade/downgrade）。
 
 ## 年份与 FLAC 标签
 
@@ -86,7 +96,7 @@ npm run test:ai-ui
 npm run test:ai-workspace
 ```
 
-已通过：TypeScript、前端构建、11 组 AI 接口与工具测试（含会话重启持久化、记忆注入、Search 工具与联网开关）、原后端检查、真实 Java 后端元数据集成测试，以及隔离 Electron 的 AI UI/工作台/记忆/Ultra 页面测试。AI 网络测试使用模拟 DeepSeek SSE 与模拟 Search 响应，未消耗真实 API 额度。
+已通过：TypeScript、前端构建、26 组 AI 接口与工具测试（含会话重启持久化、记忆注入、Search 工具与联网开关、音质双向更换工具与策略）、原后端检查、真实 Java 后端元数据集成测试，以及隔离 Electron 的 AI UI/工作台/记忆/Ultra 页面测试。AI 网络测试使用模拟 DeepSeek SSE 与模拟 Search 响应，未消耗真实 API 额度。
 
 真实 DeepSeek 对话、联网搜索与真实网易云账号下载仍需配置后验证；Ultra 首次构建需要网络安装 `ultra-rhine` 的三维依赖。
 

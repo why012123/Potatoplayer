@@ -4,7 +4,7 @@
 
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
-    "Segoe UI", sans-serif;
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", "SFMono-Regular", Menlo, monospace;
   --paper: #f3eee6;
   --text: #1d1d21;
@@ -52,6 +52,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
   color: inherit;
@@ -8587,7 +8588,7 @@ img {
 
 .immerse--serif .immerse__lyric > span,
 .immerse--serif .immerse__track-info h1 {
-  font-family: "Iowan Old Style", "Baskerville", "Songti SC", "Noto Serif CJK SC", serif;
+  font-family: var(--font-display);
   letter-spacing: 0;
 }
 

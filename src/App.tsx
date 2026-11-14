@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { AlertTriangle, Disc3, RefreshCw } from "lucide-react";
 import { useAppStore, viewKey } from "@/store";
 import { coverUrl } from "@/lib/covers";
+import { useAmbientImage } from "@/lib/useAmbientImage";
 import { AiSidebar as Sidebar, AiTopBar as TopBar, AiPlayer } from "@/ai/AiShell";
 import { AiConnection } from "@/ai/AiConnection";
 import { AiNowPlaying } from "@/ai/AiNowPlaying";
@@ -154,7 +155,7 @@ export default function App() {
   const activeCover =
     tracks.find((track) => track.id === (playback?.trackId ?? previewTrackId))?.coverPath ?? null;
 
-  const ambientImage: string | null = null; // The AI shell uses a quiet, static surface.
+  const ambientImage = useAmbientImage(activeCover, appearance.graphics.coverBackground, appearance.graphics.backgroundDetail);
   const systemReducedMotion = useReducedMotion();
   const motionReduced = reducedMotion || systemReducedMotion || appearance.animationLevel !== "full";
 

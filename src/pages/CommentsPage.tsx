@@ -3,6 +3,7 @@ import { Link2, LoaderCircle, MessageCircle, RefreshCw, Sparkles } from "lucide-
 import type { NeteaseComment, Track, TrackCommentsPage } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import { documentLanguage } from "@/lib/text";
 import { onlineImageUrl } from "@/lib/covers";
 import { Cover } from "@/components/Cover";
 
@@ -16,7 +17,7 @@ function initials(value: string): string {
 function formatDate(value: number): string {
   if (!value) return "";
   try {
-    return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return new Date(value).toLocaleDateString(documentLanguage() === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" });
   } catch {
     return "";
   }

@@ -43,11 +43,21 @@ public final class BackendSelfTest {
             check(AudioQuality.existingLabel(null, hires.toString()).equals("hires"), "unlabelled Hi-Res detected");
             check(AudioQuality.existingLabel("hires", cd.toString()).equals("lossless"), "stale Hi-Res label corrected");
             check(AudioQuality.rankOf("unknown", "missing.flac") == 2, "unknown labels fall back to container");
+            check(!AudioQuality.known("sky") && !AudioQuality.known(""), "unknown tiers cannot justify skipping a transfer");
             Path staged = folder.resolve("download.wav.part");
             Files.write(staged, pcmWave(96000, 24));
             check(AudioQuality.measuredRank(staged.toString()) == 3, "staged audio is inspected before replacement");
             check(AudioQuality.existingLabel("jymaster", hires.toString()).equals("jymaster"), "provider master identity retained");
             check(AudioQuality.existingLabel("jymaster", cd.toString()).equals("lossless"), "CD fallback cannot be labelled master");
+            check(AudioQuality.direction("jymaster", "lossless", cd.toString()).equals(AudioQuality.UPGRADE), "higher tier is an upgrade");
+            check(AudioQuality.direction("high", "lossless", cd.toString()).equals(AudioQuality.DOWNGRADE), "lower tier is a downgrade");
+            check(AudioQuality.direction("lossless", "hires", cd.toString()).equals(AudioQuality.SAME), "same physical tier is not a change");
+            check(AudioQuality.replacementAccepted(AudioQuality.UPGRADE, "hires", "lossless"), "upgrade accepts better served tier");
+            check(!AudioQuality.replacementAccepted(AudioQuality.UPGRADE, "lossless", "lossless"), "upgrade rejects equal served tier");
+            check(AudioQuality.replacementAccepted(AudioQuality.DOWNGRADE, "high", "hires"), "downgrade accepts lower served tier");
+            check(!AudioQuality.replacementAccepted(AudioQuality.DOWNGRADE, "hires", "hires"), "downgrade rejects equal served tier");
+            check(!AudioQuality.replacementAccepted(AudioQuality.DOWNGRADE, "jymaster", "hires"), "downgrade rejects an accidental upgrade");
+            check(AudioQuality.wouldDowngrade("standard", "hires", cd.toString()), "explicit lower tier helper agrees with direction");
         } finally {
             try (var files = Files.list(folder)) { for (Path file : files.toList()) Files.delete(file); }
             Files.delete(folder);

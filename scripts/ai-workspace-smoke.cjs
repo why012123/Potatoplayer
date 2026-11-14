@@ -6,6 +6,15 @@ const root = path.resolve(__dirname, "..");
 const { _electron: electron } = require(path.join(root, "node_modules/playwright-core"));
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Open a sidebar destination, expanding the old-style "More" group first when needed.
+const sidebarNav = async (page, label) => {
+  const direct = page.locator(".ai-sidebar button").filter({ hasText: label }).first();
+  if ((await direct.count()) && (await direct.isVisible())) return direct.click();
+  const more = page.locator(".ai-sidebar button").filter({ hasText: /^(更多|More)$/ }).first();
+  if (await more.count()) await more.click();
+  return page.locator(".ai-sidebar button").filter({ hasText: label }).first().click();
+};
+
 function wav() {
   const buffer = Buffer.alloc(44 + 160000);
   buffer.write("RIFF", 0);
@@ -60,7 +69,7 @@ function wav() {
     await page.waitForSelector(".ai-sidebar", { timeout: 45000 });
     await delay(900);
 
-    await page.locator(".ai-nav-item").filter({ hasText: "AI 工作台" }).click();
+    await sidebarNav(page, "AI 工作台");
     await page.waitForSelector(".ai-workspace", { timeout: 15000 });
     await page.waitForFunction(() => {
       const composer = document.querySelector('.ai-conversation-panel .ai-workspace-composer').getBoundingClientRect();
@@ -71,7 +80,7 @@ function wav() {
     assert.ok((await page.locator(".ai-workspace-hero").innerText()).includes("把每次对话"));
     assert.ok((await page.locator(".ai-workspace-tabs").innerText()).includes("记忆索引"));
 
-    const composer = page.locator(".ai-workspace-composer textarea");
+    const composer = page.locator(".ai-conversation-panel .ai-workspace-composer textarea");
     await composer.fill("为我推荐一份歌单");
     await composer.press("Enter");
     await page.waitForSelector(".ai-workspace-transcript .ai-result-track", { timeout: 20000 });
@@ -86,7 +95,7 @@ function wav() {
     await page.reload();
     await page.waitForSelector(".ai-sidebar", { timeout: 45000 });
     await delay(800);
-    await page.locator(".ai-nav-item").filter({ hasText: "AI 工作台" }).click();
+    await sidebarNav(page, "AI 工作台");
     await page.waitForSelector(".ai-workspace", { timeout: 15000 });
     await page.waitForSelector(".ai-conversation-item", { timeout: 10000 });
     await page.locator(".ai-conversation-open").first().click();
@@ -118,7 +127,7 @@ function wav() {
     await page.reload();
     await page.waitForSelector(".ai-sidebar", { timeout: 45000 });
     await delay(800);
-    await page.locator(".ai-nav-item").filter({ hasText: "AI 工作台" }).click();
+    await sidebarNav(page, "AI 工作台");
     await page.waitForSelector(".ai-workspace");
     await page.locator(".ai-workspace-tabs button").filter({ hasText: "记忆索引" }).click();
     await page.waitForSelector(".ai-memory-song-row");
@@ -136,9 +145,7 @@ function wav() {
     await page.screenshot({ path: "/tmp/ai-workspace-dark.png" });
 
 
-    const more = page.getByRole("button", { name: "音乐工具" });
-    if (await more.count()) await more.click();
-    await page.locator(".ai-nav-item").filter({ hasText: "Ultra" }).click();
+    await sidebarNav(page, "Ultra");
     await page.waitForSelector(".ultra-page", { timeout: 15000 });
     assert.ok((await page.locator(".ultra-page").innerText()).includes("ULTRA"));
     assert.ok(await page.locator(".ultra-btn--primary").isVisible());

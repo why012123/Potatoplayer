@@ -181,8 +181,8 @@ export function SettingsPage() {
           </div>
 
           <div className="settings-scroll">
-            <Section icon={<Sparkles size={16}/>} title="AI 音乐助手" detail="连接 DeepSeek，聊天、找歌、管理歌曲与歌单。">
-              <button className="button button--dark" onClick={() => window.dispatchEvent(new Event("potato:ai-settings"))}><Sparkles size={15}/> 配置 AI 连接</button>
+            <Section icon={<Sparkles size={16}/>} title={tr("AI music assistant", "AI 音乐助手")} detail={tr("Connect DeepSeek to chat, find music, and manage songs and playlists.", "连接 DeepSeek，聊天、找歌、管理歌曲与歌单。")}>
+              <button className="button button--dark" onClick={() => window.dispatchEvent(new Event("potato:ai-settings"))}><Sparkles size={15}/> {tr("Configure AI connection", "配置 AI 连接")}</button>
             </Section>
             <Section
               icon={<Globe2 size={16} />}
@@ -748,12 +748,12 @@ function PersonalizationDialog({ onClose }: { onClose: () => void }) {
                   <div className="studio-row__label">
                     <Type size={14} />
                     <span>
-                      <strong>{tr("Headline font", "标题字体")}</strong>
-                      <em>{tr("The voice of page titles and the featured record.", "页面标题与精选唱片的字体气质。")}</em>
+                      <strong>{tr("Interface font", "界面字体")}</strong>
+                      <em>{tr("Applies to titles, navigation, lyrics, controls and small labels.", "统一应用于标题、导航、歌词、控件和小字。")}</em>
                     </span>
                   </div>
                   <Segment<DisplayFont>
-                    label={tr("Headline font", "标题字体")}
+                    label={tr("Interface font", "界面字体")}
                     value={appearance.display}
                     options={[
                       { value: "serif", label: tr("Serif", "衬线") },

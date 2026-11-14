@@ -35,12 +35,14 @@ export function Cover({ path, seed, label, className, radius = 18, style, eager,
 
   return (
     <div
+      data-shape={radius === "50%" ? "round" : "rect"}
       className={clsx("cover", !url || failed ? "cover--fallback" : "cover--image", loaded && "is-loaded", className)}
       style={{
         borderRadius: typeof radius === "number" ? `${radius}px` : radius,
+        "--cover-radius": typeof radius === "number" && radius <= 10 ? "var(--radius-small)" : "var(--radius-card)",
         background: !url || failed ? coverGradient(seed) : undefined,
         ...style,
-      }}
+      } as CSSProperties}
     >
       {url && !failed ? (
         <img

@@ -69,7 +69,7 @@
 .ai-hero { position:relative; overflow:hidden; border-radius:14px; min-height:286px; background:#e7ecdd; color:#2b4234; display:flex; align-items:center; }
 .ai-hero-copy { position:relative; z-index:2; padding:29px; width:60%; }
 .ai-hero-kicker { font-size:9px; display:flex; align-items:center; gap:6px; color:#617657; letter-spacing:1px; }
-.ai-hero h2 { font-family:"Songti SC","Noto Serif CJK SC",Georgia,serif; font-weight:600; letter-spacing:1px; font-size:32px; line-height:1.45; margin:15px 0 10px; }
+.ai-hero h2 { font-family:var(--font-display); font-weight:600; letter-spacing:1px; font-size:32px; line-height:1.45; margin:15px 0 10px; }
 .ai-hero p { font-size:11px; line-height:1.9; color:#77816d; margin:0 0 20px; }
 .ai-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#42694f; color:#fff; border-radius:7px; padding:11px 14px; font-size:11px; font-weight:500; }
 .ai-primary:hover { background:#31573e; }
@@ -82,7 +82,7 @@
 .ai-record-label::before { content:""; width:7px; height:7px; border-radius:50%; background:#26352e; }
 .ai-record-label small { font:5px var(--mono); }
 .ai-record-sleeve { width:174px; height:215px; position:absolute; left:4px; top:42px; background:#f6f5e9; box-shadow:0 17px 25px #47553f24; z-index:1; transform:rotate(-10deg); overflow:hidden; padding:17px; border:1px solid #fff9; }
-.ai-record-sleeve>span { font:bold 21px/1.05 Georgia,serif; letter-spacing:-1px; position:relative; z-index:2; }
+.ai-record-sleeve>span { font:bold 21px/1.05 var(--font-display); letter-spacing:-1px; position:relative; z-index:2; }
 .ai-record-sleeve>small { position:absolute; bottom:15px; font:6px/1.5 var(--mono); letter-spacing:1.4px; }
 .ai-sleeve-sun { width:125px; height:125px; background:radial-gradient(circle at 25% 22%,#f1c26d,#c4bd77 46%,#6c8a60 78%); border-radius:50%; position:absolute; right:-9px; bottom:34px; }
 .ai-sleeve-sun::after { content:""; position:absolute; height:50px; width:170px; background:#f6f5e97a; bottom:-3px; left:-20px; transform:rotate(-15deg); }
@@ -147,7 +147,7 @@
 .ai-welcome-symbol span { width:8px; height:8px; position:absolute; right:-13px; top:7px; background:#d3bf86; border-radius:3px; transform:rotate(34deg); }
 .ai-welcome-symbol i { width:4px; height:4px; position:absolute; left:-5px; bottom:-8px; background:#91a77f; border-radius:50%; }
 .ai-welcome .ai-eyebrow { font-size:7px; letter-spacing:1.5px; }
-.ai-welcome h2 { font:500 27px/1.5 "Songti SC",Georgia,serif; letter-spacing:1px; margin:13px 0 10px; }
+.ai-welcome h2 { font:500 27px/1.5 var(--font-display); letter-spacing:1px; margin:13px 0 10px; }
 .ai-welcome>p { color:var(--ai-muted); font-size:11px; line-height:1.9; margin:0 0 25px; }
 .ai-suggestions { display:flex; flex-direction:column; gap:9px; }
 .ai-suggestions button { display:flex; align-items:center; gap:11px; background:var(--ai-surface); border:1px solid var(--ai-border); border-radius:9px; padding:14px 12px; text-align:left; }

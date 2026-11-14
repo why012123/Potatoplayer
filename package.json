@@ -1,6 +1,6 @@
 {
   "name": "potatomusic-ai",
-  "version": "0.3.0",
+  "version": "1.9.0",
   "private": true,
   "description": "Potato Music AI — a listening workspace with an assistant-ready music interface",
   "type": "module",
@@ -37,7 +37,10 @@
     "test:ai-ui": "node scripts/ai-ui-smoke.cjs",
     "pretest:ai-workspace": "npm run build:renderer",
     "test:ai-workspace": "node scripts/ai-workspace-smoke.cjs",
-    "test:migration": "node scripts/migration-test.cjs"
+    "test:migration": "node scripts/migration-test.cjs",
+    "test:appearance": "node scripts/appearance-lyrics-smoke.cjs",
+    "test:localization": "node --test scripts/localization-test.cjs",
+    "test:personalization": "node scripts/personalization-audit.cjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

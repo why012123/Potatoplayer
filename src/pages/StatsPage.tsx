@@ -622,7 +622,7 @@ export function StatsPage() {
               <div className="stats-rhythm__axis" aria-hidden="true">
                 {[0, 6, 12, 18, 23].map((hour) => (
                   <span key={hour} style={{ left: `${(hour / 23) * 100}%` }}>
-                    {documentLanguage() === "zh" ? `${hour}时` : formatHour(hour)}
+                    {tr(formatHour(hour), "{hour}时", { hour })}
                   </span>
                 ))}
               </div>

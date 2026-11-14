@@ -180,4 +180,17 @@
   #root .ai-app .has-conversation .ai-history-layout { height: auto; }
 }
 :root[data-glass="off"] #root .ai-app :is(.ai-sidebar,.page-shell,.ai-assistant,.ai-player) { backdrop-filter: none; }
-:root[data-corners="crisp"] #root .ai-app :is(.ai-sidebar,.page-shell,.ai-assistant,.ai-player,.ai-home-prompt,.ai-mood) { border-radius: 8px; }
+
+/* ── Shared page heroes (Daily Mix / playlist / album / artist / tag) ───────
+   These page components come from the editorial shell and still carry the old
+   warm "glass" gradient plus a heavy shadow. Nested glass inside .page-shell
+   deliberately skips its backdrop blur, so the hero used to render as a flat,
+   over-bright slab that read as a different transparency from every other
+   control. Give them the same inset frost material as the surrounding cards. */
+#root .ai-app :is(.detail-hero,.artist-hero,.playlist-hero,.tag-hero) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: var(--frost-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}

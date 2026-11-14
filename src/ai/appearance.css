@@ -1,0 +1,204 @@
+/* Final preference bridge: AI and library pages share the listening room's
+   typography and three glass depths. Presets change character, not structure. */
+:root #root .app.ai-app {
+  --ai-radius-pane: 26px;
+  --ai-radius-card: 18px;
+  --ai-radius-control: 12px;
+  --ai-radius-search: 15px;
+  --ui-duration: 180ms;
+  --ui-ease: cubic-bezier(.22, 1, .36, 1);
+  --ai-pane-blur: blur(var(--graphics-blur, 20px)) saturate(140%);
+  --ai-control-blur: blur(12px) saturate(140%);
+  --ai-dialog: color-mix(in srgb, var(--ai-panel-solid) 94%, transparent);
+  font-family: var(--font);
+}
+
+:root[data-style="classic"] #root .app.ai-app {
+  --ai-radius-pane: 28px;
+  --ai-radius-control: 18px;
+  --ai-radius-search: 999px;
+}
+
+:root[data-corners="crisp"] #root .app.ai-app {
+  --ai-radius-pane: 16px;
+  --ai-radius-card: 12px;
+  --ai-radius-control: 8px;
+  --ai-radius-search: 10px;
+}
+
+/* Explicit font choice wins over both presets, including the dark palette. */
+#root .ai-app :is(.ai-home h1, .ai-workspace-hero h1, .ai-hero h2,
+  .ai-welcome h2, .ai-workspace-welcome h2, .ai-memory-section-head h2,
+  .ai-np-start h2, .ai-connection-modal h2, .ai-memory-modal h2,
+  .page-header h1, .settings-head h2) {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: -.035em;
+  line-height: 1.3;
+}
+#root .ai-app :is(.ai-home h1, .ai-workspace-hero h1, .page-header h1, .settings-head h2) {
+  font-size: clamp(27px, 2.4vw, 34px);
+}
+:root:lang(zh) #root .ai-app :is(h1, .ai-welcome h2, .ai-workspace-welcome h2, .settings-head h2) {
+  letter-spacing: -.015em;
+}
+#root .ai-app :is(.ai-section-heading h2, .ai-conversation-head h2, .ai-np-title-row h2) {
+  font-family: var(--font);
+  font-weight: 600;
+  letter-spacing: -.02em;
+}
+#root .ai-app :is(.ai-home-heading p, .page-header p, .ai-workspace-hero p) {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+#root .ai-app :is(.ai-date, .ai-np-status, .ai-nav-label) { letter-spacing: .04em; }
+#root .ai-app :is(.ai-progress, .ai-np-details, .ai-np-tabs small) { font-variant-numeric: tabular-nums; }
+
+/* Only outer panes and floating sheets blur the backdrop. */
+:root #root .ai-app :is(.ai-sidebar, .page-shell, .ai-assistant, .ai-now-playing, .ai-player) {
+  border-radius: var(--ai-radius-pane);
+  background: var(--frost-window);
+  border-color: var(--frost-edge);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-shadow);
+  -webkit-backdrop-filter: var(--ai-pane-blur);
+  backdrop-filter: var(--ai-pane-blur);
+}
+#root .ai-app :is(.ai-home-prompt, .ai-library-status, .ai-workspace-hero,
+  .ai-conversation-rail, .ai-conversation-panel, .ai-memory-profile, .ai-memory-songs,
+  .ai-library-overview, .ai-home-taxonomy, .ai-home-repeat-list, .ai-home-module-empty,
+  .ai-suggestions button, .ai-result-card, .ai-composer) {
+  border-radius: var(--ai-radius-card);
+}
+#root .ai-app :is(.ai-nav-item, .ai-mood, .ai-primary, .ai-workspace-tabs,
+  .ai-panel-switch, .ai-np-tabs, .ai-library-status, .ai-topbar .ai-toggle) {
+  border-radius: var(--ai-radius-control);
+}
+#root .ai-app :is(.ai-search, .ai-history) { border-radius: var(--ai-radius-search); }
+#root .ai-app :is(.ai-search, .ai-history, .ai-panel-switch) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  -webkit-backdrop-filter: var(--ai-control-blur);
+  backdrop-filter: var(--ai-control-blur);
+}
+#root .ai-app :is(.modal, .ai-connection-modal, .ai-memory-modal, .ai-queue,
+  .track-menu, .command-palette, .download-panel, .download-item) {
+  color: var(--ai-ink);
+  background: var(--ai-dialog);
+  border-color: var(--frost-edge);
+  border-radius: var(--ai-radius-card);
+  box-shadow: inset 0 1px 0 var(--frost-highlight), var(--frost-shadow);
+  -webkit-backdrop-filter: var(--ai-pane-blur);
+  backdrop-filter: var(--ai-pane-blur);
+}
+:root[data-glass="off"] #root .app.ai-app { --ai-pane-blur: none; --ai-dialog: var(--ai-panel-solid); }
+:root[data-control-blur="false"] #root .app.ai-app { --ai-control-blur: none; }
+:root[data-corners="crisp"] #root .ai-app :is(.ai-card-art, .ai-np-art, .ai-np-art > .cover, .ai-card-art > .cover) {
+  border-radius: var(--ai-radius-card) !important;
+}
+
+/* Compact mode affects the AI shell too; keep the established column widths. */
+:root[data-density="compact"] #root .app.ai-app { padding: 10px; }
+:root[data-density="compact"] #root .ai-app .app-grid { gap: 10px; height: calc(100dvh - 114px); }
+:root[data-density="compact"] #root .ai-app :is(.workspace, .workspace-body) { gap: 10px; }
+:root[data-density="compact"] #root .ai-app .page-scroll { padding: 22px; }
+:root[data-density="compact"] #root .ai-app .ai-nav-item { min-height: 34px; padding-block: 6px; }
+:root[data-density="compact"] #root .ai-app .ai-mood { min-height: 36px; padding-block: 8px; }
+:root[data-density="compact"] #root .ai-app .ai-home > section { margin-bottom: 22px; }
+:root[data-density="compact"] #root .ai-app .ai-player { left: 10px; right: 10px; bottom: 10px; height: 78px; }
+:root[data-density="compact"] #root .ai-app .ai-np-record { padding: 8px 18px 12px; }
+:root[data-density="compact"] #root .ai-app .ai-np-art { width: min(100%, 23vh); margin-bottom: 16px; }
+:root[data-density="compact"] #root .ai-app :is(.ai-home h1, .ai-workspace-hero h1, .page-header h1) { font-size: 27px; }
+
+/* A short, shared response rhythm; no all-property transitions or layout jumps. */
+#root .ai-app :is(.ai-nav-item, .ai-topbar button, .ai-mood, .ai-suggestions button,
+  .ai-np-tabs button, .ai-np-queue-row, .ai-workspace-tabs button, .ai-panel-switch button,
+  .ai-np-lyrics button, .button, .settings-choice, .studio-segment button) {
+  transition: background-color var(--ui-duration) var(--ui-ease),
+    border-color var(--ui-duration) var(--ui-ease), color var(--ui-duration) var(--ui-ease),
+    box-shadow var(--ui-duration) var(--ui-ease), opacity var(--ui-duration) var(--ui-ease);
+}
+#root .ai-app :is(.ai-search, .ai-home-prompt, .ai-composer):focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--frost-edge));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+#root .ai-app .ai-card-art { transition: box-shadow var(--ui-duration) var(--ui-ease); }
+#root .ai-app .ai-record-card:hover .ai-card-art { box-shadow: var(--frost-shadow); }
+#root .ai-app .ai-np-content { overflow-anchor: none; }
+#root .ai-app .ai-np-content:focus-visible { outline: 2px solid var(--ai-green); outline-offset: -3px; }
+#root .ai-app .ai-np-lyrics button { border-radius: 8px; }
+#root .ai-app .ai-np-lyrics button.is-current { color: var(--ai-green); }
+#root .ai-app .ai-np-resume { min-height: 24px; }
+
+:root[data-animation="reduced"] #root .app.ai-app { --ui-duration: 100ms; }
+#root .ai-app.reduce-motion :is(.ai-thinking svg, .ai-workspace-thinking span) { animation: none; }
+:root[data-animation="off"] #root .ai-app * { scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) {
+  :root #root .app.ai-app { --ui-duration: 0ms; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root #root .app.ai-app { --ai-pane-blur: none; --ai-control-blur: none; --ai-dialog: var(--ai-panel-solid); }
+}
+@media (max-width: 1000px) {
+  :root #root .ai-app :is(.ai-assistant, .ai-now-playing) { background: var(--ai-dialog); }
+}
+@media (max-width: 720px) {
+  :root[data-density="compact"] #root .ai-app .page-scroll { padding: 16px; }
+  :root #root .ai-app .ai-sidebar { border-radius: min(var(--ai-radius-pane), 20px); }
+}
+@media (max-height: 800px) {
+  #root .ai-app .ai-np-art { width: min(100%, 23vh, 190px); margin-bottom: 16px; }
+  #root .ai-app .ai-np-record { padding-block: 8px 12px; }
+}
+
+/* Every shared page consumes the same corner scale as the shell. */
+:root[data-corners] #root .app.ai-app {
+  --radius: var(--ai-radius-pane);
+  --radius-shell: var(--ai-radius-pane);
+  --radius-panel: var(--ai-radius-card);
+  --radius-card: var(--ai-radius-card);
+  --radius-control: var(--ai-radius-control);
+  --radius-field: 10px;
+  --radius-small: 8px;
+}
+:root[data-corners="crisp"] #root .app.ai-app {
+  --radius-field: 6px;
+  --radius-small: 4px;
+}
+:root[data-corners] #root .ai-app :where(button, input:not([type="range"]):not([type="checkbox"]), textarea, select) {
+  border-radius: var(--radius-control);
+}
+:root[data-corners] #root .ai-app :is(.ai-card-art, .ai-np-art, .ai-home-prompt,
+  .ai-home-module-empty, .ai-suggestions button, .ai-result-card, .ai-composer,
+  .ai-conversation-item, .ai-user-message, .ai-memory-song-row, .ai-profile-card,
+  .ai-memory-search, .ai-memory-filter, .ai-welcome-symbol, .ai-workspace-welcome-mark,
+  .style-preset, .settings-choice, .studio-panel, .studio-preview, .settings-note,
+  .sync-choice, .sync-select-menu, .online-toolbar, .online-search,
+  .online-song, .online-album, .download-item, .discover-settings, .discover-callout) {
+  border-radius: var(--radius-card);
+}
+:root[data-corners] #root .ai-app :is(.ai-np-tabs, .ai-workspace-tabs, .ai-panel-switch,
+  .ai-config-capabilities span, .ai-config-notice, .ai-logo, .ai-home-block-icon,
+  .ai-memory-filter select, .ai-np-queue-row, .ai-np-tabs button, .ai-panel-switch button,
+  .ai-workspace-tabs button, .ai-composer button, .studio-segment, .studio-segment button,
+  .tag-pill, .filter-chip, .rating-chip, .count-badge, .ai-rating, .ai-mini-badge) {
+  border-radius: var(--radius-field);
+}
+:root[data-corners] #root .ai-app :is(.ai-search, .ai-history) { border-radius: var(--ai-radius-search); }
+:root[data-corners] #root .ai-app .cover[data-shape="rect"] { border-radius: var(--cover-radius, var(--radius-card)) !important; }
+/* Round portraits, transport discs and switch tracks have functional shapes. */
+:root[data-corners] #root .ai-app :is(.ai-play-button, .transport__play, .ai-home-artist-play, .accent-swatch) { border-radius: 50%; }
+:root[data-corners] #root .ai-app .cover[data-shape="round"] { border-radius: 50% !important; }
+:root[data-corners] #root .ai-app button[role="switch"] { border-radius: 999px; }
+
+#root .ai-app .ai-library-overview strong { font-weight: 500; font-variant-numeric: lining-nums tabular-nums; }
+#root .ai-app .ai-library-overview .ai-library-duration { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 7px; }
+#root .ai-app .ai-library-duration > span { white-space: nowrap; }
+#root .ai-app .ai-library-duration small { font-size: 11px; font-weight: 400; color: var(--ai-muted); margin-left: 4px; }
+
+:root[data-corners] #root .ai-app :is(.ai-assistant-mark, .ai-np-expand, .ai-rail-search,
+  .editor-search, .editor-filters label, .sync-symbol, .ultra-swap-row__icon) { border-radius: var(--radius-field); }
+:root[data-corners] #root .ai-app :is(.favorites-empty__heart, .detail-hero__actions,
+  .favorites-empty__heart > span, .login-card, .editor-browser, .editor-panel, .empty-stage__icon) { border-radius: var(--radius-card); }
+:root[data-corners] #root .ai-app .ai-library-overview > button { border-radius: 0; }
+:root[data-corners] #root .ai-app .ai-conversation-side { border-radius: var(--radius-control) !important; }

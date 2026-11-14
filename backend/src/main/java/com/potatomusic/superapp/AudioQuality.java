@@ -87,7 +87,7 @@ public final class AudioQuality {
         return rank(quality);
     }
 
-    private static boolean known(String quality) {
+    static boolean known(String quality) {
         if (quality == null || quality.isBlank()) return false;
         return switch (quality.trim().toLowerCase(Locale.ROOT)) {
             case STANDARD, "128", "128k", "standard-quality", HIGH, "320", "320k", "exhigh", "higher",
@@ -110,6 +110,47 @@ public final class AudioQuality {
     public static boolean improves(String requested, String existingQuality, String existingPath) {
         if (existingPath == null || existingPath.isBlank()) return false;
         return rank(requested) > rankOf(existingQuality, existingPath);
+    }
+
+    /** Direction of an explicit quality change relative to the copy on disk. */
+    public static final String UPGRADE = "upgrade";
+    public static final String DOWNGRADE = "downgrade";
+    public static final String SAME = "same";
+    public static final String NEW = "new";
+
+    /**
+     * Compare a requested tier with the file already in the library.
+     *
+     * <p>The download feature historically only replaced a file when the new tier
+     * was strictly better; {@link #DOWNGRADE} is returned for explicit,
+     * user-confirmed replacements so the caller can allow them without ever
+     * letting an automatic download go backwards.</p>
+     */
+    public static String direction(String requested, String existingQuality, String existingPath) {
+        if (existingPath == null || existingPath.isBlank()) return NEW;
+        int wanted = rank(requested);
+        int existing = rankOf(existingQuality, existingPath);
+        if (wanted > existing) return UPGRADE;
+        if (wanted < existing) return DOWNGRADE;
+        return SAME;
+    }
+
+    /** True when the requested tier is strictly lower than the copy on disk. */
+    public static boolean wouldDowngrade(String requested, String existingQuality, String existingPath) {
+        return DOWNGRADE.equals(direction(requested, existingQuality, existingPath));
+    }
+
+    /**
+     * Whether a tier the provider actually served is a valid replacement in the
+     * requested direction. Upgrades must be strictly better than the existing copy,
+     * explicit downgrades strictly worse; the same tier is never a replacement.
+     */
+    public static boolean replacementAccepted(String direction, String servedQuality, String existingQuality) {
+        int served = rank(servedQuality);
+        int existing = rank(existingQuality);
+        if (UPGRADE.equals(direction)) return served > existing;
+        if (DOWNGRADE.equals(direction)) return served < existing;
+        return false;
     }
 
     /** Lossless or better (FLAC/WAV/AIFF rather than a lossy container). */

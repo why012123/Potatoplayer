@@ -6,7 +6,7 @@
 
 :root[data-style="editorial"] {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
-    "Segoe UI", sans-serif;
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", "SFMono-Regular", Menlo, monospace;
 
   --paper: #efe9df;

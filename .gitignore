@@ -29,6 +29,7 @@ public/lyric3d/stage.bundle.js
 # Local screenshots / scratch
 *.tmp.png
 docs/screenshots/*.raw.png
+/tmp/
 
 # macOS
 .DS_Store

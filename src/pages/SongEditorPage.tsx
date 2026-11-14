@@ -23,11 +23,11 @@ import {
   Trash2,
 } from "lucide-react";
 import type { DownloadQuality, TagKind, Track } from "@/types";
-import { downloadQualityLabel, useAppStore } from "@/store";
+import { downloadQualityLabel, downloadQualityRank, useAppStore } from "@/store";
 import { PageHeader } from "@/components/Headers";
 import { Modal } from "@/components/Modal";
 import { Cover } from "@/components/Cover";
-import { formatTime } from "@/lib/format";
+import { formatTime, humanBytes } from "@/lib/format";
 import { useTr } from "@/lib/i18n";
 import { normalizeSearchText, trackSearchText } from "@/lib/search";
 import { coverUrl } from "@/lib/covers";
@@ -53,11 +53,15 @@ function draftFor(track: Track | undefined): Draft {
 }
 
 interface QualityOption {
+  /** Honest obtainable tier: what the provider will actually serve. */
   quality: DownloadQuality;
+  /** Tier that was requested when this option was probed (may differ when substituted). */
+  requestedQuality?: DownloadQuality;
   servedLevel?: string;
   type?: string;
   br?: number;
   size?: number;
+  substituted?: boolean;
 }
 
 interface QualityInfo {
@@ -69,9 +73,24 @@ interface QualityInfo {
   currentQuality: DownloadQuality;
   available: QualityOption[];
   upgradeAvailable: boolean;
+  /** Lower tiers the provider can honestly serve, highest first. */
+  downgrades: QualityOption[];
+  downgradeAvailable: boolean;
   recommended?: DownloadQuality;
   path?: string;
   fileSize?: number;
+}
+
+/** Response of track.changeQuality: quality options plus the queued change. */
+interface ChangeQualityResult extends QualityInfo {
+  queued?: boolean;
+  direction?: "upgrade" | "downgrade" | "same";
+  quality?: DownloadQuality;
+  requestedQuality?: DownloadQuality;
+  substituted?: boolean;
+  previousQuality?: DownloadQuality;
+  jobId?: string;
+  reason?: string;
 }
 
 export function SongEditorPage() {
@@ -107,7 +126,8 @@ export function SongEditorPage() {
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
   const [qualityBusy, setQualityBusy] = useState(false);
-  const [upgradeTier, setUpgradeTier] = useState<DownloadQuality | "">("");
+  const [qualityTier, setQualityTier] = useState<DownloadQuality | "">("");
+  const [qualityConfirmOpen, setQualityConfirmOpen] = useState(false);
   const [qualityReload, setQualityReload] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -117,25 +137,45 @@ export function SongEditorPage() {
   const playing = Boolean(selected && playback?.trackId === selected.id && playback.playing);
   const coverSeed = selected?.id ?? "editor";
 
+  const upgradeOptions = qualityInfo?.available ?? [];
+  const downgradeOptions = qualityInfo?.downgrades ?? [];
+  const hasQualityChoices = Boolean(qualityInfo && (upgradeOptions.length || downgradeOptions.length));
+  const currentQualityRank = qualityInfo ? downloadQualityRank(qualityInfo.currentQuality) : -1;
+  const selectedQualityIsDowngrade = Boolean(
+    qualityTier &&
+      currentQualityRank >= 0 &&
+      downloadQualityRank(qualityTier) >= 0 &&
+      downloadQualityRank(qualityTier) < currentQualityRank,
+  );
+  const downgradeTarget = downgradeOptions.find((option) => option.quality === qualityTier);
+
   useEffect(() => {
     const trackId = selected?.id;
     if (!trackId) {
       setQualityInfo(null);
       setQualityError("");
-      setUpgradeTier("");
+      setQualityTier("");
+      setQualityConfirmOpen(false);
       return;
     }
     let alive = true;
     setQualityLoading(true);
     setQualityInfo(null);
     setQualityError("");
-    setUpgradeTier("");
+    setQualityTier("");
+    setQualityConfirmOpen(false);
     void window.potato
       .invoke<QualityInfo>("track.qualityOptions", { trackId })
       .then((info) => {
         if (!alive) return;
         setQualityInfo(info);
-        setUpgradeTier((info.recommended as DownloadQuality) || "");
+        // Prefer the recommended upgrade; when nothing can be upgraded, suggest the
+        // highest honest downgrade without ever running it on its own.
+        const recommended =
+          info.recommended && (info.available ?? []).some((option) => option.quality === info.recommended)
+            ? info.recommended
+            : info.available?.[0]?.quality;
+        setQualityTier(recommended ?? info.downgrades?.[0]?.quality ?? "");
       })
       .catch((error) => {
         if (!alive) return;
@@ -150,28 +190,42 @@ export function SongEditorPage() {
     };
   }, [selected?.id, qualityReload]);
 
-  const upgradeQuality = async () => {
-    if (!selected || qualityBusy) return;
+  const changeQuality = async () => {
+    if (!selected || qualityBusy || !qualityTier) return;
+    const target = qualityTier;
     setQualityBusy(true);
     try {
-      const result = await window.potato.invoke<{
-        queued?: boolean;
-        jobId?: string;
-        quality?: DownloadQuality;
-        reason?: string;
-      }>("track.upgradeQuality", { trackId: selected.id, quality: upgradeTier || "auto" });
+      const result = await window.potato.invoke<ChangeQualityResult>("track.changeQuality", {
+        trackId: selected.id,
+        quality: target,
+      });
       if (result.queued) {
+        setQualityConfirmOpen(false);
+        const direction = result.direction ?? "upgrade";
+        const title =
+          direction === "downgrade"
+            ? tr("Downgrade queued", "已加入降级队列")
+            : direction === "same"
+              ? tr("Refresh queued", "已加入信息刷新队列")
+              : tr("Upgrade queued", "已加入升级队列");
         pushToast(
-          tr("Upgrade queued", "已加入升级队列"),
-          [downloadQualityLabel(result.quality), tr("the download panel shows progress", "可在下载面板查看进度")].filter(Boolean).join(" · "),
+          title,
+          [downloadQualityLabel(result.quality ?? target), tr("the download panel shows progress", "可在下载面板查看进度")]
+            .filter(Boolean)
+            .join(" · "),
           "success",
         );
       } else {
-        pushToast(tr("Nothing to upgrade", "没有可用的升级"), result.reason || tr("This song is already at the best available tier.", "这首歌已经是当前可用的最高档位。"), "default");
+        setQualityConfirmOpen(false);
+        pushToast(
+          tr("Could not change quality", "无法更改音质"),
+          result.reason || tr("The source cannot provide the requested tier right now.", "音源暂时无法提供所请求的档位。"),
+          "default",
+        );
       }
     } catch (error) {
       pushToast(
-        tr("Could not upgrade", "无法升级"),
+        tr("Could not change quality", "无法更改音质"),
         error instanceof Error ? error.message : String(error),
         "error",
       );
@@ -179,6 +233,30 @@ export function SongEditorPage() {
       setQualityBusy(false);
     }
   };
+
+  const requestQualityChange = () => {
+    if (qualityBusy || !qualityTier) return;
+    // Lowering the tier always asks first: it shrinks the file but reduces audio quality.
+    if (selectedQualityIsDowngrade) {
+      setQualityConfirmOpen(true);
+      return;
+    }
+    void changeQuality();
+  };
+
+  useEffect(() => {
+    const trackId = selected?.id;
+    if (!trackId) return;
+    const onlineIds = [selected?.neteaseId, selected?.qqId].filter((id): id is string => Boolean(id));
+    const off = window.potato.onEvent(({ event, data }) => {
+      if (event !== "download.done") return;
+      const payload = data as { trackId?: string; neteaseId?: string };
+      const matches =
+        payload.trackId === trackId || Boolean(payload.neteaseId && onlineIds.includes(payload.neteaseId));
+      if (matches) setQualityReload((value) => value + 1);
+    });
+    return off;
+  }, [selected?.id, selected?.neteaseId, selected?.qqId]);
 
   useEffect(() => {
     if (view.kind === "editor" && view.trackId && view.trackId !== selectedId) {
@@ -628,8 +706,8 @@ export function SongEditorPage() {
                     ) : !qualityInfo || !qualityInfo.platform ? (
                       <span className="editor-quality__status">
                         {tr(
-                          "Add a NetEase or QQ Music ID above to upgrade this song's audio quality.",
-                          "在上方绑定网易云或 QQ 音乐 ID 后即可升级这首歌的音质。",
+                          "Add a NetEase or QQ Music ID above to change this song's audio quality.",
+                          "在上方绑定网易云或 QQ 音乐 ID 后即可更改这首歌的音质。",
                         )}
                       </span>
                     ) : (
@@ -646,25 +724,41 @@ export function SongEditorPage() {
                             {tr("Refresh", "刷新")}
                           </button>
                         </div>
-                        {qualityInfo.upgradeAvailable ? (
+                        {hasQualityChoices ? (
                           <div className="editor-quality__row">
                             <select
                               className="text-field"
-                              value={upgradeTier}
-                              onChange={(event) => setUpgradeTier(event.target.value as DownloadQuality)}
+                              value={qualityTier}
+                              aria-label={tr("Target audio quality", "目标音质")}
+                              onChange={(event) => setQualityTier(event.target.value as DownloadQuality)}
                             >
-                              {qualityInfo.available.map((option) => (
-                                <option key={option.quality} value={option.quality}>
-                                  {downloadQualityLabel(option.quality)}
-                                  {option.type ? ` · ${option.type.toUpperCase()}` : ""}
-                                </option>
-                              ))}
+                              {upgradeOptions.length > 0 && (
+                                <optgroup label={tr("Upgrade", "升级")}>
+                                  {upgradeOptions.map((option) => (
+                                    <option key={`upgrade-${option.quality}`} value={option.quality}>
+                                      {downloadQualityLabel(option.quality)}
+                                      {option.type ? ` · ${option.type.toUpperCase()}` : ""}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {downgradeOptions.length > 0 && (
+                                <optgroup label={tr("Downgrade", "降级")}>
+                                  {downgradeOptions.map((option) => (
+                                    <option key={`downgrade-${option.quality}`} value={option.quality}>
+                                      {downloadQualityLabel(option.quality)}
+                                      {option.type ? ` · ${option.type.toUpperCase()}` : ""}
+                                      {option.size ? ` · ${humanBytes(option.size)}` : ""}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
                             </select>
                             <button
                               type="button"
                               className="button button--dark button--small"
-                              disabled={qualityBusy}
-                              onClick={() => void upgradeQuality()}
+                              disabled={qualityBusy || !qualityTier}
+                              onClick={requestQualityChange}
                             >
                               {qualityBusy ? <LoaderCircle size={13} className="is-spinning" /> : <RotateCcw size={13} />}
                               {tr("Re-download & replace", "重新下载并替换")}
@@ -672,13 +766,13 @@ export function SongEditorPage() {
                           </div>
                         ) : (
                           <span className="editor-quality__status">
-                            {tr("Already at the highest tier this platform offers.", "已经是该平台可提供的最高档位。")}
+                            {tr("No higher or lower tier is available right now.", "暂时没有可替换的更高或更低档位。")}
                           </span>
                         )}
                         <em className="editor-quality__hint">
                           {tr(
-                            "The file is replaced by a higher-quality copy; block, genre, rating, note, favorite and playlists stay unchanged.",
-                            "会用更高音质的文件替换原文件；区块、流派、评分、备注、收藏和歌单保持不变。",
+                            "Higher or lower tiers can replace the file; downgrading shrinks the file but lowers audio quality. Block, genre, rating, note, favorites and playlists stay unchanged.",
+                            "可替换为更高或更低档位；降级会减小文件体积但降低音质；区块、流派、评分、备注、收藏和歌单保持不变。",
                           )}
                         </em>
                       </>
@@ -812,6 +906,52 @@ export function SongEditorPage() {
               <button type="button" className="button button--danger" disabled={deleting} onClick={() => void removeSelected()}>
                 {deleting ? <LoaderCircle size={14} className="is-spinning" /> : <Trash2 size={14} />}
                 {tr("Delete song", "删除歌曲")}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {qualityConfirmOpen && selected && qualityInfo && qualityTier && (
+          <Modal className="delete-track-dialog" labelledBy="quality-downgrade-title" onClose={() => setQualityConfirmOpen(false)}>
+            <div className="modal__eyebrow">
+              <AlertTriangle size={12} /> {tr("Confirm downgrade", "确认降级")}
+            </div>
+            <h2 id="quality-downgrade-title">{tr("Replace with a lower-quality copy?", "替换为更低音质？")}</h2>
+            <p className="modal__description">
+              {tr(
+                "“{title}” will be re-downloaded at the lower tier and its file replaced. The file gets smaller, but audio quality drops; going back up means downloading the higher tier again.",
+                "《{title}》将按更低档位重新下载并替换文件。体积会减小，但音质会降低；想恢复更高音质需要重新下载更高档位。",
+                { title: selected.title },
+              )}
+            </p>
+            <div className="delete-track-target">
+              <Cover path={selected.coverPath} seed={selected.id} label={selected.title} radius={10} />
+              <div>
+                <strong>{selected.title}</strong>
+                <span>
+                  {`${downloadQualityLabel(qualityInfo.currentQuality)} → ${downloadQualityLabel(qualityTier)}`}
+                  {qualityInfo.fileSize && downgradeTarget?.size
+                    ? ` · ${humanBytes(qualityInfo.fileSize)} → ${humanBytes(downgradeTarget.size)}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+            <div className="delete-track-warning">
+              <AlertTriangle size={14} />
+              {tr(
+                "Block, genre, rating, note, favorites and playlists stay unchanged.",
+                "区块、流派、评分、备注、收藏和歌单保持不变。",
+              )}
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="button button--glass" disabled={qualityBusy} onClick={() => setQualityConfirmOpen(false)}>
+                {tr("Cancel", "取消")}
+              </button>
+              <button type="button" className="button button--dark" disabled={qualityBusy} onClick={() => void changeQuality()}>
+                {qualityBusy ? <LoaderCircle size={14} className="is-spinning" /> : <AudioLines size={14} />}
+                {tr("Replace file", "替换文件")}
               </button>
             </div>
           </Modal>

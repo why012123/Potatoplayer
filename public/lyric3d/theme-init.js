@@ -9,14 +9,14 @@
     const appearance = raw ? JSON.parse(raw) : {};
     const language = appearance.language === "zh" || appearance.language === "en"
       ? appearance.language
-      : "en";
-    root.dataset.style = appearance.style === "editorial" ? "editorial" : "classic";
-    root.dataset.display = appearance.display === "serif" ? "serif" : "sans";
+      : "zh";
+    root.dataset.style = appearance.style === "classic" ? "classic" : "editorial";
+    root.dataset.display = appearance.display === "sans" ? "sans" : "serif";
     root.dataset.corners = appearance.corners === "crisp" ? "crisp" : "soft";
     root.dataset.density = appearance.density === "compact" ? "compact" : "comfortable";
     root.dataset.atmosphere = appearance.atmosphere === "still" ? "still" : "rich";
-    root.dataset.accent = typeof appearance.accent === "string" ? appearance.accent : "cover";
-    root.lang = language === "zh" ? "zh-CN" : "en";
+    root.dataset.accent = typeof appearance.accent === "string" ? appearance.accent : "sage";
+    root.lang = language === "zh" ? "zh-CN" : "zh";
   } catch {
     document.documentElement.dataset.theme = "light";
   }

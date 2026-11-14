@@ -12,6 +12,7 @@ import {
 import type { BilibiliSearchResult, BilibiliVideo, Track } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import { documentLanguage } from "@/lib/text";
 import { Modal } from "@/components/Modal";
 
 function defaultQuery(track: Track | undefined): string {
@@ -26,12 +27,12 @@ function searchPage(query: string): string {
 
 function formatCount(value: number): string {
   if (!value) return "0";
-  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat(documentLanguage() === "zh" ? "zh-CN" : "en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
 function formatDate(value: number): string {
   if (!value) return "";
-  return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  return new Date(value).toLocaleDateString(documentLanguage() === "zh" ? "zh-CN" : "en-US", { year: "numeric", month: "short" });
 }
 
 function friendlyError(error: unknown): string {

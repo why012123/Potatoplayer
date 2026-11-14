@@ -327,3 +327,77 @@ test('Enhanced search preserves raw detail and current-song comments resolve the
  assert.equal(found.songs[0].raw.credits,'composer');assert.equal(found.apiResults[0].year,2000);assert.equal(found.songs[0].bpm,null);
  const comments=await e.execute('get_netease_comments',{});assert.equal(comments.id,'123');assert.equal(comments.comments[0].content,'好听');assert.equal(calls.find(c=>c.m==='netease.comments').p.id,'123');
 });
+
+test('Audio specifications reach library tools and the live model context', async () => {
+ const requests=[];
+ const s=setup(async (_url, options) => {requests.push(JSON.parse(options.body));return sse({content:'采样率为 96 kHz。'});});
+ Object.assign(s.b.state.tracks[0],{sampleRate:96000,bitDepth:24,channels:2,codec:'FLAC'});
+ const executor=createToolExecutor({invoke:s.b.invoke,emit:()=>{},getAppearance:()=>({}),setAppearance:async()=>{},confirm:async()=>false});
+ for(const [name,args] of [['search_library',{query:'鳥の詩'}],['get_tracks',{trackIds:['a']}],['get_context',{}]]) {
+  const result=await executor.execute(name,args);const audio=result.currentTrack||result.tracks[0];
+  assert.equal(audio.sampleRate,96000);assert.equal(audio.bitDepth,24);assert.equal(audio.channels,2);assert.equal(audio.codec,'FLAC');
+ }
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ await s.service.handle('ai.chat',{requestId:'audio-specs',prompt:'What is this song’s sample rate?',currentTrackId:'a',appearance:{language:'en'}});
+ assert.match(requests[0].messages[0].content,/"sampleRate":96000/);
+ assert.match(requests[0].messages[0].content,/"bitDepth":24/);
+ assert.match(requests[0].messages[0].content,/Reply in English/);
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('Quality change tool supports explicit downgrade and maps to library.changeQualities',async()=>{
+ const {taskPolicy}=require('../electron/ai-policy.cjs');
+ const {tools}=require('../electron/ai-tools.cjs');
+ const toolDef=tools.find(t=>t.function.name==='change_track_quality');
+ assert.ok(toolDef,'change_track_quality is exposed to the model');
+ assert.equal(toolDef.function.parameters.properties.quality.enum.join(','),'standard,high,lossless,hires,jymaster,auto');
+ assert.match(toolDef.function.description,/降级/);
+ assert.match(toolDef.function.description,/明确要求/);
+ assert.match(tools.find(t=>t.function.name==='get_quality_options').function.description,/downgrades/);
+ assert.match(tools.find(t=>t.function.name==='download_netease').function.description,/change_track_quality/);
+ assert.match(tools.find(t=>t.function.name==='download_qq').function.description,/change_track_quality/);
+ validateTool('change_track_quality',{trackIds:['a'],quality:'lossless'});
+ validateTool('change_track_quality',{minRating:9.5,quality:'auto'});
+ assert.throws(()=>validateTool('change_track_quality',{quality:'ultra'}));
+ assert.throws(()=>validateTool('change_track_quality',{trackIds:['a'],quality:'lossless',allowDowngrade:true}));
+
+ const downgradePolicy=taskPolicy('把这首超清母带降到无损，太大了');
+ assert.ok(downgradePolicy.writes.includes('change_track_quality'));
+ assert.ok(!downgradePolicy.writes.includes('upgrade_track_quality'));
+ assert.equal(downgradePolicy.needsTool,true);
+ assert.equal(taskPolicy('把音质升级到无损').writes.includes('upgrade_track_quality'),true);
+ assert.ok(taskPolicy('这个文件太大，占空间，压缩一下').writes.includes('change_track_quality'));
+ assert.ok(taskPolicy('换成一个更低音质，downgrade').writes.includes('change_track_quality'));
+ assert.ok(taskPolicy('lower the quality to 320kbps').writes.includes('change_track_quality'));
+ assert.ok(!taskPolicy('把音量降到50').writes.includes('change_track_quality'));
+ assert.ok(!taskPolicy('把评分降到5').writes.includes('change_track_quality'));
+ assert.deepEqual(taskPolicy('不要修改音质，只解释一下').writes,[]);
+
+ const b=backend();
+ const e=createToolExecutor({invoke:b.invoke,getAppearance:()=>({})});
+ await e.execute('change_track_quality',{trackIds:['a'],quality:'lossless',limit:10});
+ assert.equal(b.calls.at(-1).method,'library.changeQualities');
+ assert.deepEqual(b.calls.at(-1).p,{trackIds:['a'],minRating:0,limit:10,quality:'lossless'});
+ await e.execute('change_track_quality',{minRating:9.5,quality:'standard'});
+ assert.deepEqual(b.calls.at(-1).p,{trackIds:[],minRating:9.5,limit:20,quality:'standard'});
+ await assert.rejects(e.execute('change_track_quality',{quality:'lossless'}));
+ await assert.rejects(e.execute('change_track_quality',{trackIds:['missing'],quality:'lossless'}));
+});
+
+test('Service executes a model-initiated downgrade once and reports the action',async()=>{
+ let round=0;const requests=[];
+ const s=setup(async(_url,options)=>{requests.push(JSON.parse(options.body));return (++round<3)?sse({tool_calls:[call('change_track_quality',{trackIds:['a'],quality:'lossless'})]}):sse({content:'已降级到无损。'});});
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ const result=await s.service.handle('ai.chat',{requestId:'quality-downgrade',prompt:'把这首超清母带降到无损，太大了',currentTrackId:'a'});
+ const calls=s.b.calls.filter(c=>c.method==='library.changeQualities');
+ assert.equal(calls.length,1,'repeated identical quality change is deduplicated');
+ assert.equal(calls[0].p.quality,'lossless');
+ assert.deepEqual(calls[0].p.trackIds,['a']);
+ assert.ok(requests[0].tools.some(t=>t.function.name==='change_track_quality'));
+ const system=requests[0].messages[0].content;
+ assert.match(system,/change_track_quality/);assert.match(system,/绝不自动降级/);assert.match(system,/downgradeAvailable/);assert.match(system,/不能自动回滚/);
+ assert.equal(result.actions[0].name,'change_track_quality');
+ assert.equal(result.actions[0].status,'done');
+ assert.equal(result.explanation,'已降级到无损。');
+ fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
