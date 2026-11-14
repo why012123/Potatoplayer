@@ -32,6 +32,8 @@ import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
 import { DivePage } from "@/pages/DivePage";
 import { CommentsPage } from "@/pages/CommentsPage";
+import { AiWorkspacePage } from "@/ai/AiWorkspacePage";
+import { AiConnection } from "@/ai/AiConnection";
 import { BulkAssignDialog, TaxonomyManager } from "@/components/TagDialogs";
 import { DownloadTray } from "@/components/DownloadTray";
 import { DownloadTasks } from "@/components/DownloadTasks";
@@ -229,6 +231,11 @@ export default function App() {
         window.dispatchEvent(new Event("potato:focus-search"));
         return;
       }
+      if (command && event.shiftKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        state.navigate({ kind: "ai" });
+        return;
+      }
       if (event.key === "Escape") {
         if (state.commandOpen) state.setCommandOpen(false);
         else if (state.prompt) state.closePrompt();
@@ -341,6 +348,8 @@ export default function App() {
         return <DivePage />;
       case "comments":
         return <CommentsPage />;
+      case "ai":
+        return <AiWorkspacePage />;
       case "stats":
         return <StatsPage />;
       case "editor":
@@ -431,6 +440,7 @@ export default function App() {
       <AddToPlaylistDialog />
       <BulkAssignDialog />
       <TrackMenu />
+      <AiConnection />
       <DownloadTray />
       <DownloadTasks />
       <Toasts />

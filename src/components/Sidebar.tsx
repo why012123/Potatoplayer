@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
   Album,
+  BrainCircuit,
   ChevronDown,
   ChevronUp,
   Cloud,
@@ -40,6 +41,7 @@ const items: { label: string; labelZh: string; view: View; icon: typeof Home; sh
   { label: "Comments", labelZh: "评论", view: { kind: "comments" }, icon: MessageCircle, shortcut: "9" },
   { label: "Stats", labelZh: "统计", view: { kind: "stats" }, icon: BarChart3, shortcut: "10" },
   { label: "Editor", labelZh: "编辑器", view: { kind: "editor" }, icon: SquarePen, shortcut: "11" },
+  { label: "AI workspace", labelZh: "AI 工作台", view: { kind: "ai" }, icon: BrainCircuit, shortcut: "12" },
 ];
 
 const mainItems = [
@@ -52,6 +54,7 @@ const mainItems = [
   items[8], // Comments
 ];
 const moreItems = [
+  items[11], // AI workspace
   items[6], // Daily Mix
   items[7], // Dive
   items[9], // Stats

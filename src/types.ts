@@ -10,8 +10,15 @@ export interface Track {
   genre: string;
   block: string;
   note: string;
+  /** Sidecar lyrics override path or inline text, when the library records it. */
+  lyricsOverride?: string;
   coverPath: string | null;
   duration: number;
+  /** Measured from the audio file; missing or zero means not available. */
+  sampleRate?: number;
+  bitDepth?: number;
+  channels?: number;
+  codec?: string;
   year: number;
   trackNo: number;
   playCount: number;
@@ -172,7 +179,8 @@ export type View =
   | { kind: "sync" }
   | { kind: "playlist"; id: string }
   | { kind: "album"; key: string }
-  | { kind: "artist"; name: string };
+  | { kind: "artist"; name: string }
+  | { kind: "ai" };
 
 export interface ListeningDay {
   date: string;
