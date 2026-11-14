@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
+const { registerTogether } = require("./together.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 // Isolated test runs must not share localStorage/preferences with the real app.
@@ -555,6 +556,8 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
         return null;
       }
     });
+
+    registerTogether({ ipcMain, dataDir });
 
     ipcMain.handle("ultra:open", () => {
       createUltraWindow();
