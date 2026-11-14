@@ -1,6 +1,6 @@
 {
   "name": "potatomusic-ai",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "description": "Potato Music AI — a listening workspace with an assistant-ready music interface",
   "type": "module",

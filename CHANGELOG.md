@@ -4,8 +4,8 @@ All notable changes to Potato Music AI (the `s-ai` line) are documented here.
 
 ## Versioning
 
-- **Current release:** `s-ai1.9.0`. The `s-ai` prefix is the AI edition label;
-  the package and Maven metadata use the equivalent plain semver (`1.9.0`).
+- **Current release:** `s-ai1.9.1`. The `s-ai` prefix is the AI edition label;
+  the package and Maven metadata use the equivalent plain semver (`1.9.1`).
   AI-edition patch releases keep the familiar `x.y.z` sequence, while feature
   releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package and Maven
@@ -15,6 +15,24 @@ All notable changes to Potato Music AI (the `s-ai` line) are documented here.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s-ai1.9.1 — 2026-11-14
+
+### 2026-11-14
+
+#### Changed
+
+- **共享页面材质统一**：AI 版复用的歌曲/专辑/艺术家/合集/收藏/评论/统计/编辑/同步/发现等页面不再混用旧版暖色玻璃，统一为 AI 外壳的三层材质——外层窗格 `frost-window`、内容卡片 `frost-card`、控件/输入框 `frost-control / frost-inset`；卡片只保留一层细边，去掉页面内部的旧版重阴影与重复描边。
+- **嵌套模糊清理**：页面窗格内部的卡片、表头、按钮、图标按钮、媒体卡播放键等不再各自 `backdrop-filter`，模糊只由外层窗格承担，消除半透明层叠造成的发白/发灰与性能开销。
+- **表格与工具栏降噪**：歌曲列表、详情页、收藏、编辑器的表头改为无边框扁平分隔线；工具栏（全部歌曲/筛选/排序等）改为透明行，不再叠成两层圆角玻璃条。
+- **控件与封面统一**：筛选/评分/计数/标签 chip、图标按钮、玻璃按钮、输入框、下拉框、开关统一毛玻璃控件材质；所有封面改用同一档柔和投影，列表小封面不再单独加重阴影。
+- **标签卡片与首页输入框**：区块/流派卡片保留标签色作为轻微点缀、底色回归统一卡片材质；首页与助手的输入条改用普通输入材质，不再比周围卡片更亮。
+
+#### Validation
+
+- `npm run typecheck`、`npm run test:localization`、`npm run build:backend`、`npm run build:renderer`。
+- `scripts/ui-material-audit.cjs`：遍历 14 个共享页面（明/暗两套）审计绘制表面，嵌套 `backdrop-filter` 为 0，遗留暖色背景仅剩封面占位渐变，页面内阴影统一为 `--frost-raised`。
+- `npm run test:appearance`、`npm run test:ai-ui`、`npm run test:personalization`（英文文案/字体/圆角审计全部通过）。
 
 ## s-ai1.9.0 — 2026-11-14
 

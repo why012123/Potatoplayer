@@ -38,7 +38,7 @@ export function AiSidebar() {
             setMoreOpen(true);
     }, [activeMore]);
     const totalDuration = s.tracks.reduce((sum, track) => sum + (track.duration || 0), 0);
-    // Show the release label reported by the backend (e.g. "s-ai1.9.0").
+    // Show the release label reported by the backend (e.g. "s-ai1.9.1").
     const versionLabel = s.version || "";
     const sourceName = s.onlineSource === "qq" ? "QQ Music" : "NetEase";
     const newPlaylist = () => s.openPrompt({

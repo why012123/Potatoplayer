@@ -1,0 +1,181 @@
+/* AI shell — material unification for the shared editorial pages.
+   The AI edition reuses Super's page components, so legacy warm glass rules kept
+   leaking through: different whites, nested backdrop blurs, legacy drop shadows
+   and extra framed bars. This layer collapses everything onto the same hierarchy
+   already used by the AI home / workspace:
+     outer pane   -> --frost-window (blur belongs to the pane only)
+     section/card -> --frost-inset + 1px --frost-edge, no shadow
+     control/chip -> --frost-control + 1px --frost-edge, no shadow
+     input        -> --frost-inset + 1px --frost-edge, no shadow
+   No nested backdrop-filter, no legacy warm shadows, one border language. */
+
+/* ── 1. Collapse legacy material variables onto the frost palette ─────────── */
+
+#root .app.ai-app {
+  /* In-page cards sit between the pane and the raised controls: a little
+     lighter than the pane so content lifts, without becoming a white slab. */
+  --frost-card: linear-gradient(155deg, rgb(255 255 255 / .52), rgb(255 255 255 / .24));
+  --glass: var(--frost-inset);
+  --glass-strong: var(--frost-control);
+  --line: var(--frost-edge);
+  --line-dark: color-mix(in srgb, var(--ai-ink) 12%, transparent);
+  --shadow: 0 5px 16px -6px rgb(47 53 73 / .17);
+  --shadow-soft: 0 3px 12px -8px rgb(47 53 73 / .16);
+  --faint: color-mix(in srgb, var(--ai-muted) 78%, transparent);
+  --surface: color-mix(in srgb, var(--ai-panel-solid) 74%, transparent);
+  --surface-strong: var(--ai-panel-solid);
+  --surface-soft: var(--frost-inset);
+}
+
+#root .app.ai-app.theme-dark {
+  --frost-card: linear-gradient(155deg, rgb(255 255 255 / .13), rgb(255 255 255 / .055));
+  --line-dark: color-mix(in srgb, var(--ai-ink) 16%, transparent);
+  --shadow: 0 6px 20px -8px rgb(0 0 0 / .45);
+  --shadow-soft: 0 4px 14px -8px rgb(0 0 0 / .4);
+  --surface: color-mix(in srgb, var(--ai-panel-solid) 78%, transparent);
+}
+
+/* ── 2. Panes own the blur; nothing inside them blurs the backdrop again ──── */
+
+#root .app.ai-app :is(.page-shell, .ai-sidebar, .ai-assistant, .ai-player, .ai-now-playing) * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Floating sheets stay readable and keep the pane blur. */
+#root .app.ai-app :is(.modal-backdrop, .modal, .download-panel,
+  .track-menu, .command-palette, .ai-queue, .toast) {
+  -webkit-backdrop-filter: var(--ai-pane-blur) !important;
+  backdrop-filter: var(--ai-pane-blur) !important;
+}
+
+/* ── 3. One surface family for every card / panel / hero ──────────────────── */
+
+#root .app.ai-app .page-shell :is(
+  .glass, .glass-strong,
+  .playlist-hero, .detail-hero, .artist-hero, .tag-hero, .hero,
+  .stats-panel, .stats-persona, .taste-card,
+  .comments-page, .comments-hero,
+  .editor-panel, .editor-browser, .sync-account,
+  .empty-stage, .online-empty, .discover-search-panel, .online-toolbar,
+  .settings-note, .settings-path,
+  .collection-card, .artist-card, .tag-card, .media-card, .track-card
+) {
+  background: var(--frost-card);
+  border: 1px solid var(--frost-edge);
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+
+/* Quiet rows: toolbars and table headers are separators, not extra cards. */
+#root .app.ai-app .page-shell :is(.list-toolbar, .library-controls) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+#root .app.ai-app .page-shell .track-table__head {
+  background: color-mix(in srgb, var(--ai-panel-solid) 62%, transparent);
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ai-ink) 8%, transparent);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ── 4. One control family for buttons, chips and badges ──────────────────── */
+
+#root .app.ai-app .page-shell :is(
+  .button--glass,
+  .icon-button--glass, .icon-button.is-active, .icon-button--soft,
+  .filter-button, .media-card__play, .collection-card__play, .tag-card__play,
+  .filter-chip, .rating-chip, .count-badge, .tag-pill, .tag-pill--soft,
+  .online-source-pill, .stats-panel__hint, .label
+) {
+  background: var(--frost-control);
+  border: 1px solid var(--frost-edge);
+  box-shadow: none;
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .page-shell :is(
+  .text-field, .select, .sort-control, .editor-select-wrap,
+  .settings-choice, .editor-search, .editor-note, .comment-item__reply
+) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: none;
+  color: var(--ai-ink);
+}
+
+#root .app.ai-app .page-shell .switch {
+  background: color-mix(in srgb, var(--ai-ink) 16%, transparent);
+  border-color: transparent;
+}
+
+/* ── 5. Cover art keeps one soft shadow and the AI fallback tint ──────────── */
+
+#root .app.ai-app .page-shell :is(
+  .collection-card__cover, .media-card__cover, .playlist-hero__cover,
+  .detail-hero__art .cover, .hero__cover .cover, .editor-art .cover
+) {
+  box-shadow: var(--frost-raised);
+}
+
+#root .app.ai-app .page-shell .cover {
+  background-color: var(--ai-soft);
+}
+
+/* ── 6. Prompts and composers read as inputs, not as brighter cards ───────── */
+
+#root .app.ai-app :is(.ai-home-prompt, .ai-composer) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: none;
+}
+
+/* ── 7. Nested rows keep only a hover tint, never their own glass ─────────── */
+
+#root .app.ai-app .page-shell :is(.track-row, .online-song, .comment-item, .setting-row) {
+  box-shadow: none;
+}
+
+#root .app.ai-app .page-shell .track-row.is-active {
+  background: var(--ai-soft);
+  box-shadow: none;
+}
+
+/* ── 8. Cover shadows and tag cards join the same depth language ──────────── */
+
+#root .app.ai-app .page-shell .cover {
+  box-shadow: var(--frost-raised);
+}
+
+#root .app.ai-app .page-shell :is(.track-row__cover, .editor-track__cover,
+  .stats-top-track__cover, .stats-artist-row__cover, .comment-item__avatar,
+  .online-song__cover) {
+  box-shadow: none;
+}
+
+#root .app.ai-app .page-shell :is(.tag-card, .tag-create-card) {
+  background: var(--frost-inset);
+  border: 1px solid var(--frost-edge);
+  box-shadow: none;
+}
+
+#root .app.ai-app .page-shell .tag-card {
+  background:
+    radial-gradient(120% 120% at 88% 0%, color-mix(in srgb, var(--tag-color, var(--accent)) 10%, transparent), transparent 62%),
+    var(--frost-card);
+}
+
+#root .app.ai-app .page-shell .button {
+  box-shadow: var(--frost-raised);
+}
+
+#root .app.ai-app .page-shell :is(.button--glass, .button--ghost) {
+  box-shadow: none;
+}
+
+#root .app.ai-app .page-shell :is(.editor-track, .kbd, .comment-item__avatar) {
+  box-shadow: none;
+}

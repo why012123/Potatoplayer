@@ -22,6 +22,7 @@ import "./ai/workspace.css";
 import "./ai/glass.css";
 import "./ai/now-playing.css";
 import "./ai/appearance.css";
+import "./ai/unify.css";
 import "./ai/sidebar-super.css";
 
 // Apply the persisted theme before the first React paint.

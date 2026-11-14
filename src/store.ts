@@ -437,7 +437,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s-ai1.9.0",
+  version: "s-ai1.9.1",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
