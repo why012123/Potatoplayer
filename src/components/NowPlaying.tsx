@@ -29,6 +29,7 @@ import { Slider } from "@/components/Slider";
 import { IconButton } from "@/components/IconButton";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
+import { RightPanelSwitch } from "@/components/RightPanelSwitch";
 import { formatTime } from "@/lib/format";
 
 const SILENT_BARS = Array.from({ length: 48 }, () => 0);
@@ -223,6 +224,7 @@ export function NowPlaying() {
               <MoreHorizontal size={18} />
             </IconButton>
           )}
+          <RightPanelSwitch />
           <IconButton
             label={tr("Hide now playing", "收起正在播放")}
             variant="ghost"

@@ -25,6 +25,8 @@ export interface AssistantContext {
 
 export interface AssistantTurn {
   id: string;
+  /** Stable within a live request, even after persistence assigns a history ID. */
+  requestId?: string;
   prompt: string;
   createdAt: number;
   result?: AssistantResult;

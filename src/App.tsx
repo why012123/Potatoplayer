@@ -7,6 +7,7 @@ import { coverUrl } from "@/lib/covers";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { NowPlaying } from "@/components/NowPlaying";
+import { AiSidebar } from "@/ai/AiSidebar";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { BriefDock } from "@/components/BriefDock";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -141,6 +142,7 @@ export default function App() {
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
   const rightPanelOpen = useAppStore((state) => state.rightPanelOpen);
+  const rightPanelMode = useAppStore((state) => state.rightPanelMode);
   const brief = useAppStore((state) => state.brief);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
   const immersive = useAppStore((state) => state.immersive);
@@ -423,12 +425,13 @@ export default function App() {
             {/* Do not keep NowPlaying mounted for an exit animation: during the
                 one-column grid transition it would wrap below the page and flash
                 across the lower half of the centre column. */}
-            {rightPanelOpen && <NowPlaying key="now-playing" />}
+            {rightPanelOpen && rightPanelMode === "player" && <NowPlaying key="now-playing" />}
+            <AiSidebar />
           </div>
         </div>
       </div>
 
-      <AnimatePresence>{!rightPanelOpen && <MiniPlayer key="mini-player" />}</AnimatePresence>
+      <AnimatePresence>{!rightPanelOpen && rightPanelMode === "player" && <MiniPlayer key="mini-player" />}</AnimatePresence>
       <BriefDock />
 
       <AnimatePresence>{immersive && <ImmersiveView key="immersive" palette={palette} />}</AnimatePresence>

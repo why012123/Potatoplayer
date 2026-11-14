@@ -46,3 +46,7 @@ docs/screenshots/*.raw.png
 netease_cookie.txt
 *.cookie
 .env
+
+# Python bytecode
+__pycache__/
+*.pyc

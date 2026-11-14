@@ -4,17 +4,46 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s2.0.0`. The line started at `s1.0.0`. `s2.0.0` is the
-  first release that merges the **一起听 / Together** online rooms and the **AI
-  助手 / AI 工作台** edition into Super; patch releases use the familiar
-  `s2.0.x` sequence, while feature releases use a minor bump.
+- **Current release:** `s2.0.2`. The line started at `s1.0.0`. `s2.0.0` merged
+  the **一起听 / Together** online rooms and the **AI 助手 / AI 工作台** edition
+  into Super; since then `s2.0.x` patch releases keep the same visual system and
+  refine the AI surfaces.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`2.0.0`).
+  the equivalent plain semver (`2.0.2`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s2.0.2 — 2026-11-14
+
+### Added
+
+- **右侧栏双视图**：在原收起按钮左侧新增一个同尺寸、同风格的图标按钮，切换正在播放与 AI 聊天；记住所选模式，并与 AI 工作台共用会话和历史。
+- **迷你聊天**：AI 模式收起后显示一条输入框，框内保留发送／停止和展开操作；回复以浮层出现，12 秒后自动收起，鼠标停留或键盘焦点在浮层内时暂停计时。回复仍保存在完整对话中，可随时展开查看。
+
+### Changed
+
+- 侧栏发送及回复重试留在当前页面，不再跳转到 AI 工作台；切换和收起保留未发送草稿，不影响音乐播放。恢复页面不会重新弹出旧回复。
+- 新控件沿用 Super 的毛玻璃、强调色和字体，兼容深色、圆角及动画／渲染设置；切换按钮直接复用原有小号图标按钮。
+
+### Fixed
+
+- **AI 工作台记忆页**：改为与历史对话一致的左右纵向分栏（左侧索引、右侧详情）；修复列表行按钮沿用浏览器默认灰白填充、把玻璃底压掉的问题。
+- **Discover 下载行**：为「下载到」一行补回上边距，不再与搜索框重叠。
+- **安装包图标**：自定义 Finder 图标标记绕过 macOS 26 的「图标监狱」（旧 `.icns` 会被缩小放到灰色圆角底板上）；现在 App 在 Finder / Dock 中保持原始设计。
+- **首页**：恢复为 `s1.4.12` 的原版首页，不再显示 AI 模块。
+
+### Changed
+
+- **数据目录**：AI 版与 Super 版共用 `~/.potatoplayer-super`（曲库、歌单、统计、NetEase 绑定、AI 会话/记忆），并新增一次性合并脚本 `scripts/sync-edition-data.cjs`。
+- **打包**：`npm run package:mac` 现在会应用 Finder 自定义图标，安装后图标不再被 macOS 26 收进灰色底板。
+
+### Validation
+
+- 类型检查、渲染器构建、26 组既有 AI 工具回归；增加侧栏定向 Electron 检查，覆盖按钮一致性、草稿保留、页面与播放连续性、浮层计时、悬停／焦点暂停、历史保留及原迷你播放器。
+- 新增 `npm run test:ai-sidebar`（隔离 Electron 检查右侧栏双视图与迷你聊天）。
 
 ## s2.0.0 — 2026-11-14
 

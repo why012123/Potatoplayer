@@ -137,7 +137,7 @@ interface AssistantStore {
   conversationId: string | null;
   conversations: ConversationSummary[];
   conversationsLoading: boolean;
-  ask: (prompt: string) => Promise<void>;
+  ask: (prompt: string, options?: { navigate?: boolean }) => Promise<void>;
   startNew: () => void;
   clear: () => void;
   cancel: () => void;
@@ -177,19 +177,18 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
   conversations: [],
   conversationsLoading: false,
 
-  ask: async (raw) => {
+  ask: async (raw, options) => {
     const prompt = raw.trim().slice(0, 4000);
     if (!prompt || get().busy) return;
     const id = String(++requestId);
     const pending = new AbortController();
     controller = pending;
     const state = useAppStore.getState();
-    // Super has no AI side panel: sending from the home module moves to the
-    // single AI workspace page so the answer is never rendered twice.
-    if (state.viewHistory[state.viewIndex]?.kind !== "ai") state.navigate({ kind: "ai" });
+    // In-place chat surfaces keep the current library page and panel state.
+    if (options?.navigate !== false && state.viewHistory[state.viewIndex]?.kind !== "ai") state.navigate({ kind: "ai" });
     set({
       busy: true,
-      turns: [...get().turns.slice(-39), { id, prompt, createdAt: Date.now() }],
+      turns: [...get().turns.slice(-39), { id, requestId: id, prompt, createdAt: Date.now() }],
     });
     let conversationId = get().conversationId;
     if (!conversationId) {

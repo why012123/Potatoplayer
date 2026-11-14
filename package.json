@@ -1,6 +1,6 @@
 {
   "name": "potatoplayer-super",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "private": true,
   "description": "Potatoplayer Super — an Electron glass music player with blocks, genres and NetEase, powered by a Java/VLC backend",
   "type": "module",
@@ -21,6 +21,7 @@
     "start": "node scripts/run-electron.cjs .",
     "typecheck": "tsc --noEmit",
     "test:backend": "node scripts/test-backend.cjs",
+    "test:ai-sidebar": "node scripts/ai-sidebar-smoke.cjs",
     "test:ai": "node --test scripts/ai-agent-test.cjs",
     "test:ai-metadata": "node scripts/ai-metadata-smoke.cjs",
     "test:discover": "node scripts/discover-quality-smoke.cjs",

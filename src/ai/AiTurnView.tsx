@@ -12,7 +12,8 @@ function sourceHost(url: string, fallback: string) {
         return fallback;
     }
 }
-export function AiTurnView({ turn }: {
+export function AiTurnView({ turn, onRetry }: {
+    onRetry?: (prompt: string) => void;
     turn: AssistantTurn;
 }) {
     const tr = useTr();
@@ -31,7 +32,7 @@ export function AiTurnView({ turn }: {
       </div>
       {turn.error ? (<div className="ai-response-error">
           <p>{turn.error}</p>
-          <button disabled={busy} onClick={() => void retry(turn.prompt)}>{tr("Try again", "重新尝试")}<RotateCcw size={13}/>
+          <button disabled={busy} onClick={() => onRetry ? onRetry(turn.prompt) : void retry(turn.prompt)}>{tr("Try again", "重新尝试")}<RotateCcw size={13}/>
           </button>
         </div>) : turn.result ? (<>
           {turn.result.title && <h3>{turn.result.title}</h3>}

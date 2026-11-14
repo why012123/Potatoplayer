@@ -88,6 +88,7 @@ interface AppStore {
   lyricsLoading: boolean;
   lyricsTrackId: string | null;
   rightPanelOpen: boolean;
+  rightPanelMode: "player" | "ai";
   brief: boolean;
   immersive: boolean;
   eqOpen: boolean;
@@ -143,6 +144,7 @@ interface AppStore {
   enqueueMany: (trackIds: string[], next: boolean) => Promise<void>;
   removeFromQueue: (trackId: string) => Promise<void>;
   setRightPanelOpen: (open: boolean) => void;
+  setRightPanelMode: (mode: "player" | "ai") => void;
   toggleBrief: () => void;
   setImmersive: (open: boolean) => void;
   setEqOpen: (open: boolean) => void;
@@ -391,6 +393,11 @@ function readBrief(): boolean {
   }
 }
 
+function readRightPanelMode(): "player" | "ai" {
+  try { return localStorage.getItem("potato:right-panel-mode") === "ai" ? "ai" : "player"; }
+  catch { return "player"; }
+}
+
 function readRightPanel(): boolean {
   try {
     return localStorage.getItem("potato:right-panel") !== "0";
@@ -437,7 +444,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s2.0.0",
+  version: "s2.0.2",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -473,6 +480,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lyricsLoading: false,
   lyricsTrackId: null,
   rightPanelOpen: readRightPanel(),
+  rightPanelMode: readRightPanelMode(),
   brief: readBrief(),
   immersive: false,
   eqOpen: false,
@@ -1203,6 +1211,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch {
       // Storage is optional.
     }
+  },
+  setRightPanelMode: (mode) => {
+    set({ rightPanelMode: mode });
+    try { localStorage.setItem("potato:right-panel-mode", mode); } catch { /* Storage is optional. */ }
   },
   setImmersive: (open) => set({ immersive: open }),
   setEqOpen: (open) => set({ eqOpen: open }),
