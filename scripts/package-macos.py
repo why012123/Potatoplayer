@@ -239,6 +239,16 @@ def finalize():
     # Smoke-test the exact signed app before producing distributable installers.
     run('node', ROOT / 'scripts/package-smoke.cjs', APP, cwd=ROOT)
     run('codesign', '--verify', '--deep', '--strict', APP)
+    # macOS 26 Tahoe shrinks legacy `.icns` icons into a grey "squircle jail".
+    # A Finder custom icon (same as Finder -> Get Info -> paste) keeps our
+    # artwork and survives both the DMG and a Finder copy into /Applications.
+    # It has to be applied after the final signature check (the FinderInfo
+    # marker is not sealed and codesign treats it as detritus).
+    print('[package] applying Finder custom icon (macOS 26 icon-jail workaround)', flush=True)
+    icon_tool = ROOT / 'release' / '.app-icon-tool'
+    run('swiftc', '-O', ROOT / 'native/app-icon/main.swift', '-o', icon_tool)
+    run(icon_tool, ROOT / 'build/icon.png', APP)
+    icon_tool.unlink(missing_ok=True)
     print('[package] creating DMG and PKG', flush=True)
     if not (STAGE / 'Applications').is_symlink():
         (STAGE / 'Applications').symlink_to('/Applications')
