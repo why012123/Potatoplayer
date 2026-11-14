@@ -4,41 +4,76 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s1.9.0`. The line started at `s1.0.0`; patch releases use
-  the familiar `s1.9.x` sequence, while feature releases use a minor bump.
+- **Current release:** `s2.0.0`. The line started at `s1.0.0`. `s2.0.0` is the
+  first release that merges the **一起听 / Together** online rooms and the **AI
+  助手 / AI 工作台** edition into Super; patch releases use the familiar
+  `s2.0.x` sequence, while feature releases use a minor bump.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`1.9.0`).
+  the equivalent plain semver (`2.0.0`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
 
-## Unreleased — 一起听 / Together
+## s2.0.0 — 2026-11-14
 
+Super s2.0.0 以 s1.9.0 为基底，合并「一起听 / Together」在线房间与 AI 助手版；
+界面仍然全部以 Super 为准：三栏布局（侧栏 / 页面 / 常驻 Now Playing），没有底部
+播放条。AI 对话窗口只出现在「AI 工作台」页面和首页的一个 AI 栏目里，其余页面、
+右侧栏与播放控制保持 Super 原样。
 
 ### Added
 
-- **房间临时曲目进入主播放器**：通过中转补齐的歌曲现在会显示在右侧
-  「正在播放」、迷你播放器和系统媒体面板中，标题旁带有 `TOGETHER` 标记，
-  来源说明为房间缓存，并且不会混入资料库、收藏或歌曲编辑页。
-- **传输进度、取消和重试**：房间面板会显示每个上传/下载的方向、文件名、
-  已传字节和百分比；正在传输时可以取消，失败或取消后可以重试。完成的行会
-  在 6 秒后自动收起，不再永久停留在 `Ready`。
-- **自动重连**：WebSocket 意外断开后客户端会用原房间码重新加入（最多 5 次，
-  逐步退避），期间保留房间界面并显示「重连中…」，聊天输入暂时禁用。
-- **空房重新认领房主**：服务器在房主离开且房间无人时清空 `hostId`，之后
-  第一个重新加入的成员会成为房主，避免自动重连后房间没有控制者。
-- **单房间文件配额**：中转服务器新增 `MAX_ROOM_MB`（默认 2 GB），上传超过
-  房间总量时返回 413，防止通过多个房间塞满磁盘。
+#### 一起听 / Together
+
+- **在线一起听房间**：顶栏「一起听」打开房间面板；用六位大写字母 / 数字房间码加入，房主控制播放、暂停和进度，其他成员跟随，面板内包含成员列表与聊天。客户端只在中转服务器之间转发房间状态与文件，不会从网易云 / QQ 音乐下载房间内容。
+- **缺歌自动补齐**：房主播放的歌曲不在你的资料库时，客户端向房间发出请求，拥有该文件的成员把它上传到中转服务器；你下载后校验 SHA-256，并以 `playTemp` 临时曲目播放。临时曲目会显示在右侧「正在播放」、迷你播放器和系统媒体面板中，标题旁带 `TOGETHER` 标记、来源说明为房间缓存，且不会写入资料库、收藏或歌曲编辑页。
+- **房主补歌与房主切换**：房主可把房间缓存文件重新上传给后来缺歌的成员；房主离开且房间无人时清空 `hostId`，之后第一个重新加入的成员成为房主并接管播放时钟。
+- **传输可见、可取消、可重试**：房间面板显示每个上传 / 下载的方向、文件名、已传字节与百分比；传输中可以取消，失败或取消后可以重试；完成的行 6 秒后自动收起，不再永久停留在 `Ready`。
+- **自动重连**：WebSocket 意外断开后用原房间码重新加入（最多 5 次、逐步退避），期间保留房间界面并显示「重连中…」，聊天输入暂时禁用；离开房间或断线会取消进行中的传输，避免无效请求继续写盘。
+- **中转服务器**：仓库新增 `server/`（`cd server && npm install && npm start`，默认监听 `ws://127.0.0.1:8787/ws`，`/health` 健康检查）。可用环境变量 `PORT`、`HOST`、`MAX_MEMBERS`、`MAX_FILE_MB`、`MAX_ROOM_MB`、`FILE_DIR` 调整；默认单文件 300 MB、单房间 2 GB，空房 10 分钟后清理文件，服务器重启清空中转缓存。
+- **临时曲目播放链路**：后端新增 `playback.playTemp` 与临时曲目状态；房间临时曲目播放不计数、不入库，切换歌曲或打开歌曲编辑页不会触碰房间缓存。
+
+#### AI 工作台与助手
+
+- **AI 工作台页面**：侧栏新增「AI 工作台」，持久化管理历史对话、歌曲独立记忆与长期偏好索引；支持搜索、置顶、重命名、删除、继续对话。对话写入 `ai-conversations.json`，记忆写入 `ai-memory.json`，均在本机原子写入。
+- **首页 AI 栏目**：首页新增一个 AI 面板（提问入口、快捷建议、打开工作台），与 AI 工作台共享同一套对话状态：在首页提问后答案在 AI 工作台中展开，不再出现第二套断开的聊天界面。
+- **DeepSeek 对话与工具**：连接 DeepSeek 后可流式聊天并调用工具：找歌、播放、歌单增删改、歌曲资料与平台 ID 编辑、网易云 / QQ 音乐搜索与下载、批量修改音质等。连接设置（启用、模型名称、联网开关、API Key）从 AI 工作台的「连接」按钮或 `Cmd/Ctrl+Shift+A` 打开；API Key 由 Electron `safeStorage` 加密保存，不进入聊天内容。
+- **歌曲记忆与长期偏好**：新增 `remember_song` / `remember_preference` / `get_song_memory` / `list_memories` / `forget_*` 工具。当前歌曲、问题中提到的歌名 / 歌手和长期偏好会自动进入系统提示；工作台可以手动新增、编辑、删除记忆。
+- **联网查资料**：接入 DeepSeek 官方 Search / Fetch API（`web_search` / `web_fetch`），可查询歌曲背景、发行、创作者和版本信息；回答保留来源，界面显示可点击的「网页来源」卡片。联网搜索可在 AI 连接设置中单独开关，按官方规则计费。
+- **本地匹配与在线结果约束**：完整歌名 / 别名、歌名与歌手组合优先于备注和评分，英文按词匹配；曲库与在线搜索工具支持歌名、歌手、专辑和版本筛选，未满足条件的在线结果不进入该次搜索的可下载候选。同名候选会返回匹配依据与歧义标识，模型需先核对歌手、专辑及 Live / Remix / 翻唱 / 伴奏版本，有歧义时先让用户选择。
+- **AI 安全边界**：AI 不改变 Super 的外观、主题与布局（外观统一由设置管理，工具会明确告知）；删除歌单仍需原生确认框；停止请求会取消后续工具与网络读取，已完成的操作不回滚。
+
+#### 音频规格与下载设置
+
+- **AI 可读取真实音频规格**：扫描器写入 `sampleRate` / `bitDepth` / `channels` / `codec`，AI 的曲库工具、`get_context`、音质探测与批量结果都能读到；资料库 schema 升到 4，旧库首次启动自动重扫补全。规格只来自文件实测，不按下载档位推测。
+- **下载音质扩展**：在线下载新增 Hi-Res（96k/24）与超清母带（192k/24）两档；网易云按接口实际返回的 `level` 记录档位（平台可能降级），QQ 以 FLAC 为最高可用档。设置页新增「下载」区块提供五档选择，批量下载、歌单导入与 AI 助手共用该档位。
+- **音质双向替换（升级 / 降级）**：同一首歌再次下载时先比较档位——更高档重新下载并替换音频文件（同容器原地替换；跨容器迁移曲目并保留收藏 / 歌单），同档只更新信息；**显式选择更低档位时也可降级替换**（仅歌曲编辑页、`track.changeQuality` / `library.changeQualities` 或 RPC 显式传入 `allowDowngrade: true` 时允许）。降级同样保留区块、流派、评分、备注、收藏和歌单；自动下载与批量升级默认仍然只升不降。
+- **歌曲编辑页音质区块**：显示当前档位、平台真实可升级档位与可降级档位，可一键重新下载替换（降级需二次确认）；区块、流派、评分、备注、收藏和歌单保持不变。
+- **AI 音质工具**：新增 `get_quality_options` / `find_quality_upgrades` / `upgrade_track_quality` / `change_track_quality`；`download_netease` / `download_qq` 支持五档；支持按评分筛选批量探测和批量升级，`change_track_quality` 支持用户明确要求的批量升级或降级。
+- **区块 / 流派下载目标**：新增「无（清空）」选项；「不指定」保持沿用原值，AI 下载工具同样支持。
+- **音质探测与缓存**：单曲档位探测缓存 10 分钟，替换完成后自动失效；仅试听片段（`freeTrialInfo`）视为不可下载；请求 Hi-Res 而平台只提供超清母带时接受更高可用档位并返回 `substituted: true`。
+
+### Changed
+
+- **下载托盘与任务面板**：区分传输、校验和整理阶段，浮动提示 8 秒后自动收起，完整进度保留在下载任务中；替换完成后的提示按升级 / 降级给出方向，不再把「暂无更高音质」误用于降级请求。
+- **AI 提示词与策略**：不再禁止以更高音质替换音频文件；音质结论必须来自真实探测，不得从 `hr` 字段、`privileges.maxBrLevel` 或 `sq` 码率推断。
+- **独立平台 ID**：歌曲可以同时保存网易云 ID 与 QQ MID，两个平台互不覆盖；AI 与歌曲编辑页都能写入。
 
 ### Fixed
 
-- **房主播放临时曲目时不再丢同步**：房主会把 `together:` 临时曲目重新发布为
-  普通房间曲目；房主切换后，新宿主也能把缓存文件重新上传给后来缺歌的成员。
-- **传输失败不再无限重试**：下载失败会停在错误状态等待用户重试，而不是每次
-  `transfers` 变化就重新发起请求。
-- **离开房间或断线会取消进行中的传输**，避免无效 token 的请求在后台继续写盘。
+- **升级档位回退**：请求 Hi-Res 而平台只提供超清母带时，接受更高可用档位并返回 `substituted: true`，不再整批跳过。
+- **扫描器标签读取**：已知年份 / 时长但缺少音频规格时仍读取标签，保证采样率、位深、声道与编码完整。
+- **FLAC 年份补全**：旧索引已经带有标题 / 歌手 / 时长时，扫描器仍会在年份未知时读取 `DATE` / `YEAR` 标签；旧库升级后首次启动自动重扫补全。
+- **AI 曲库匹配**：修正本地推荐忽略歌手条件、全局删除「音乐」等歌名内容的问题；未满足歌名 / 歌手 / 版本约束的在线结果不进入候选。
+- **AI 临时曲目边界**：房间临时曲目既不出现在歌曲编辑页，也不会被收藏、写歌单或计入聆听统计。
+
+### Validation
+
+- 本次发布实际执行并通过：`npm run typecheck`；`npm run build:renderer`；`npm run build:backend`；`npm run test:backend`（**2197 checks**，含音质方向 / 替换判定、临时曲目与扫描规格用例）；`npm run test:ai`（**26/26**）；`npm run test:ai-metadata`；`npm run test:migration`；`npm run test:discover`（隔离 Electron + 真实 FLAC：五档选择、升级替换、未确认不降级、显式降级替换并保留评分 / 备注 / 收藏 / 歌单）。
+- 一起听：`cd server && npm test`（**3/3 relay tests**）；`electron/together.cjs` 独立检查覆盖上传 / 下载 / SHA-256 校验 / 缓存复用 / 取消 / URL 校验。
+- 原有 s1.9.0 的 `scripts/sync-smoke.cjs`、`scripts/playlist-download-smoke.cjs`、`scripts/package-smoke.cjs` 仍然随源码提供；本轮没有重复执行 Electron GUI / 安装包冒烟测试（需要显示器、VLC 与完整打包依赖）。
 
 ## s1.9.0 — 2026-11-14
 

@@ -4,7 +4,7 @@
 保留 Java + VLCJ 的播放与扫描内核，彻底重做 UI、动效和信息架构。  
 块、流派和网易云是这个版本的核心，而不是附属设置。
 
-> 当前版本：`s1.9.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
+> 当前版本：`s2.0.0` · 运行平台：macOS（主力验证）；Windows / Linux 代码路径已保留但未真机验证。
 > 完整更新记录（含旧 Java 2.1.19 / Python 1.x 历史）见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **快速启动：macOS 双击 [`start.command`](start.command)；或终端运行 `./start.sh`。**
@@ -19,6 +19,7 @@
 - [块 / 流派系统](#块--流派系统)
 - [网易云](#网易云)
 - [一起听 / Together](#一起听--together)
+- [AI 助手 / AI 工作台](#ai-助手--ai-工作台)
 - [运行](#运行)
 - [网易云服务](#网易云服务)
 - [数据与迁移](#数据与迁移)
@@ -292,6 +293,18 @@ npm run setup:qq-api
 - **默认限制**：单文件 300 MB，单房间 2 GB，房间空置 10 分钟后删除文件，服务器重启会清空中转缓存。可以用 `MAX_FILE_MB`、`MAX_ROOM_MB` 调整。
 - **版权**：只上传自己拥有或获得明确授权分享的文件；这个功能是私密房间里的文件接力，不是公共音乐库。
 
+## AI 助手 / AI 工作台
+
+侧栏的「AI 工作台」是 AI 对话的主界面；首页的「AI 工作台」栏目提供同一个助手的提问入口，答案仍然在 AI 工作台中展开。全应用保持 Super 的三栏布局与常驻 Now Playing，没有单独的 AI 侧栏、底部播放条或右侧对话栏。
+
+- **连接 DeepSeek**：打开 AI 工作台的「连接」按钮（或按 `Cmd/Ctrl+Shift+A`），启用后填入 DeepSeek API Key，可选择模型名称并单独开关联网搜索。Key 由桌面端 `safeStorage` 加密保存，不进入聊天内容；未连接时仍可使用本地曲库匹配、推荐与播放。
+- **对话与工具**：多轮对话、流式回复、取消与真实操作记录。助手可以找歌、播放、管理歌单与歌曲资料、搜索并下载网易云 / QQ 音乐、批量调整音质、写入平台歌曲 ID。
+- **工作台与记忆**：历史对话、歌曲独立记忆和长期偏好索引都保存在本机；支持搜索、置顶、重命名、删除和继续对话。
+- **联网查资料**：使用 DeepSeek 官方 Search / Fetch 查询歌曲背景、发行、创作者和版本信息；回答附带可点击的来源卡片，可在连接设置中关闭，按官方规则计费。
+- **音频规格**：助手读取扫描器实测的采样率、位深、声道和编码，不按下载档位或平台字段推断。
+- **外观边界**：助手不会修改 Super 的外观、主题或布局（这些统一由设置页管理）；删除歌单等破坏性操作仍会弹出原生确认。
+- **数据文件**：连接设置写入 `ai-settings.json`（Key 加密保存），对话写入 `ai-conversations.json`，记忆写入 `ai-memory.json`，都在数据目录内原子写入。
+
 ## 运行
 
 ### 环境
@@ -410,6 +423,9 @@ stats.json                实际聆听统计：日期、小时、曲目时长和
 covers/                   新写入的封面缓存
 netease_bindings.json     网易云下载的封面 / 专辑映射
 playlist_sync.json        云同步绑定 / 同步基准 / 中断恢复记录
+ai-settings.json          DeepSeek 连接设置（API Key 加密保存）
+ai-conversations.json     AI 工作台历史对话
+ai-memory.json            歌曲记忆与长期偏好索引
 netease_cookie.txt        网易云登录 cookie（不会进入仓库）
 ```
 
@@ -509,8 +525,17 @@ Electron 的 CSS 合成层、`backdrop-filter`、Framer Motion 和 React 组件�
 # TypeScript 类型检查
 npm run typecheck
 
-# Java 单元测试（文件名解析、LRC、旧库解析、Taxonomy）
+# Java 单元测试（文件名解析、LRC、旧库解析、Taxonomy、音质方向 / 临时曲目）
 npm run test:backend
+
+# AI 服务与工具：模拟 DeepSeek SSE 与工具调用，不消耗真实 API 额度
+npm run test:ai
+
+# AI 元数据集成测试：独立平台 ID、歌词覆盖、重扫持久化（需先 build:backend）
+npm run build:backend && npm run test:ai-metadata
+
+# 下载音质隔离测试：五档选择、升级 / 显式降级替换（需先构建前后端）
+npm run build:backend && npm run build:renderer && npm run test:discover
 
 # 同步集成测试：临时资料库 + 模拟 api-enhanced，不连接真实账号
 npm run build:backend && npm run build:renderer
@@ -551,6 +576,8 @@ npm test
 
 - **macOS 已验证**；Windows / Linux 使用相同代码路径，但尚未真机验证。macOS 隐藏标题栏 / 交通灯使用 `hiddenInset`。
 - 网易云依赖外部 `api-enhanced`；QQ 音乐依赖外部 `qq-music-api`。两者都会受账号等级、地区或版权限制。
+- **AI 助手需要自行配置 DeepSeek API Key**；联网搜索使用 DeepSeek 官方 Search / Fetch，按官方规则计费。AI 的工具调用结果取决于本地曲库、网络与账号权限。
+- **一起听需要先运行 `server/` 中转服务**（默认 `ws://127.0.0.1:8787/ws`）；公网使用请自备 Caddy / Nginx / Cloudflare Tunnel 等 TLS 反向代理，并注意单文件与单房间大小限制。
 - QQ 音乐下载必须先扫码登录，且实际能否取到音频以 QQ 账号权限和上游结果为准。
 - B站 MV 搜索使用公开网页搜索接口，可能被风控或受地区限制；结果在系统浏览器观看，不内嵌播放。
 - 搜索结果的网易云封面在未下载前可能由渐变首字母占位；下载后会写入真实封面。

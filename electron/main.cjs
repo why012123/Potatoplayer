@@ -1,10 +1,11 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut, safeStorage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
 const { registerTogether } = require("./together.cjs");
+const { createAiService } = require("./ai-service.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 // Isolated test runs must not share localStorage/preferences with the real app.
@@ -477,6 +478,29 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       return;
     }
 
+    const aiService = createAiService({
+      dataDir: dataDir(),
+      safeStorage,
+      invoke: (method, params) => backend.invoke(method, params),
+      emit: (message) => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("backend:event", message);
+      },
+      confirm: async (message, detail) => {
+        const result = await dialog.showMessageBox(mainWindow, {
+          type: "question",
+          message,
+          detail,
+          buttons: ["取消", "删除歌单"],
+          defaultId: 0,
+          cancelId: 0,
+        });
+        return result.response === 1;
+      },
+    });
+    app.on("before-quit", () => {
+      void aiService.handle("ai.cancel");
+    });
+
     ipcMain.on("media:update", (_event, payload) => {
       if (!mediaHelper?.stdin?.writable || !payload || typeof payload !== "object") return;
       try {
@@ -487,6 +511,11 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     });
 
     ipcMain.handle("backend:invoke", async (_event, { method, params }) => {
+      if (typeof method !== "string") throw new Error("Invalid method");
+      if (method.startsWith("ai.")) {
+        if (_event.sender !== mainWindow?.webContents) throw new Error("AI requests require the main window");
+        return aiService.handle(method, params);
+      }
       const result = await backend.invoke(method, params);
       if (Array.isArray(result?.coverRoots)) backend.setCoverRoots(result.coverRoots);
       return result;
@@ -514,13 +543,17 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       } catch {
         return false;
       }
-      const allowed = ["bilibili.com", "b23.tv"];
       if (
         url.protocol !== "https:" ||
-        !allowed.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+        url.username ||
+        url.password ||
+        url.hostname === "localhost" ||
+        url.hostname.endsWith(".local")
       ) {
         return false;
       }
+      // Bilibili MV links and AI web sources both use this bridge. Keep the
+      // renderer from opening local endpoints while allowing public citations.
       await shell.openExternal(url.toString());
       return true;
     });
