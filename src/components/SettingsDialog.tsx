@@ -4,6 +4,7 @@ import { AnimatePresence } from "motion/react";
 import {
   AudioLines,
   Check,
+  CloudDownload,
   Disc3,
   Feather,
   FolderOpen,
@@ -31,6 +32,7 @@ import { Modal } from "@/components/Modal";
 import { SpatialPad } from "@/components/SpatialPad";
 import { IconButton } from "@/components/IconButton";
 import { useTr } from "@/lib/i18n";
+import type { DownloadQuality } from "@/types";
 import type { AppearancePreferences, Density, DisplayFont, CornerStyle, Atmosphere } from "@/lib/appearance";
 import { ACCENT_CHOICES } from "@/lib/appearance";
 import type { Language } from "@/lib/text";
@@ -156,6 +158,8 @@ export function SettingsPage() {
   const setOutputMode = useAppStore((state) => state.setOutputMode);
   const appearance = useAppStore((state) => state.appearance);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const downloadQuality = useAppStore((state) => state.downloadQuality);
+  const setDownloadQuality = useAppStore((state) => state.setDownloadQuality);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
   const rescan = useAppStore((state) => state.rescan);
   const tr = useTr();
@@ -205,6 +209,34 @@ export function SettingsPage() {
             <Section icon={<Palette size={16} />} title={tr("Personalization", "个性化")} detail={tr("Appearance, rendering quality and animation — independently adjustable.", "外观、渲染画质和动画，分别自由调整。") }>
               <button className="button button--dark" onClick={() => setPersonalization(true)}><Palette size={16} />{tr("Personalization", "个性化")}</button>
             </Section>
+            <Section
+              icon={<CloudDownload size={16} />}
+              title={tr("Downloads", "下载")}
+              detail={tr(
+                "Quality used for online downloads. A higher tier replaces the existing file; a lower tier only replaces it after you confirm.",
+                "在线下载使用的音质。更高档位会替换已有文件；更低档位需要你确认后才会替换。",
+              )}
+            >
+              <div className="settings-row">
+                <div>
+                  <strong>{tr("Download quality", "下载音质")}</strong>
+                  <span>{tr("Also used by batch downloads, playlist imports and the AI assistant.", "批量下载、歌单导入与 AI 助手也使用此档位。")}</span>
+                </div>
+                <select
+                  className="text-field settings-select"
+                  aria-label={tr("Download quality", "下载音质")}
+                  value={downloadQuality}
+                  onChange={(event) => setDownloadQuality(event.target.value as DownloadQuality)}
+                >
+                  <option value="standard">{tr("Standard", "标准")}</option>
+                  <option value="high">{tr("High 320k", "高品质 320k")}</option>
+                  <option value="lossless">{tr("Lossless", "无损")}</option>
+                  <option value="hires">{tr("Hi-Res 96k/24", "Hi-Res 96k/24")}</option>
+                  <option value="jymaster">{tr("Master 192k/24", "超清母带 192k/24")}</option>
+                </select>
+              </div>
+            </Section>
+
             <Section
               icon={<AudioLines size={16} />}
               title={tr("Playback engine", "播放引擎")}

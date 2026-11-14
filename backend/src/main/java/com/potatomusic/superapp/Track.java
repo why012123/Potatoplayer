@@ -10,8 +10,14 @@ public class Track {
     public String genre;
     public String block;
     public String note;
+    public String lyricsOverride;
     public String coverPath;
     public int duration;
+    /** Real audio specs read from the file by the scanner; 0 when unknown. */
+    public int sampleRate;
+    public int bitDepth;
+    public int channels;
+    public String codec;
     public int year;
     public int trackNo;
     public int playCount;
@@ -20,6 +26,7 @@ public class Track {
     public String qqId;
     public long addedAt;
     public long fileSize;
+    public java.util.List<String> metadataOverrides = new java.util.ArrayList<>();
 
     public Track() {
     }
@@ -34,8 +41,13 @@ public class Track {
         t.genre = genre;
         t.block = block;
         t.note = note;
+        t.lyricsOverride = lyricsOverride;
         t.coverPath = coverPath;
         t.duration = duration;
+        t.sampleRate = sampleRate;
+        t.bitDepth = bitDepth;
+        t.channels = channels;
+        t.codec = codec;
         t.year = year;
         t.trackNo = trackNo;
         t.playCount = playCount;
@@ -44,6 +56,7 @@ public class Track {
         t.qqId = qqId;
         t.addedAt = addedAt;
         t.fileSize = fileSize;
+        t.metadataOverrides = new java.util.ArrayList<>(metadataOverrides == null ? java.util.List.of() : metadataOverrides);
         return t;
     }
 }
