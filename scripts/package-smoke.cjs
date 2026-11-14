@@ -39,7 +39,9 @@ fs.writeFileSync(path.join(music, 'Packaging test.wav'), wav);
         POTATOMUSIC_HOME: home, POTATOMUSIC_LIBRARY: music, POTATO_HIDDEN: '1',
         POTATO_ALLOW_SECOND_INSTANCE: '1', POTATO_DEBUG: '1',
         POTATOMUSIC_API_BASE: 'http://127.0.0.1:18371', POTATOMUSIC_QQ_API_BASE: 'http://127.0.0.1:18372' };
-      const app = await electron.launch({executablePath, args: [], cwd: tmp, env, timeout: 40000});
+      // Harnesses with their own process sandbox (containers/CI) may need `POTATO_ELECTRON_ARGS=--no-sandbox`.
+      const extraArgs = (process.env.POTATO_ELECTRON_ARGS || '').split(' ').filter(Boolean);
+      const app = await electron.launch({executablePath, args: extraArgs, cwd: tmp, env, timeout: 40000});
       app.process().stderr.on('data', data => { if (/error|exception|fatal/i.test(String(data))) process.stderr.write(data); });
       try {
         const page = await app.firstWindow();
