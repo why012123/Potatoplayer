@@ -17,6 +17,8 @@ import {
   Settings2,
   Sparkles,
   Trash2,
+  Wifi,
+  WifiOff,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
@@ -100,15 +102,8 @@ export function AiWorkspacePage() {
       return;
     }
     const top = lastTurn.getBoundingClientRect().top - element.getBoundingClientRect().top + element.scrollTop;
-    element.scrollTo({ top: Math.max(0, top - 10), behavior: "smooth" });
+    element.scrollTo({ top: Math.max(0, top - 12), behavior: "smooth" });
   }, [assistant.turns, assistant.busy]);
-
-  const compactHistory = tab === "history" && assistant.turns.length > 0;
-  useEffect(() => {
-    if (compactHistory) {
-      document.querySelector(".page-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [compactHistory]);
 
   const active = assistant.conversations.find((conversation) => conversation.id === assistant.conversationId);
   const filteredConversations = useMemo(() => {
@@ -139,6 +134,10 @@ export function AiWorkspacePage() {
       ),
     [memory.snapshot.profile, memoryNeedle],
   );
+  const memoryTotal = memory.snapshot.stats.songs + memory.snapshot.stats.profile;
+  const memoryUpdated = memory.snapshot.stats.updatedAt
+    ? tr("{time} updated", "{time}更新", { time: relativeTime(memory.snapshot.stats.updatedAt, tr) })
+    : tr("Saved on this Mac", "仅保存在本机");
 
   const openSongEditor = (trackId?: string, existing?: SongMemory) => {
     const fallback = existing ? s.tracks.find((track) => track.id === existing.trackId) : undefined;
@@ -270,19 +269,22 @@ export function AiWorkspacePage() {
   const openConnection = () => window.dispatchEvent(new Event("potato:ai-settings"));
 
   const renderConversationItem = (conversation: ConversationSummary) => (
-    <div className={clsx("ai-conversation-item", conversation.id === assistant.conversationId && "is-active")} key={conversation.id}>
-      <button className="ai-conversation-open" onClick={() => openConversation(conversation)}>
-        <span className="ai-conversation-time">
-          <Clock3 size={11} /> {relativeTime(conversation.updatedAt, tr)}
-        </span>
-        <strong>{conversation.title}</strong>
+    <div className={clsx("ai-ws-conversation", conversation.id === assistant.conversationId && "is-active")} key={conversation.id}>
+      <button className="ai-ws-conversation__open" onClick={() => openConversation(conversation)}>
+        <div className="ai-ws-conversation__title">
+          <strong>{conversation.title}</strong>
+          {conversation.pinned && <Pin size={10} />}
+        </div>
         <p>{conversation.preview || tr("No reply yet", "还没有回复")}</p>
         <small>
-          {conversation.turnCount} {tr("turns", "轮")}
-          {conversation.songIds.length > 0 && ` · ${conversation.songIds.length} ${tr("songs", "首歌")}`}
+          <span className="ai-ws-conversation__time">
+            <Clock3 size={10} /> {relativeTime(conversation.updatedAt, tr)}
+          </span>
+          <span>{conversation.turnCount} {tr("turns", "轮")}</span>
+          {conversation.songIds.length > 0 && <span>{conversation.songIds.length} {tr("songs", "首")}</span>}
         </small>
       </button>
-      <div className="ai-conversation-actions">
+      <div className="ai-ws-row-actions">
         <button
           title={conversation.pinned ? tr("Unpin", "取消置顶") : tr("Pin", "置顶")}
           aria-label={conversation.pinned ? tr("Unpin conversation", "取消置顶对话") : tr("Pin conversation", "置顶对话")}
@@ -303,7 +305,7 @@ export function AiWorkspacePage() {
   return (
     <div className="page ai-scope ai-workspace-page">
       <PageHeader
-        eyebrow={tr("AI", "AI")}
+        eyebrow={tr("AI · DEEPSEEK", "AI · DEEPSEEK")}
         title={tr("AI workspace", "AI 工作台")}
         description={tr(
           "Conversations, song notes and listening preferences in one place.",
@@ -327,56 +329,67 @@ export function AiWorkspacePage() {
           </>
         }
       >
-        <div className="ai-workspace-counts">
-          <span>
+        <div className="ai-ws-status">
+          <span className={clsx("ai-ws-status__mode", assistant.connected && "is-connected")}>
+            {assistant.connected ? <Wifi size={11} /> : <WifiOff size={11} />}
+            {assistant.connected ? tr("DeepSeek connected", "DeepSeek 已连接") : tr("Local library mode", "本地曲库模式")}
+          </span>
+          <span className="ai-ws-status__item">
             <strong>{assistant.conversations.length}</strong> {tr("conversations", "段对话")}
           </span>
-          <i />
-          <span>
+          <span className="ai-ws-status__item">
             <strong>{memory.snapshot.stats.songs}</strong> {tr("song memories", "条歌曲记忆")}
           </span>
-          <i />
-          <span>
+          <span className="ai-ws-status__item">
             <strong>{memory.snapshot.stats.profile}</strong> {tr("preferences", "条长期偏好")}
-          </span>
-          <span className="ai-workspace-counts__note">
-            <Sparkles size={12} />
-            {assistant.connected
-              ? tr("DeepSeek connected", "DeepSeek 已连接")
-              : tr("Local library mode", "本地曲库模式")}
           </span>
         </div>
       </PageHeader>
 
-      <div className={clsx("ai-workspace", compactHistory && "has-conversation")}>
-
-      <div className="ai-workspace-tabs" role="tablist" aria-label={tr("AI workspace sections", "AI 工作台分区")}>
-        <button role="tab" aria-selected={tab === "history"} className={clsx(tab === "history" && "is-active")} onClick={() => setTab("history")}>
-          <History size={15} /> {tr("Conversation history", "历史对话")}
+      <div className="ai-ws-tabs" role="tablist" aria-label={tr("AI workspace sections", "AI 工作台分区")}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "history"}
+          className={clsx("ai-ws-tab", tab === "history" && "is-active")}
+          onClick={() => setTab("history")}
+        >
+          <History size={14} /> {tr("Conversation history", "历史对话")}
           <em>{assistant.conversations.length}</em>
         </button>
-        <button role="tab" aria-selected={tab === "memory"} className={clsx(tab === "memory" && "is-active")} onClick={() => setTab("memory")}>
-          <Brain size={15} /> {tr("Memory index", "记忆索引")}
-          <em>{memory.snapshot.stats.songs + memory.snapshot.stats.profile}</em>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "memory"}
+          className={clsx("ai-ws-tab", tab === "memory" && "is-active")}
+          onClick={() => setTab("memory")}
+        >
+          <Brain size={14} /> {tr("Memory index", "记忆索引")}
+          <em>{memoryTotal}</em>
         </button>
-        <span className="ai-workspace-tab-note">
-          <Database size={12} /> {memory.snapshot.stats.updatedAt ? tr("Updated {time}", "{time}更新", { time: relativeTime(memory.snapshot.stats.updatedAt, tr) }) : tr("Local only", "仅保存在本机")}
+        <span className="ai-ws-tabs__note">
+          <Database size={11} /> {memoryUpdated}
         </span>
       </div>
 
       {tab === "history" ? (
-        <div className="ai-history-layout">
-          <aside className="ai-conversation-rail">
-            <div className="ai-conversation-rail-head">
+        <div className="ai-ws-history">
+          <aside className="ai-ws-card ai-ws-rail">
+            <header className="ai-ws-rail__head">
               <div>
-                <strong>{tr("Conversations", "对话")}</strong>
+                <strong>{tr("Conversations", "对话历史")}</strong>
                 <small>{assistant.conversations.length} {tr("saved", "段已保存")}</small>
               </div>
-              <button className="ai-rail-new" onClick={newConversation} title={tr("New conversation", "新对话")} aria-label={tr("New conversation", "新对话")}>
+              <button
+                className="ai-ws-icon-button"
+                onClick={newConversation}
+                title={tr("New conversation", "新对话")}
+                aria-label={tr("New conversation", "新对话")}
+              >
                 <Plus size={15} />
               </button>
-            </div>
-            <label className="ai-rail-search">
+            </header>
+            <label className="ai-ws-search">
               <Search size={13} />
               <input
                 value={query}
@@ -384,36 +397,45 @@ export function AiWorkspacePage() {
                 placeholder={tr("Search conversations", "搜索对话")}
                 aria-label={tr("Search conversations", "搜索对话")}
               />
-              {query && <button onClick={() => setQuery("")} aria-label={tr("Clear search", "清除搜索")}><X size={12} /></button>}
+              {query && (
+                <button onClick={() => setQuery("")} aria-label={tr("Clear search", "清除搜索")}>
+                  <X size={12} />
+                </button>
+              )}
             </label>
-            <div className="ai-conversation-list">
+            <div className="ai-ws-list">
               {pinned.length > 0 && (
-                <div className="ai-conversation-group">
-                  <span className="ai-conversation-group-label"><Pin size={10} /> {tr("Pinned", "置顶")}</span>
+                <div className="ai-ws-group">
+                  <span className="ai-ws-group__label"><Pin size={10} /> {tr("Pinned", "置顶")}</span>
                   {pinned.map(renderConversationItem)}
                 </div>
               )}
               {recent.length > 0 && (
-                <div className="ai-conversation-group">
-                  {pinned.length > 0 && <span className="ai-conversation-group-label">{tr("Recent", "最近")}</span>}
+                <div className="ai-ws-group">
+                  {pinned.length > 0 && <span className="ai-ws-group__label">{tr("Recent", "最近")}</span>}
                   {recent.map(renderConversationItem)}
                 </div>
               )}
               {!filteredConversations.length && (
-                <div className="ai-conversation-empty">
-                  <MessageCircle size={22} />
+                <div className="ai-ws-empty">
+                  <span className="ai-ws-empty__icon"><MessageCircle size={19} /></span>
                   <strong>{query ? tr("No conversations match.", "没有匹配的对话。") : tr("No conversations yet.", "还没有历史对话。")}</strong>
                   <p>{tr("Ask the assistant about a song, a mood, or your library.", "问问助手一首歌、一种心情，或你的曲库。")}</p>
-                  <button onClick={newConversation}>{tr("Start one", "开始一段")} <ArrowUpRight size={13} /></button>
+                  <button className="text-button" onClick={newConversation}>
+                    {tr("Start one", "开始一段")} <ArrowUpRight size={12} />
+                  </button>
                 </div>
               )}
             </div>
           </aside>
 
-          <section className="ai-conversation-panel">
-            <header className="ai-conversation-head">
-              <div>
-                <span className="ai-eyebrow">{active?.pinned ? `${tr("PINNED", "置顶")} · ` : ""}{tr("CONVERSATION", "对话")}</span>
+          <section className="ai-ws-card ai-ws-chat">
+            <header className="ai-ws-chat__head">
+              <div className="ai-ws-chat__copy">
+                <span className="ai-ws-eyebrow">
+                  {active?.pinned ? `${tr("PINNED", "置顶")} · ` : ""}
+                  {tr("CONVERSATION", "对话")}
+                </span>
                 <h2>{active?.title ?? tr("A new page, a new thought.", "新对话")}</h2>
                 <p>
                   {assistant.conversationId
@@ -421,60 +443,73 @@ export function AiWorkspacePage() {
                     : tr("Start typing below; the first message becomes this conversation’s title.", "在下方开始输入；第一条消息会成为这段对话的标题。")}
                 </p>
               </div>
-              <div className="ai-conversation-head-actions">
+              <div className="ai-ws-chat__actions">
                 {active && (
                   <>
-                    <button title={tr("Rename", "重命名")} aria-label={tr("Rename conversation", "重命名对话")} onClick={() => renameConversation(active)}>
+                    <button className="ai-ws-icon-button" title={tr("Rename", "重命名")} aria-label={tr("Rename conversation", "重命名对话")} onClick={() => renameConversation(active)}>
                       <Pencil size={14} />
                     </button>
-                    <button title={tr("Delete", "删除")} aria-label={tr("Delete conversation", "删除对话")} onClick={() => deleteConversation(active)}>
+                    <button className="ai-ws-icon-button" title={tr("Delete", "删除")} aria-label={tr("Delete conversation", "删除对话")} onClick={() => deleteConversation(active)}>
                       <Trash2 size={14} />
                     </button>
                   </>
                 )}
-                <button className="ai-conversation-side" onClick={focusWorkspaceComposer}>
-                  <MessageCircle size={14} /> {tr("Continue", "继续对话")}
+                <button className="button button--glass button--small" onClick={focusWorkspaceComposer}>
+                  <MessageCircle size={13} /> {tr("Continue", "继续对话")}
                 </button>
               </div>
             </header>
-            <div className="ai-workspace-transcript" ref={transcript}>
+
+            <div className="ai-ws-transcript" ref={transcript}>
               {assistant.turns.length ? (
                 assistant.turns.map((turn) => <AiTurnView key={turn.id} turn={turn} />)
               ) : (
-                <div className="ai-workspace-welcome">
-                  <p>{tr("Start with a song, an artist, or something you want to hear.", "从歌名、歌手，或一个听歌想法开始。")}</p>
-                  <div className="ai-workspace-starters">
+                <div className="ai-ws-welcome">
+                  <h2>{tr("What are we listening to?", "想听点什么？")}</h2>
+                  <p>
+                    {tr(
+                      "Ask about a song, plan a playlist, or leave a note to remember.",
+                      "问问某首歌、排一份歌单，或让助手记住一件事。",
+                    )}
+                  </p>
+                  <div className="ai-ws-starters">
                     {[
                       tr("What should I listen to tonight?", "今晚适合听什么？"),
                       tr("Tell me the story behind this song.", "这首歌背后有什么故事？"),
                       tr("Remember that I like this album.", "记住我喜欢这张专辑。"),
                     ].map((starter) => (
                       <button key={starter} onClick={() => void assistant.ask(starter)}>
-                        <Sparkles size={13} /> {starter}
+                        <Sparkles size={12} />
+                        <span>{starter}</span>
+                        <ArrowUpRight size={12} />
                       </button>
                     ))}
                   </div>
                   {assistant.conversations.length > 0 && (
-                    <button className="ai-workspace-recent-link" onClick={() => openConversation(assistant.conversations[0])}>
-                      <History size={13} /> {tr("Continue “{title}”", "继续「{title}」", { title: assistant.conversations[0].title })}
-                      <ChevronRight size={13} />
+                    <button className="ai-ws-recent" onClick={() => openConversation(assistant.conversations[0])}>
+                      <History size={12} />
+                      <span>{tr("Continue “{title}”", "继续「{title}」", { title: assistant.conversations[0].title })}</span>
+                      <ChevronRight size={12} />
                     </button>
                   )}
                 </div>
               )}
               {assistant.busy && (
-                <div className="ai-workspace-thinking">
+                <div className="ai-ws-thinking">
                   <span /><span /><span /> {tr("The assistant is listening…", "助手正在听…")}
                 </div>
               )}
             </div>
-            <AiComposer placeholder={tr("Ask, remember, or plan the next listen…", "问点什么，记住点什么，或安排下一次聆听…")} />
+
+            <div className="ai-ws-composer-dock">
+              <AiComposer placeholder={tr("Ask, remember, or plan the next listen…", "问点什么，记住点什么，或安排下一次聆听…")} />
+            </div>
           </section>
         </div>
       ) : (
-        <div className="ai-memory-workspace">
-          <div className="ai-memory-toolbar">
-            <label className="ai-memory-search">
+        <div className="ai-ws-memory">
+          <div className="ai-ws-memory__toolbar">
+            <label className="ai-ws-search ai-ws-search--memory">
               <Search size={14} />
               <input
                 value={memoryQuery}
@@ -482,35 +517,43 @@ export function AiWorkspacePage() {
                 placeholder={tr("Search song memories, artists, facts…", "搜索歌曲记忆、歌手、事实…")}
                 aria-label={tr("Search AI memories", "搜索 AI 记忆")}
               />
-              {memoryQuery && <button onClick={() => setMemoryQuery("")} aria-label={tr("Clear search", "清除搜索")}><X size={12} /></button>}
+              {memoryQuery && (
+                <button onClick={() => setMemoryQuery("")} aria-label={tr("Clear search", "清除搜索")}>
+                  <X size={12} />
+                </button>
+              )}
             </label>
-            <div className="ai-memory-toolbar-actions">
-              <button onClick={() => openSongEditor()}>
+            <div className="ai-ws-memory__actions">
+              <button className="button button--glass button--small" onClick={() => openSongEditor()}>
                 <Plus size={14} /> {tr("Remember a song", "记住一首歌")}
               </button>
-              <button className="ai-primary" onClick={() => openProfileEditor()}>
+              <button className="button button--dark button--small" onClick={() => openProfileEditor()}>
                 <Plus size={14} /> {tr("Add a preference", "记一条偏好")}
               </button>
             </div>
           </div>
 
-          <div className="ai-memory-grid">
-            <section className="ai-memory-profile">
-              <header className="ai-memory-section-head">
+          <div className="ai-ws-memory__grid">
+            <section className="ai-ws-card ai-ws-mem-card ai-ws-mem-card--profile">
+              <header className="ai-ws-mem-head">
                 <div>
-                  <span className="ai-eyebrow">{tr("PROFILE · LONG-TERM INDEX", "画像 · 长期索引")}</span>
+                  <span className="ai-ws-eyebrow">{tr("PROFILE · LONG-TERM INDEX", "画像 · 长期索引")}</span>
                   <h2>{tr("What the assistant knows about you", "助手记住的你")}</h2>
                   <p>{tr("Stable preferences and facts. Every conversation can use this index.", "稳定的偏好与事实，每段对话都会参考这份索引。")}</p>
                 </div>
-                <span className="ai-memory-count">{visibleProfile.length}</span>
+                <span className="ai-ws-count">{visibleProfile.length}</span>
               </header>
-              <div className="ai-profile-list">
+              <div className="ai-ws-mem-list">
                 {visibleProfile.map((item) => (
-                  <article className={`ai-profile-card importance-${item.importance}`} key={item.id}>
-                    <div className="ai-profile-card-top">
-                      <div className="ai-profile-dots" aria-label={tr("Importance {value} of 3", "重要度 {value}/3", { value: item.importance })}>{importanceDots(item.importance)}</div>
-                      <span className={`ai-memory-source is-${item.source}`}>{item.source === "user" ? tr("YOU", "你写下") : "AI"}</span>
-                      <div className="ai-profile-actions">
+                  <article className={clsx("ai-ws-profile", `importance-${item.importance}`)} key={item.id}>
+                    <div className="ai-ws-profile__top">
+                      <div className="ai-ws-dots" aria-label={tr("Importance {value} of 3", "重要度 {value}/3", { value: item.importance })}>
+                        {importanceDots(item.importance)}
+                      </div>
+                      <span className={clsx("ai-ws-source", item.source === "user" ? "is-user" : "is-ai")}>
+                        {item.source === "user" ? tr("YOU", "你写下") : "AI"}
+                      </span>
+                      <div className="ai-ws-row-actions">
                         <button aria-label={tr("Edit memory", "编辑记忆")} title={tr("Edit", "编辑")} onClick={() => openProfileEditor(item)}><Pencil size={12} /></button>
                         <button aria-label={tr("Delete memory", "删除记忆")} title={tr("Delete", "删除")} onClick={() => deleteProfile(item)}><Trash2 size={12} /></button>
                       </div>
@@ -523,75 +566,90 @@ export function AiWorkspacePage() {
                   </article>
                 ))}
                 {!visibleProfile.length && (
-                  <div className="ai-memory-empty">
-                    <BookOpen size={22} />
+                  <div className="ai-ws-empty">
+                    <span className="ai-ws-empty__icon"><BookOpen size={19} /></span>
                     <strong>{memoryQuery ? tr("No preferences match.", "没有匹配的长期记忆。") : tr("No long-term memory yet.", "还没有长期记忆。")}</strong>
                     <p>{tr("Tell the assistant what you like, or add a note yourself.", "告诉助手你的偏好，或自己写一条。")}</p>
-                    <button onClick={() => openProfileEditor()}>{tr("Add one", "写一条")} <Plus size={13} /></button>
+                    <button className="text-button" onClick={() => openProfileEditor()}>
+                      {tr("Add one", "写一条")} <Plus size={12} />
+                    </button>
                   </div>
                 )}
               </div>
             </section>
 
-            <section className="ai-memory-songs">
-              <header className="ai-memory-section-head">
+            <section className="ai-ws-card ai-ws-mem-card ai-ws-mem-card--songs">
+              <header className="ai-ws-mem-head">
                 <div>
-                  <span className="ai-eyebrow">{tr("LIBRARY · SONG MEMORY INDEX", "曲库 · 歌曲记忆索引")}</span>
+                  <span className="ai-ws-eyebrow">{tr("LIBRARY · SONG MEMORY INDEX", "曲库 · 歌曲记忆索引")}</span>
                   <h2>{tr("A brief index for every song", "每首歌的简要记忆索引")}</h2>
                   <p>{tr("One-line summaries the assistant can pull into the right conversation.", "一行摘要，助手会在相关对话中自动取用。")}</p>
                 </div>
-                <span className="ai-memory-count">{visibleSongs.length}</span>
+                <span className="ai-ws-count">{visibleSongs.length}</span>
               </header>
-              <div className="ai-memory-song-table">
-                <div className="ai-memory-song-table-head">
+              <div className="ai-ws-songs">
+                <div className="ai-ws-songs__head">
                   <span>{tr("SONG", "歌曲")}</span>
                   <span>{tr("ONE-LINE MEMORY", "简要记忆")}</span>
                   <span>{tr("FACTS", "事实")}</span>
                   <span>{tr("UPDATED", "更新")}</span>
                   <span />
                 </div>
-                {visibleSongs.map((item) => {
-                  const track = s.tracks.find((candidate) => candidate.id === item.trackId);
-                  return (
-                    <div className="ai-memory-song-row" key={item.trackId} role="button" tabIndex={0} onClick={() => openSongEditor(item.trackId, item)} onKeyDown={(event) => { if (event.target === event.currentTarget && event.key === "Enter") openSongEditor(item.trackId, item); }}>
-                      <div className="ai-memory-song">
-                        <Cover path={track?.coverPath} seed={item.trackId} label={item.title || item.trackId} radius={7} />
-                        <div>
-                          <strong>{item.title || track?.title || item.trackId}</strong>
-                          <small>{item.artist || track?.artist || tr("Unknown artist", "未知歌手")}{item.year > 0 ? ` · ${item.year}` : ""}</small>
+                <div className="ai-ws-songs__list">
+                  {visibleSongs.map((item) => {
+                    const track = s.tracks.find((candidate) => candidate.id === item.trackId);
+                    return (
+                      <div
+                        className="ai-ws-song-row"
+                        key={item.trackId}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openSongEditor(item.trackId, item)}
+                        onKeyDown={(event) => {
+                          if (event.target === event.currentTarget && event.key === "Enter") openSongEditor(item.trackId, item);
+                        }}
+                      >
+                        <div className="ai-ws-song">
+                          <Cover path={track?.coverPath} seed={item.trackId} label={item.title || item.trackId} radius={7} />
+                          <div>
+                            <strong>{item.title || track?.title || item.trackId}</strong>
+                            <small>{item.artist || track?.artist || tr("Unknown artist", "未知歌手")}{item.year > 0 ? ` · ${item.year}` : ""}</small>
+                          </div>
+                        </div>
+                        <p>{item.summary || tr("No summary yet", "还没有摘要")}</p>
+                        <span className="ai-ws-fact-count">{item.factCount}</span>
+                        <span className="ai-ws-updated">{relativeTime(item.updatedAt, tr)}</span>
+                        <div className="ai-ws-row-actions">
+                          <button aria-label={tr("Edit memory", "编辑记忆")} title={tr("Edit", "编辑")} onClick={(event) => { event.stopPropagation(); openSongEditor(item.trackId, item); }}><Pencil size={12} /></button>
+                          <button aria-label={tr("Delete memory", "删除记忆")} title={tr("Delete", "删除")} onClick={(event) => { event.stopPropagation(); deleteSong(item); }}><Trash2 size={12} /></button>
                         </div>
                       </div>
-                      <p>{item.summary || tr("No summary yet", "还没有摘要")}</p>
-                      <span className="ai-memory-fact-count">{item.factCount}</span>
-                      <span className="ai-memory-updated">{relativeTime(item.updatedAt, tr)}</span>
-                      <div className="ai-memory-row-actions">
-                        <button aria-label={tr("Edit memory", "编辑记忆")} title={tr("Edit", "编辑")} onClick={(event) => { event.stopPropagation(); openSongEditor(item.trackId, item); }}><Pencil size={12} /></button>
-                        <button aria-label={tr("Delete memory", "删除记忆")} title={tr("Delete", "删除")} onClick={(event) => { event.stopPropagation(); deleteSong(item); }}><Trash2 size={12} /></button>
-                      </div>
+                    );
+                  })}
+                  {!visibleSongs.length && (
+                    <div className="ai-ws-empty ai-ws-empty--wide">
+                      <span className="ai-ws-empty__icon"><Database size={19} /></span>
+                      <strong>{memoryQuery ? tr("No song memories match.", "没有匹配的歌曲记忆。") : tr("No song memories yet.", "还没有歌曲记忆。")}</strong>
+                      <p>{tr("Ask the assistant to remember a song, or add the first note yourself.", "让助手记住一首歌，或自己写下第一条。")}</p>
+                      <button className="text-button" onClick={() => openSongEditor()}>
+                        {tr("Remember a song", "记住一首歌")} <Plus size={12} />
+                      </button>
                     </div>
-                  );
-                })}
-                {!visibleSongs.length && (
-                  <div className="ai-memory-empty ai-memory-empty--wide">
-                    <Database size={22} />
-                    <strong>{memoryQuery ? tr("No song memories match.", "没有匹配的歌曲记忆。") : tr("No song memories yet.", "还没有歌曲记忆。")}</strong>
-                    <p>{tr("Ask the assistant to remember a song, or add the first note yourself.", "让助手记住一首歌，或自己写下第一条。")}</p>
-                    <button onClick={() => openSongEditor()}>{tr("Remember a song", "记住一首歌")} <Plus size={13} /></button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </section>
           </div>
 
-          <div className="ai-memory-footnote">
-            <Brain size={14} />
+          <p className="ai-ws-footnote">
+            <Brain size={13} />
             <span>
               {tr(
                 "Conversations are saved on this Mac. Song memories only apply to the matching track IDs; deleting a memory never deletes audio or edits metadata.",
                 "对话保存在这台 Mac 上。歌曲记忆只绑定对应的歌曲 ID；删除记忆不会删除音频，也不会修改歌曲资料。",
               )}
             </span>
-          </div>
+          </p>
         </div>
       )}
 
@@ -668,7 +726,6 @@ export function AiWorkspacePage() {
           </div>
         </Modal>
       )}
-      </div>
     </div>
   );
 }
