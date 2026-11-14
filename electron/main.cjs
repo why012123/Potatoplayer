@@ -7,11 +7,13 @@ const { BackendProcess } = require("./backend.cjs");
 const { createAiService } = require("./ai-service.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
-// This edition uses an independent backend and Electron profile.
-process.env.POTATOMUSIC_HOME ||= path.join(app.getPath("home"), ".potatomusic-ai");
-if (process.env.POTATOMUSIC_HOME) {
-  app.setPath("userData", path.join(path.resolve(process.env.POTATOMUSIC_HOME), "electron"));
-}
+// Share the library/data directory with the Super edition so both apps see the
+// same songs, playlists, stats, NetEase bindings and AI history. Each edition
+// keeps its own Electron profile (localStorage, safeStorage); an explicit
+// POTATOMUSIC_HOME (isolated tests) still overrides both.
+const explicitHome = process.env.POTATOMUSIC_HOME ? path.resolve(process.env.POTATOMUSIC_HOME) : "";
+process.env.POTATOMUSIC_HOME = explicitHome || path.join(app.getPath("home"), ".potatoplayer-super");
+app.setPath("userData", path.join(explicitHome || path.join(app.getPath("home"), ".potatomusic-ai"), "electron"));
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const capturePath = process.env.POTATO_CAPTURE_PATH || null;
 const captureView = process.env.POTATO_CAPTURE_VIEW || process.env.POTATO_START_VIEW || null;
@@ -50,7 +52,7 @@ protocol.registerSchemesAsPrivileged([
 
 function dataDir() {
   if (process.env.POTATOMUSIC_HOME) return path.resolve(process.env.POTATOMUSIC_HOME);
-  return path.join(app.getPath("home"), ".potatomusic-ai");
+  return path.join(app.getPath("home"), ".potatoplayer-super");
 }
 
 function sanitizeCoverPath(encoded) {
