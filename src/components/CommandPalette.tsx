@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BarChart3,
   Box,
+  BrainCircuit,
   Cloud,
   Command,
   Gamepad2,
@@ -73,6 +74,7 @@ export function CommandPalette() {
       { id: "comments", label: tr("Comments", "评论"), hint: tr("Now playing", "正在播放"), view: { kind: "comments" }, icon: <MessageCircle size={16} /> },
       { id: "stats", label: tr("Listening stats", "聆听统计"), hint: tr("Your listening life", "你的聆听生活"), view: { kind: "stats" }, icon: <BarChart3 size={16} /> },
       { id: "discover", label: tr("Discover", "发现"), hint: "NetEase", view: { kind: "discover" }, icon: <Cloud size={16} /> },
+      { id: "ai", label: tr("AI workspace", "AI 工作台"), hint: tr("Assistant & memory", "助手与记忆"), view: { kind: "ai" }, icon: <BrainCircuit size={16} /> },
       {
         id: "ultra",
         label: "Potatoplayer Ultra",

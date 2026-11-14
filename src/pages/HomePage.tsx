@@ -26,6 +26,7 @@ import { formatLongDuration, greeting, todayLine } from "@/lib/format";
 import { coverUrl } from "@/lib/covers";
 import { useTr } from "@/lib/i18n";
 import { HomeCustomizer } from "@/components/HomeCustomizer";
+import { AiHomeSection } from "@/ai/AiHomeSection";
 import {
   DEFAULT_HOME,
   loadHomePreferences,
@@ -377,6 +378,24 @@ export function HomePage() {
             {featured.rating > 0 && <span className="hero__rating">★ {featured.rating.toFixed(1)}</span>}
           </div>
         </motion.section>
+      )}
+
+      {showModule("ai") && (
+        <section className="ai-home-module" style={{ order: moduleOrder("ai") }}>
+          <SectionHeader
+            title={tr("AI workspace", "AI 工作台")}
+            meta={tr(
+              "Ask about a song, a mood or your library — the answer continues in the workspace.",
+              "问问歌曲、心情或曲库，答案会留在 AI 工作台里。",
+            )}
+            action={
+              <button type="button" className="text-button" onClick={() => navigate({ kind: "ai" })}>
+                {tr("Open AI workspace", "打开 AI 工作台")} <ArrowUpRight size={13} />
+              </button>
+            }
+          />
+          <AiHomeSection />
+        </section>
       )}
 
       {showModule("overview") && (

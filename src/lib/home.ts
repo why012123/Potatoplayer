@@ -1,4 +1,4 @@
-export type HomeSectionId = "hero" | "overview" | "taxonomy" | "recent" | "onRepeat" | "artists";
+export type HomeSectionId = "hero" | "ai" | "overview" | "taxonomy" | "recent" | "onRepeat" | "artists";
 export type HomeDensity = "comfortable" | "compact";
 
 export interface HomePreferences {
@@ -9,6 +9,7 @@ export interface HomePreferences {
 
 export const HOME_SECTION_LABELS: Record<HomeSectionId, { en: string; zh: string }> = {
   hero: { en: "Featured record", zh: "精选唱片" },
+  ai: { en: "AI workspace", zh: "AI 工作台" },
   overview: { en: "Library overview", zh: "资料库概览" },
   taxonomy: { en: "Blocks & genres", zh: "区块与流派" },
   recent: { en: "Recently added", zh: "最近添加" },
@@ -18,6 +19,7 @@ export const HOME_SECTION_LABELS: Record<HomeSectionId, { en: string; zh: string
 
 export const DEFAULT_HOME_ORDER: HomeSectionId[] = [
   "hero",
+  "ai",
   "overview",
   "taxonomy",
   "recent",
@@ -64,7 +66,16 @@ export function normalizeHomePreferences(input?: Partial<HomePreferences> | null
     }
   }
   for (const item of DEFAULT_HOME_ORDER) {
-    if (!seen.has(item)) order.push(item);
+    if (seen.has(item)) continue;
+    // Insert new sections where the canonical order expects them so existing
+    // listeners do not have to reorder their home page by hand.
+    const target = DEFAULT_HOME_ORDER.indexOf(item);
+    let at = 0;
+    order.forEach((existing, index) => {
+      if (DEFAULT_HOME_ORDER.indexOf(existing) < target) at = index + 1;
+    });
+    order.splice(at, 0, item);
+    seen.add(item);
   }
   const hidden = Array.isArray(value.hidden)
     ? [...new Set(value.hidden.filter((item): item is HomeSectionId => ids.has(item)))]

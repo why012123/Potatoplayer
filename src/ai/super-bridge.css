@@ -1,0 +1,57 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   AI ↔ Super token bridge
+   The ported AI chat components were authored for the AI edition, where colour,
+   radius and display type came from a private --ai-* token set. Potatoplayer
+   Super keeps its own canonical tokens (--text, --muted, --glass, --accent,
+   --radius, --font, dark theme), so instead of shipping the AI edition's
+   appearance defaults we alias the handful of AI tokens the components need
+   onto Super's existing values. Everything is scoped under `.ai-scope`, which
+   is only placed on the AI page, the home AI module and the AI connection
+   dialog, so Super's global tokens, defaults and presets stay untouched.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ai-scope {
+  /* Surfaces */
+  --ai-bg: transparent;
+  --ai-surface: rgba(255, 255, 255, 0.56);
+  --ai-surface-strong: rgba(255, 255, 255, 0.8);
+  --ai-panel: rgba(255, 255, 255, 0.34);
+  --ai-panel-solid: var(--paper);
+  --ai-dialog: var(--glass-strong);
+
+  /* Ink */
+  --ai-ink: var(--text);
+  --ai-ink-soft: color-mix(in srgb, var(--text) 76%, transparent);
+  --ai-muted: var(--muted);
+  --ai-faint: var(--faint);
+
+  /* Lines & accent: Super's accent (which follows the playing cover) replaces
+     the AI edition's sage green. */
+  --ai-border: var(--line-dark);
+  --ai-line: var(--line);
+  --ai-green: var(--accent);
+  --ai-strong: var(--control-dark);
+  --ai-strong-hover: var(--control-darker);
+  --ai-soft: color-mix(in srgb, var(--accent) 11%, transparent);
+  --ai-accent-soft: color-mix(in srgb, var(--accent) 17%, transparent);
+
+  /* Shape, type and depth inherit Super's appearance system. */
+  --ai-radius: 16px;
+  --ai-radius-card: 18px;
+  --ai-radius-control: 10px;
+  --ai-shadow: var(--shadow-soft);
+  --ai-font-display: var(--font-display, var(--font));
+  --ai-mono: var(--mono);
+
+  color: var(--ai-ink);
+  font-family: var(--font);
+}
+
+.theme-dark .ai-scope,
+:root[data-theme="dark"] .ai-scope {
+  --ai-surface: rgba(61, 54, 57, 0.58);
+  --ai-surface-strong: rgba(70, 62, 65, 0.84);
+  --ai-panel: rgba(48, 43, 45, 0.44);
+  --ai-panel-solid: #221e20;
+  --ai-dialog: var(--glass-strong);
+}

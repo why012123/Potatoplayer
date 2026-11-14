@@ -85,6 +85,8 @@ export function TopBar() {
         return tr("Sync", "同步");
       case "discover":
         return tr("Discover", "发现");
+      case "ai":
+        return tr("AI workspace", "AI 工作台");
       case "playlist":
         return tr("Playlist", "歌单");
       default:

@@ -17,6 +17,8 @@ import "./graphics.css";
 import "./now-playing.css";
 import "./sync.css";
 import "./together.css";
+import "./ai/super-bridge.css";
+import "./ai/ai-workspace.css";
 
 // Apply the persisted theme before the first React paint.
 applyTheme(readTheme());
