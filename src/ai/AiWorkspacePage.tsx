@@ -509,10 +509,10 @@ export function AiWorkspacePage() {
 
               <div className="ai-ws-mem-actions">
                 <button type="button" className="button button--glass button--small" onClick={() => openSongEditor()}>
-                  <Plus size={13} /> {tr("Remember a song", "记住一首歌")}
+                  <Plus size={13} /> <span>{tr("Remember a song", "记住一首歌")}</span>
                 </button>
                 <button type="button" className="button button--dark button--small" onClick={() => openProfileEditor()}>
-                  <Plus size={13} /> {tr("Add a preference", "记一条偏好")}
+                  <Plus size={13} /> <span>{tr("Add a preference", "记一条偏好")}</span>
                 </button>
               </div>
 

@@ -1121,7 +1121,7 @@
 
 .ai-ws-mem-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   flex: none;
   padding: 0 10px 8px;
@@ -1129,7 +1129,15 @@
 
 .ai-ws-mem-actions .button {
   width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
   justify-content: center;
+}
+
+.ai-ws-mem-actions .button span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .ai-ws-mem-item {
@@ -1147,8 +1155,15 @@
   display: block;
   width: 100%;
   padding: 9px 10px;
+  border: 0;
   border-radius: 12px;
+  font: inherit;
+  color: inherit;
   text-align: left;
+  /* Reset the UA button fill: without this the rows render as opaque light
+     grey boxes and the glass rail behind them looks washed out. */
+  background: transparent;
+  transition: background 0.14s ease;
 }
 
 .ai-ws-mem-item__open:hover {
