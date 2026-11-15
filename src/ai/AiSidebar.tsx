@@ -113,7 +113,7 @@ export function AiSidebar() {
     {composer}
   </div>;
 
-  return <aside className="now-playing glass ai-chat-sidebar ai-scope ai-side-material" aria-label={tr("AI chat sidebar", "AI 聊天侧栏")}>
+  return <div className="right-panel-view ai-chat-sidebar ai-scope ai-side-material" aria-label={tr("AI chat sidebar", "AI 聊天侧栏")}>
     <div className="now-playing__head">
       <span className="eyebrow"><MessageCircle size={14} />{tr("AI chat", "AI 聊天")}</span>
       <div className="now-playing__head-actions">
@@ -134,5 +134,5 @@ export function AiSidebar() {
       {busy && <p className="ai-side-thinking" role="status">{tr("Thinking…", "正在思考…")}</p>}
     </div>
     <div className="ai-side-input">{composer}<small>{tr("Enter to send · Shift + Enter for a new line", "Enter 发送 · Shift + Enter 换行")}</small></div>
-  </aside>;
+  </div>;
 }

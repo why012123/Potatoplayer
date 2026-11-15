@@ -291,7 +291,7 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
      * log grid. Used to pull the preamp down so a "+20 dB" band cannot clip or
      * blast the listener.
      */
-    private static double peakGainDb(EqPreset preset) {
+    private static double peakGainDb(float[] gains) {
         final double fs = 44100.0;
         double peak = 0.0;
         final double top = 20000.0;
@@ -300,8 +300,8 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
             final double w = 2.0 * Math.PI * f / fs;
             double hRe = 1.0;
             double hIm = 0.0;
-            for (int b = 0; b < EqPreset.BANDS; b++) {
-                double gain = EqPreset.clamp(preset.bands[b]);
+            for (int b = 0; b < gains.length; b++) {
+                double gain = EqPreset.clamp(gains[b]);
                 if (Math.abs(gain) < 0.01) continue;
                 double freq = FREQUENCIES.get(Math.min(b, FREQUENCIES.size() - 1));
                 double A = Math.pow(10.0, gain / 40.0);
@@ -345,8 +345,10 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
         }
         StringBuilder spec = new StringBuilder("lavfi=[");
         boolean first = true;
-        for (int i = 0; i < EqPreset.BANDS; i++) {
-            double gain = EqPreset.clamp(preset.bands[i]);
+        // mpv keeps its ten cascade slots; the drawn curve is resampled onto them.
+        float[] gains = preset.curve().sample(FREQUENCIES);
+        for (int i = 0; i < gains.length; i++) {
+            double gain = EqPreset.clamp(gains[i]);
             if (Math.abs(gain) < 0.01) continue;
             if (!first) spec.append(',');
             first = false;
@@ -356,7 +358,7 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
         }
         // Auto headroom: peak of the cascade must stay <= 0 dBFS, so the preamp
         // can only attenuate. This is what prevents the "sudden blast".
-        double peakDb = first ? 0.0 : peakGainDb(preset);
+        double peakDb = first ? 0.0 : peakGainDb(gains);
         double requested = EqPreset.clamp(preset.preamp) - VLC_UNITY_DB;
         double effective = Math.min(0.0, Math.min(requested, -peakDb));
         preampGain = Math.pow(10.0, effective / 20.0);
@@ -380,7 +382,7 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
     }
 
     @Override
-    public EqCurve eqFactoryPreset(String name) {
+    public FactoryEq eqFactoryPreset(String name) {
         return null;
     }
 

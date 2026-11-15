@@ -7,6 +7,7 @@ import { Cover } from "@/components/Cover";
 export function MiniPlayer() {
   const tr = useTr();
   const open = useAppStore((state) => state.rightPanelOpen);
+  const queueMode = useAppStore((state) => state.rightPanelMode === "queue");
   const playback = useAppStore((state) => state.playback);
   const previewTrackId = useAppStore((state) => state.previewTrackId);
   const tracks = useAppStore((state) => state.tracks);
@@ -35,7 +36,7 @@ export function MiniPlayer() {
         type="button"
         className="mini-player__open"
         onClick={() => setOpen(true)}
-        aria-label={tr("Open now playing", "打开正在播放")}
+        aria-label={queueMode ? tr("Open play queue", "打开播放列表") : tr("Open now playing", "打开正在播放")}
       />
       <Cover path={track.coverPath} seed={track.id} label={track.title} radius={11} className="mini-player__cover" />
       <div className="mini-player__copy">
@@ -61,7 +62,7 @@ export function MiniPlayer() {
       <button
         type="button"
         className="mini-player__expand"
-        aria-label={tr("Expand now playing", "展开正在播放")}
+        aria-label={queueMode ? tr("Expand play queue", "展开播放列表") : tr("Expand now playing", "展开正在播放")}
         onClick={() => setOpen(true)}
       >
         <Maximize2 size={15} />

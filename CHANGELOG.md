@@ -4,17 +4,46 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s2.0.2`. The line started at `s1.0.0`. `s2.0.0` merged
+- **Current release:** `s2.1.0`. The line started at `s1.0.0`. `s2.0.0` merged
   the **一起听 / Together** online rooms and the **AI 助手 / AI 工作台** edition
   into Super; since then `s2.0.x` patch releases keep the same visual system and
   refine the AI surfaces.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`2.0.2`).
+  the equivalent plain semver (`2.1.0`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s2.1.0 — 2026-11-15
+
+### Added
+
+- **自由曲线均衡器**：均衡器改成可拖拽的画曲线界面 —— 拖动控制点任意塑形，双击空白处加点、双击控制点删点，最多 32 个控制点，20 Hz–20 kHz 对数轴、±20 dB 范围，曲线用单调三次插值保证不会过冲。
+- **potatoHQ 以 31 段还原曲线**：曲线按 1/3 倍频程采样成 31 段 peaking 参数下发给 potatoHQ（Q=4.3），这是本次把「曲线」当唯一真相的核心：引擎能力终于用上了。
+- **VLC / mpv 自动重采样**：libVLC 只暴露固定十段，mpv 沿用原十段级联；两者现在都从同一条曲线采样，切换引擎时曲线语义一致。
+- **曲线 / 滑块双模式**：保留原来的十段滑块视图，滑块数值由曲线实时采样得到；拖动滑块同样会改写曲线，两种模式共用同一份数据。
+- **右侧栏三视图**：原图标按钮现在按「播放 → AI 聊天 → 播放列表」循环切换。播放列表独立占用侧栏，支持点击播放、移出非当前曲目、随机播放和定位当前歌曲；播放视图移除原来的列表标签，仅保留歌词。
+
+### Changed
+
+- 均衡器对话框文案与布局更新：标题说明「拖动控制点随意画曲线，potatoHQ 以 31 段还原」，底部显示当前引擎、采样段数、控制点上限与歌曲预设数。
+- 均衡器深色主题补齐曲线编辑器样式（网格、曲线、控制点、双模式切换按钮）。
+- 切换动画：三个侧栏视图共用同一玻璃外框，切换只对内容做轻微淡入，去掉重新挂载时叠加的侧栏横移、歌曲区位移和封面缩放，兼容全局关闭／减少动画。
+- 播放列表模式可记忆，收起后沿用迷你播放器，展开回到播放列表；AI 草稿、迷你回复及播放连续性保持不变。
+- 首页「歌词」入口会展开并切回播放视图，不再受上次侧栏模式影响。
+
+### Fixed
+
+- **VLC 引擎频点错位**：UI 标注为 31.25 Hz 的格子在 VLC 上实际作用于 60 Hz。现在曲线按引擎真实频点采样，同一曲线在 VLC 与 potatoHQ 上含义一致（VLC 下旧预设的听感会有轻微变化，这是修正而非退化）。
+- **mpv 自动防削波**改为按曲线采样计算峰值，自由拉高增益不再爆音。
+- 均衡器预设与逐曲预设跨引擎语义统一：数据以曲线为真相，十段数组降级为兼容视图。
+
+### Compatibility
+
+- `eq.json` 升到 **v3**：同时写入 `points`（曲线控制点）与 `bands`（十段兼容视图）。旧版本仍可读取；旧文件（含十段命名预设与逐曲预设）首次加载时自动迁移为曲线，实测 2 个命名预设 + 17 首歌曲预设无损迁移。
+- 安装包与数据目录向前兼容；升级安装即可，无需手动改配置。
 
 ## s2.0.2 — 2026-11-14
 

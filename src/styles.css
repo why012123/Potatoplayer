@@ -7721,6 +7721,134 @@ img {
   color: var(--faint);
 }
 
+/* ── Draggable EQ curve ─────────────────────────────────────────────────── */
+
+.eq-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(30, 30, 36, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.eq-mode button {
+  height: 25px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 620;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.eq-mode button.is-active {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(37, 33, 31, 0.14);
+}
+
+.eq-curve {
+  margin-top: 13px;
+  padding: 10px 12px 5px;
+  border-radius: 17px;
+  background:
+    radial-gradient(70% 110% at 50% 0%, rgba(255, 255, 255, 0.46), transparent 75%),
+    rgba(30, 30, 36, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: opacity 0.25s ease;
+}
+
+.eq-curve.is-bypassed {
+  opacity: 0.58;
+}
+
+.eq-curve__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.eq-curve__plot {
+  fill: rgba(255, 255, 255, 0.34);
+}
+
+.eq-curve__grid line {
+  stroke: rgba(31, 31, 37, 0.07);
+  stroke-width: 1;
+}
+
+.eq-curve__grid.is-zero line {
+  stroke: rgba(31, 31, 37, 0.14);
+}
+
+.eq-curve__axis-label {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--faint);
+}
+
+.eq-curve__area {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.eq-curve__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.eq-curve__zero {
+  stroke: rgba(31, 31, 37, 0.24);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.eq-curve__band-dot {
+  fill: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.eq-curve__hit {
+  fill: transparent;
+  cursor: grab;
+}
+
+.eq-curve__hit:active {
+  cursor: grabbing;
+}
+
+.eq-curve__point {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  filter: drop-shadow(0 2px 4px rgba(37, 33, 31, 0.22));
+  transition: r 0.12s ease;
+}
+
+.eq-curve__point.is-dragging {
+  fill: var(--accent);
+  stroke: #fff;
+}
+
+.eq-curve__hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1px 5px 4px;
+  font-size: 8px;
+  color: var(--faint);
+}
+
 @media (max-width: 760px) {
   .eq-dialog {
     padding: 20px 16px 15px;

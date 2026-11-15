@@ -58,7 +58,7 @@ export function HomePage() {
   const blocks = useAppStore((state) => state.blocks);
   const genres = useAppStore((state) => state.genres);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
-  const setRightTab = useAppStore((state) => state.setRightTab);
+  const setRightPanelMode = useAppStore((state) => state.setRightPanelMode);
   const rescan = useAppStore((state) => state.rescan);
   const chooseLibrary = useAppStore((state) => state.chooseLibrary);
   const [homePreferences, setHomePreferences] = useState<HomePreferences>(loadHomePreferences);
@@ -346,7 +346,7 @@ export function HomePage() {
                 className="button button--glass"
                 onClick={() => {
                   setRightPanelOpen(true);
-                  setRightTab("lyrics");
+                  setRightPanelMode("player");
                 }}
               >
                 <Mic2 size={15} />

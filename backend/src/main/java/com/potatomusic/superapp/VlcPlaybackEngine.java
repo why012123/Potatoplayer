@@ -156,9 +156,12 @@ public final class VlcPlaybackEngine implements PlaybackEngine {
         if (player == null || equalizer == null) return;
         try {
             if (preset != null) {
-                int count = Math.min(EqPreset.BANDS, equalizer.bandCount());
+                // libVLC only exposes its fixed ten bands: resample the drawn curve
+                // onto them so a curve still means the same frequencies here.
+                float[] gains = preset.curve().sample(eqFrequencies());
+                int count = Math.min(gains.length, equalizer.bandCount());
                 for (int i = 0; i < count; i++) {
-                    equalizer.setAmp(i, EqPreset.clamp(preset.bands[i]));
+                    equalizer.setAmp(i, EqPreset.clamp(gains[i]));
                 }
                 equalizer.setPreamp(EqPreset.clamp(preset.preamp));
             }
@@ -184,7 +187,7 @@ public final class VlcPlaybackEngine implements PlaybackEngine {
         return List.of();
     }
 
-    public PlaybackEngine.EqCurve eqFactoryPreset(String name) {
+    public PlaybackEngine.FactoryEq eqFactoryPreset(String name) {
         if (factory == null || name == null || name.isBlank()) return null;
         try {
             Equalizer preset = factory.equalizer().newEqualizer(name);
@@ -192,7 +195,7 @@ public final class VlcPlaybackEngine implements PlaybackEngine {
             float[] bands = new float[EqPreset.BANDS];
             int count = Math.min(EqPreset.BANDS, preset.bandCount());
             for (int i = 0; i < count; i++) bands[i] = preset.amp(i);
-            return new PlaybackEngine.EqCurve(preset.preamp(), bands);
+            return new PlaybackEngine.FactoryEq(preset.preamp(), bands);
         } catch (Throwable e) {
             return null;
         }

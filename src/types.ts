@@ -301,10 +301,18 @@ export interface BilibiliSearchResult {
   searchUrl: string;
 }
 
+export interface EqPoint {
+  freq: number;
+  gain: number;
+}
+
 export interface EqPresetData {
   name: string;
   preamp: number;
+  /** Legacy ten-slot view; kept for older callers and the slider mode. */
   bands: number[];
+  /** Drawn curve control points — the source of truth when present. */
+  points?: EqPoint[];
 }
 
 export interface EqCurrentTrack {
@@ -324,9 +332,15 @@ export interface EqState {
   preamp: number;
   neutralPreamp: number;
   bands: number[];
+  points?: EqPoint[];
   global?: EqPresetData;
   frequencies: number[];
   labels: string[];
+  /** Engine that will render the curve ({@code potatohq}, {@code vlc}, {@code mpv}). */
+  engine?: string;
+  /** How many bands the active engine samples the curve with. */
+  curveBands?: number;
+  maxPoints?: number;
   presets: EqPresetData[];
   factoryPresets: EqPresetData[];
   currentTrack?: EqCurrentTrack | null;

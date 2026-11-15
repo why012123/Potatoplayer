@@ -21,6 +21,7 @@ public final class BackendSelfTest {
         testNeteaseBindingMigration();
         testTaxonomyMerge();
         testEqMergeAndPreamp();
+        testEqCurve();
         testListeningStats();
         testBilibiliParsing();
         testPlaybackRepeat();
@@ -369,6 +370,52 @@ public final class BackendSelfTest {
         check(!afterDelete.presets.containsKey("Dance改"), "deleting an imported preset is not undone by the legacy merge");
     }
 
+    private static void testEqCurve() throws Exception {
+        EqCurve curve = EqCurve.of(List.of(
+                new EqCurve.Point(60f, 6f),
+                new EqCurve.Point(300f, -8f),
+                new EqCurve.Point(6000f, 4f)));
+        check(Math.abs(curve.gainAt(60f) - 6f) < 0.01f, "curve passes through its control points");
+        check(Math.abs(curve.gainAt(300f) + 8f) < 0.01f, "curve honours negative points");
+
+        boolean inRange = true;
+        for (int i = 0; i <= 400; i++) {
+            float freq = (float) (20 * Math.pow(1000, i / 400.0));
+            float gain = curve.gainAt(freq);
+            if (gain > 6.2f || gain < -8.2f) inRange = false;
+        }
+        check(inRange, "monotone interpolation never overshoots the drawn curve");
+
+        float[] legacy = {-15f, 4f, 4f, 4.5f, 5f, 4f, 4.5f, -4.5f, -2.5f, 0f};
+        EqPreset preset = new EqPreset(12f, legacy);
+        float[] round = preset.curve().sample(EqPreset.DEFAULT_FREQS);
+        boolean identical = true;
+        for (int i = 0; i < legacy.length; i++) {
+            if (Math.abs(round[i] - legacy[i]) > 0.01f) identical = false;
+        }
+        check(identical, "legacy ten bands round-trip through the curve");
+        check(Math.abs(preset.bands[0] + 15f) < 0.01f, "legacy band view follows the curve");
+
+        check(EqCurve.HQ_FREQS.length == 31, "potatoHQ renders the curve with 31 bands");
+        float[] hq = preset.curve().sample(EqCurve.HQ_FREQS);
+        check(Math.abs(hq[0] + 15f) < 0.6f, "HQ bands follow the drawn curve at the low end");
+        check(Math.abs(hq[hq.length - 1]) < 0.01f, "HQ bands follow the drawn curve at the top end");
+
+        float[] vlc = curve.sample(List.of(60f, 170f, 310f, 600f, 1000f, 3000f, 6000f, 12000f, 14000f, 16000f));
+        check(Math.abs(vlc[0] - 6f) < 1.5f, "VLC ten-slot resample follows the curve at 60 Hz");
+
+        Path base = Files.createTempDirectory("potato-eq-curve");
+        Path music = Files.createDirectories(base.resolve("source").resolve("music"));
+        Path file = base.resolve("eq.json");
+        EqStore store = new EqStore();
+        store.global = new EqPreset(10f, curve);
+        store.save(file);
+        EqStore reloaded = EqStore.load(file, null, music);
+        check(reloaded.global.curve().points().size() == 3, "curve points survive save and reload");
+        check(Math.abs(reloaded.global.curve().gainAt(300f) + 8f) < 0.01f, "reloaded curve keeps its shape");
+        check(Math.abs(reloaded.global.preamp - 10f) < 0.01f, "curve preamp survives save and reload");
+    }
+
     private static void testListeningStats() throws Exception {
         Path file = Files.createTempDirectory("potato-stats-test").resolve("stats.json");
         Track track = new Track();
@@ -543,7 +590,7 @@ public final class BackendSelfTest {
         public void applyEq(EqPreset preset, boolean on) { }
         public List<Float> eqFrequencies() { return List.of(); }
         public List<String> eqFactoryPresetNames() { return List.of(); }
-        public EqCurve eqFactoryPreset(String name) { return null; }
+        public FactoryEq eqFactoryPreset(String name) { return null; }
         public void release() { open = false; }
         public boolean supportsGapless() { return gapless; }
         public void setNext(String path) { next = path; }

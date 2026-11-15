@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s2.0.2";
+    public static final String VERSION = "s2.1.0";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -1267,6 +1267,7 @@ public final class Backend implements PlaybackController.Host {
         // Flat compatibility fields used by older callers.
         out.put("preamp", eqStore.global.preamp);
         out.put("bands", eqStore.global.bands);
+        out.put("points", eqStore.global.curve().toPointList());
         out.put("presets", eqStore.presets.entrySet().stream()
                 .map(entry -> presetMap(entry.getValue(), entry.getKey())).toList());
         out.put("songCount", eqStore.songCount());
@@ -1291,6 +1292,9 @@ public final class Backend implements PlaybackController.Host {
         boolean available = engine != null && engine.available() && engine.eqAvailable();
         out.put("available", available);
         out.put("error", engine == null ? null : engine.error());
+        out.put("engine", engine == null ? "" : engine.id());
+        out.put("curveBands", EqCurve.HQ_FREQS.length);
+        out.put("maxPoints", EqCurve.MAX_POINTS);
         out.put("neutralPreamp", EqPreset.NEUTRAL_PREAMP);
         List<Float> frequencies = engine == null ? List.of() : engine.eqFrequencies();
         if (frequencies.size() < EqPreset.BANDS) {
@@ -1300,13 +1304,15 @@ public final class Backend implements PlaybackController.Host {
         out.put("labels", frequencies.stream().map(EqPreset::frequencyLabel).toList());
         List<Map<String, Object>> factory = new ArrayList<>();
         if (engine != null && available) {
+            List<Float> engineFreqs = engine.eqFrequencies();
             for (String name : engine.eqFactoryPresetNames()) {
-                PlaybackEngine.EqCurve curve = engine.eqFactoryPreset(name);
-                if (curve == null) continue;
+                PlaybackEngine.FactoryEq preset = engine.eqFactoryPreset(name);
+                if (preset == null) continue;
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("name", name);
-                item.put("preamp", curve.preamp());
-                item.put("bands", curve.bands());
+                item.put("preamp", preset.preamp());
+                item.put("bands", preset.bands());
+                item.put("points", EqCurve.fromBands(preset.bands(), engineFreqs).toPointList());
                 factory.add(item);
             }
         }
@@ -1322,16 +1328,20 @@ public final class Backend implements PlaybackController.Host {
     }
 
     /** Live draft preview; never persists. */
-    public Map<String, Object> eqPreview(List<Float> bands, float preamp) {
-        EqPreset draft = presetFrom(bands, preamp);
+    public Map<String, Object> eqPreview(EqPreset draft) {
         playback.applyEqPreview(draft, eqStore.on);
-        return Map.of("ok", true, "preamp", draft.preamp, "bands", draft.bands);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("preamp", draft.preamp);
+        out.put("bands", draft.bands);
+        out.put("points", draft.curve().toPointList());
+        return out;
     }
 
     /** Compatibility setter; edits and persists the global preset. */
     public Map<String, Object> eqSetBand(int index, float value) {
         if (index < 0 || index >= EqPreset.BANDS) throw new IllegalArgumentException("Invalid EQ band.");
-        eqStore.global.bands[index] = EqPreset.clamp(value);
+        eqStore.global.setBand(index, value);
         saveEq();
         playback.applyEq();
         return Map.of("ok", true);
@@ -1344,25 +1354,25 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("ok", true);
     }
 
-    public Map<String, Object> eqSaveGlobal(List<Float> bands, float preamp) {
-        eqStore.global = presetFrom(bands, preamp);
+    public Map<String, Object> eqSaveGlobal(EqPreset preset) {
+        eqStore.global = preset;
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
-    public Map<String, Object> eqSaveSong(List<Float> bands, float preamp) {
+    public Map<String, Object> eqSaveSong(EqPreset preset) {
         String currentId = String.valueOf(playback.state().get("trackId"));
         Track current = currentId == null || "null".equals(currentId) ? null : findTrack(currentId);
         if (current == null) throw new IllegalStateException("Play a song before saving a per-song preset.");
-        eqStore.saveSong(current.path, neteaseIdFor(current.path), presetFrom(bands, preamp));
+        eqStore.saveSong(current.path, neteaseIdFor(current.path), preset);
         saveEq();
         playback.applyEq();
         return eqState();
     }
 
-    public Map<String, Object> eqSaveNamed(String name, List<Float> bands, float preamp) {
-        eqStore.putPreset(name, presetFrom(bands, preamp));
+    public Map<String, Object> eqSaveNamed(String name, EqPreset preset) {
+        eqStore.putPreset(name, preset);
         saveEq();
         return eqState();
     }
@@ -1375,9 +1385,9 @@ public final class Backend implements PlaybackController.Host {
 
     public Map<String, Object> eqApplyFactoryPreset(String name) {
         PlaybackEngine engine = playback.engine();
-        PlaybackEngine.EqCurve curve = engine == null ? null : engine.eqFactoryPreset(name);
+        PlaybackEngine.FactoryEq curve = engine == null ? null : engine.eqFactoryPreset(name);
         if (curve == null) throw new IllegalArgumentException("Unknown factory preset.");
-        eqStore.global = presetFrom(toList(curve.bands()), curve.preamp());
+        eqStore.global = new EqPreset(curve.preamp(), EqCurve.fromBands(curve.bands(), engine.eqFrequencies()));
         eqStore.on = true;
         saveEq();
         playback.applyEq();
@@ -1419,7 +1429,18 @@ public final class Backend implements PlaybackController.Host {
         map.put("name", name);
         map.put("preamp", preset.preamp);
         map.put("bands", preset.bands.clone());
+        map.put("points", preset.curve().toPointList());
         return map;
+    }
+
+    /** Builds a preset from RPC params: a drawn curve when present, else legacy bands. */
+    private static EqPreset presetFromParams(JsonNode p) {
+        float preamp = (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP);
+        JsonNode points = p.path("points");
+        if (points.isArray() && points.size() >= EqCurve.MIN_POINTS) {
+            return new EqPreset(preamp, EqCurve.parse(points));
+        }
+        return presetFrom(floatList(p.path("bands")), preamp);
     }
 
     private static EqPreset presetFrom(List<Float> bands, float preamp) {
@@ -1829,10 +1850,10 @@ public final class Backend implements PlaybackController.Host {
             case "eq.factoryPreset" -> eqApplyFactoryPreset(text(p, "name", ""));
             case "eq.applyPreset" -> eqApplyPreset(text(p, "name", ""));
             case "eq.reset" -> eqReset();
-            case "eq.preview" -> eqPreview(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
-            case "eq.saveGlobal" -> eqSaveGlobal(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
-            case "eq.saveSong" -> eqSaveSong(floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
-            case "eq.saveNamed" -> eqSaveNamed(text(p, "name", ""), floatList(p.path("bands")), (float) number(p, "preamp", EqPreset.NEUTRAL_PREAMP));
+            case "eq.preview" -> eqPreview(presetFromParams(p));
+            case "eq.saveGlobal" -> eqSaveGlobal(presetFromParams(p));
+            case "eq.saveSong" -> eqSaveSong(presetFromParams(p));
+            case "eq.saveNamed" -> eqSaveNamed(text(p, "name", ""), presetFromParams(p));
             case "eq.restore" -> eqRestore();
             case "eq.deletePreset" -> eqDeletePreset(text(p, "name", ""));
             case "lyrics.get" -> lyrics(text(p, "trackId", ""));

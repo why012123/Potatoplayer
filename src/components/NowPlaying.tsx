@@ -19,9 +19,7 @@ import {
   Volume1,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
-import type { Track } from "@/types";
 import { Cover } from "@/components/Cover";
 import { EqualizerBars } from "@/components/EqualizerBars";
 import { SpectrumBars } from "@/components/SpectrumBars";
@@ -57,13 +55,10 @@ export function NowPlaying() {
   const favorites = useAppStore((state) => state.favorites);
   const lyrics = useAppStore((state) => state.lyrics);
   const lyricsLoading = useAppStore((state) => state.lyricsLoading);
-  const rightTab = useAppStore((state) => state.rightTab);
-  const setRightTab = useAppStore((state) => state.setRightTab);
   const setRightPanelOpen = useAppStore((state) => state.setRightPanelOpen);
   const setImmersive = useAppStore((state) => state.setImmersive);
   const setEqOpen = useAppStore((state) => state.setEqOpen);
   const playTrack = useAppStore((state) => state.playTrack);
-  const removeFromQueue = useAppStore((state) => state.removeFromQueue);
   const togglePlay = useAppStore((state) => state.togglePlay);
   const next = useAppStore((state) => state.next);
   const previous = useAppStore((state) => state.previous);
@@ -92,7 +87,6 @@ export function NowPlaying() {
   const muted = playback?.muted ?? false;
   const favorite = track ? favorites.includes(track.id) : false;
   const queue = playback?.queue ?? [];
-  const queueTracks = queue.map((id) => trackBy.get(id)).filter((item): item is Track => Boolean(item));
   const repeat = playback?.repeat ?? "off";
   const shuffle = playback?.shuffle ?? false;
 
@@ -121,49 +115,19 @@ export function NowPlaying() {
   }, [lyrics, time]);
 
   const lyricRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const queueListRef = useRef<HTMLDivElement | null>(null);
-  const currentQueueRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     lyricRefs.current = [];
   }, [track?.id]);
 
-  // The queue keeps the playing song somewhere in the middle. When the tab is
-  // opened (or playback advances), centre that row instead of always showing
-  // the first song in the list.
   useEffect(() => {
-    if (rightTab !== "queue") return;
-    // The queue tab mounts after the cross-fade. Waiting one frame after that
-    // transition is what lets the freshly mounted list scroll to the current row.
-    const scroll = () => {
-      const list = queueListRef.current;
-      const row = currentQueueRef.current;
-      if (!list || !row) return;
-      const listRect = list.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      const target =
-        rowRect.top - listRect.top + list.scrollTop - (list.clientHeight - rowRect.height) / 2;
-      list.scrollTo({ top: Math.max(0, target), behavior: "auto" });
-    };
-    let later = 0;
-    const frame = window.requestAnimationFrame(() => {
-      scroll();
-      later = window.setTimeout(scroll, 260);
-    });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      if (later) window.clearTimeout(later);
-    };
-  }, [rightTab, playback?.trackId, queue.length]);
-
-  useEffect(() => {
-    if (rightTab !== "lyrics" || activeLyric < 0) return;
+    if (activeLyric < 0) return;
     const node = lyricRefs.current[activeLyric];
     const container = node?.parentElement?.parentElement;
     if (!node || !container) return;
     const top = node.offsetTop - container.clientHeight / 2 + node.clientHeight / 2;
     container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-  }, [activeLyric, rightTab]);
+  }, [activeLyric]);
 
   const onPlay = () => {
     if (!track) return;
@@ -184,13 +148,7 @@ export function NowPlaying() {
   const volumeIcon = muted || volume === 0 ? <VolumeX size={17} /> : volume < 0.45 ? <Volume1 size={17} /> : <Volume2 size={17} />;
 
   return (
-    <motion.aside
-      className="now-playing glass"
-      initial={{ opacity: 0, x: 18 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 30 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-    >
+    <div className="right-panel-view playback-view">
       <div className="now-playing__glow" aria-hidden="true">
         {track?.coverPath && (
           <Cover path={track.coverPath} seed={track.id} label="" radius={48} className="now-playing__glow-cover" />
@@ -236,7 +194,7 @@ export function NowPlaying() {
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={false}>
         {track ? (
           <motion.div
             className="now-playing__body"
@@ -248,7 +206,7 @@ export function NowPlaying() {
           >
             <motion.div
               className="now-playing__art-wrap"
-              initial={{ opacity: 0, scale: 0.97 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             >
@@ -432,142 +390,54 @@ export function NowPlaying() {
               <span>{Math.round((muted ? 0 : volume) * 100)}</span>
             </div>
 
-            <div className="np-tabs">
-              <button type="button" className={clsx(rightTab === "lyrics" && "is-active")} onClick={() => setRightTab("lyrics")}>
-                <Mic2 size={14} />
-                {tr("Lyrics", "歌词")}
-              </button>
-              <button type="button" className={clsx(rightTab === "queue" && "is-active")} onClick={() => setRightTab("queue")}>
-                <ListMusic size={14} />
-                {tr("Up next", "即将播放")}
-                {queue.length > 0 && <em>{queue.length}</em>}
-              </button>
-            </div>
-
+            <div className="playback-lyrics-heading"><Mic2 size={14} />{tr("Lyrics", "歌词")}</div>
             <div className="np-content">
-              <AnimatePresence mode="wait" initial={false}>
-                {rightTab === "lyrics" ? (
-                  <motion.div
-                    key="lyrics"
-                    className="lyrics-panel"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {lyricsLoading ? (
-                      <div className="lyrics-skeleton">
-                        <span />
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                    ) : lyrics?.found && lyrics.lines.length ? (
-                      <div className="lyrics-scroll">
-                        <div className="lyrics-lines">
-                          {lyrics.lines.map((line, index) => {
-                            const active = index === activeLyric;
-                            return (
-                              <button
-                                type="button"
-                                key={`${line.time}-${index}`}
-                                ref={(node) => {
-                                  lyricRefs.current[index] = node;
-                                }}
-                                className={clsx("lyric-line", active && "is-active", index < activeLyric && "is-past")}
-                                onClick={() => {
-                                  if (isCurrent) seek(line.time);
-                                  else void playTrack(track, queue.length ? queue : [track.id], line.time);
-                                }}
-                              >
-                                <span>{line.text}</span>
-                                {line.translation && <em>{line.translation}</em>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="lyrics-empty">
-                        <Mic2 size={20} />
-                        <strong>{tr("No lyrics for this one", "这首歌暂无歌词")}</strong>
-                        <span>
-                          {tr(
-                            "Add a matching .lrc file next to the song, or in the library’s lyrics folder.",
-                            "在歌曲同目录或资料库的歌词文件夹中放入匹配的 .lrc 文件。",
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </motion.div>
+              <div className="lyrics-panel">
+                {lyricsLoading ? (
+                  <div className="lyrics-skeleton">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ) : lyrics?.found && lyrics.lines.length ? (
+                  <div className="lyrics-scroll">
+                    <div className="lyrics-lines">
+                      {lyrics.lines.map((line, index) => {
+                        const active = index === activeLyric;
+                        return (
+                          <button
+                            type="button"
+                            key={`${line.time}-${index}`}
+                            ref={(node) => {
+                              lyricRefs.current[index] = node;
+                            }}
+                            className={clsx("lyric-line", active && "is-active", index < activeLyric && "is-past")}
+                            onClick={() => {
+                              if (isCurrent) seek(line.time);
+                              else void playTrack(track, queue.length ? queue : [track.id], line.time);
+                            }}
+                          >
+                            <span>{line.text}</span>
+                            {line.translation && <em>{line.translation}</em>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : (
-                  <motion.div
-                    key="queue"
-                    className="queue-panel"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {queueTracks.length ? (
-                      <div className="queue-list" ref={queueListRef}>
-                        {queueTracks.map((item, index) => {
-                          const current = item.id === playback?.trackId;
-                          return (
-                            <div
-                              key={`${item.id}-${index}`}
-                              ref={current ? (node) => { currentQueueRef.current = node; } : undefined}
-                              className={clsx("queue-row", current && "is-current")}
-                            >
-                              <button
-                                type="button"
-                                className="queue-row__hit"
-                                aria-label={tr("Play {title}", "播放 {title}", { title: item.title })}
-                                onClick={() => void playTrack(item, queue, 0)}
-                              />
-                              <span className="queue-row__index" aria-hidden="true">
-                                {current ? <EqualizerBars playing={Boolean(playback?.playing)} /> : index + 1}
-                              </span>
-                              <span className="queue-row__cover-wrap" aria-hidden="true">
-                                <Cover path={item.coverPath} seed={item.id} label={item.title} radius={8} className="queue-row__cover" />
-                              </span>
-                              <span className="queue-row__text" aria-hidden="true">
-                                <strong>{item.title}</strong>
-                                <em>{item.artist}</em>
-                              </span>
-                              <span className="queue-row__end">
-                                <span className="queue-row__time" aria-hidden="true">{formatTime(item.duration)}</span>
-                                {!current && (
-                                  <button
-                                    type="button"
-                                    className="queue-row__remove"
-                                    aria-label={tr("Remove {title} from queue", "从队列移出 {title}", { title: item.title })}
-                                    title={tr("Remove from queue", "移出队列")}
-                                    onClick={() => void removeFromQueue(item.id)}
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                )}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="lyrics-empty">
-                        <ListMusic size={20} />
-                        <strong>{tr("Your queue is empty", "播放队列为空")}</strong>
-                        <span>
-                          {tr(
-                            "Play an album or shuffle a playlist and the next songs will appear here.",
-                            "播放一张专辑或随机播放歌单，接下来的歌曲会显示在这里。",
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </motion.div>
+                  <div className="lyrics-empty">
+                    <Mic2 size={20} />
+                    <strong>{tr("No lyrics for this one", "这首歌暂无歌词")}</strong>
+                    <span>
+                      {tr(
+                        "Add a matching .lrc file next to the song, or in the library’s lyrics folder.",
+                        "在歌曲同目录或资料库的歌词文件夹中放入匹配的 .lrc 文件。",
+                      )}
+                    </span>
+                  </div>
                 )}
-              </AnimatePresence>
+              </div>
             </div>
           </motion.div>
         ) : (
@@ -586,8 +456,8 @@ export function NowPlaying() {
             <h2>{tr("Give the room a soundtrack.", "给房间一点配乐。")}</h2>
             <p>
               {tr(
-                "Pick any song from your library and it will appear here with artwork, lyrics and queue.",
-                "从资料库中任选一首歌，封面、歌词和播放队列都会显示在这里。",
+                "Pick any song from your library and it will appear here with artwork and lyrics.",
+                "从资料库中任选一首歌，封面和歌词都会显示在这里。",
               )}
             </p>
             <button
@@ -600,6 +470,6 @@ export function NowPlaying() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.aside>
+    </div>
   );
 }

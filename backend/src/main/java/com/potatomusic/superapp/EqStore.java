@@ -21,7 +21,7 @@ import java.util.Map;
  * NetEase/QQ id, so a moved music folder can still recover the preset.</p>
  */
 public final class EqStore {
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     public static final class SongEq {
         public String nid = "";
@@ -145,19 +145,23 @@ public final class EqStore {
         for (Map.Entry<String, SongEq> entry : songs.entrySet()) {
             ObjectNode item = songNode.putObject(entry.getKey());
             item.put("nid", entry.getValue().nid == null ? "" : entry.getValue().nid);
-            item.put("preamp", entry.getValue().preset.preamp);
-            ArrayNode bands = item.putArray("bands");
-            for (float band : entry.getValue().preset.bands) bands.add(band);
+            writePreset(item, entry.getValue().preset);
         }
         Json.writeAtomic(file, root);
     }
 
     private ObjectNode presetNode(EqPreset preset) {
         ObjectNode node = Json.MAPPER.createObjectNode();
-        node.put("preamp", preset.preamp);
-        ArrayNode bands = node.putArray("bands");
-        for (float band : preset.bands) bands.add(band);
+        writePreset(node, preset);
         return node;
+    }
+
+    /** Writes both the curve (source of truth) and the legacy ten band view. */
+    private void writePreset(ObjectNode node, EqPreset preset) {
+        node.put("preamp", preset.preamp);
+        preset.curve().writeTo(node);
+        ArrayNode bands = node.putArray("bands");
+        for (float band : preset.curve().legacyBands()) bands.add(band);
     }
 
     private void parse(JsonNode root) {
@@ -205,24 +209,30 @@ public final class EqStore {
         legacy.songs.forEach(songs::putIfAbsent);
         // Only replace an untouched flat/default global with the legacy global.
         boolean emptyGlobal = true;
-        for (float band : global.bands) if (Math.abs(band) > 0.001f) { emptyGlobal = false; break; }
+        for (float band : global.curve().sample(EqCurve.HQ_FREQS)) if (Math.abs(band) > 0.001f) { emptyGlobal = false; break; }
         if (emptyGlobal && Math.abs(global.preamp - EqPreset.NEUTRAL_PREAMP) < 0.01f) {
             global = legacy.global.copy();
         }
     }
 
     private static EqPreset presetOf(JsonNode node, int version) {
-        EqPreset preset = new EqPreset();
-        if (node == null || !node.isObject()) return preset;
+        if (node == null || !node.isObject()) return new EqPreset();
+        float preamp = EqPreset.clamp((float) node.path("preamp").asDouble(EqPreset.NEUTRAL_PREAMP));
+        // Only the old Java player stored a relative preamp; Super's own files
+        // (version >= 2) already carry the absolute VLC-scale value.
+        if (version < 2) preamp = EqPreset.clamp(preamp + EqPreset.NEUTRAL_PREAMP);
+        JsonNode points = node.get("points");
+        if (points != null && points.isArray() && points.size() >= EqCurve.MIN_POINTS) {
+            return new EqPreset(preamp, EqCurve.parse(points));
+        }
+        float[] legacy = new float[EqPreset.BANDS];
         JsonNode bands = node.get("bands");
         if (bands != null && bands.isArray()) {
             for (int i = 0; i < EqPreset.BANDS && i < bands.size(); i++) {
-                preset.bands[i] = EqPreset.clamp((float) bands.get(i).asDouble(0));
+                legacy[i] = EqPreset.clamp((float) bands.get(i).asDouble(0));
             }
         }
-        if (node.has("preamp")) preset.preamp = EqPreset.clamp((float) node.path("preamp").asDouble(EqPreset.NEUTRAL_PREAMP));
-        if (version < FORMAT_VERSION) preset.preamp = EqPreset.clamp(preset.preamp + EqPreset.NEUTRAL_PREAMP);
-        return preset;
+        return new EqPreset(preamp, EqCurve.fromBands(legacy, EqPreset.defaultFrequencies()));
     }
 
     public String relPath(String absolutePath) {

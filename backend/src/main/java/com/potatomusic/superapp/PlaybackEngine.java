@@ -25,7 +25,7 @@ public interface PlaybackEngine {
         }
     }
 
-    record EqCurve(float preamp, float[] bands) {
+    record FactoryEq(float preamp, float[] bands) {
     }
 
     /** Stable identifier: {@code vlc}, {@code potatohq} or {@code mpv}. */
@@ -63,7 +63,7 @@ public interface PlaybackEngine {
 
     List<String> eqFactoryPresetNames();
 
-    EqCurve eqFactoryPreset(String name);
+    FactoryEq eqFactoryPreset(String name);
 
     void release();
 

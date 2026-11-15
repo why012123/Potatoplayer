@@ -336,12 +336,16 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
 
     @Override
     public void applyEq(EqPreset preset, boolean on) {
-        List<Map<String, Object>> bands = new ArrayList<>();
-        for (int i = 0; i < EqPreset.BANDS; i++) {
-            double gain = (on && preset != null) ? EqPreset.clamp(preset.bands[i]) : 0.0;
+        // potatoHQ accepts any number of peaking bands, so the drawn curve is sent
+        // as 1/3-octave bands: a smooth approximation of whatever the user drew.
+        float[] freqs = EqCurve.HQ_FREQS;
+        float[] gains = (on && preset != null) ? preset.curve().sample(freqs) : new float[freqs.length];
+        List<Map<String, Object>> bands = new ArrayList<>(freqs.length);
+        for (int i = 0; i < freqs.length; i++) {
             Map<String, Object> band = new LinkedHashMap<>();
-            band.put("freq", FREQUENCIES.get(Math.min(i, FREQUENCIES.size() - 1)));
-            band.put("gain", gain);
+            band.put("freq", freqs[i]);
+            band.put("gain", EqPreset.clamp(gains[i]));
+            band.put("q", EqCurve.HQ_Q);
             bands.add(band);
         }
         // Super's preamp uses VLC semantics: 12 dB is unity because VLC scales by
@@ -364,7 +368,7 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
     }
 
     @Override
-    public EqCurve eqFactoryPreset(String name) {
+    public FactoryEq eqFactoryPreset(String name) {
         return null;
     }
 

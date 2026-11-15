@@ -1,9 +1,21 @@
 package com.potatomusic.superapp;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-/** Ten VLC bands plus preamp. 12 dB is unity because of VLC's 0.25 dry factor. */
+/**
+ * One EQ setting: a drawn {@link EqCurve} plus preamp.
+ *
+ * <p>12 dB is unity because of VLC's 0.25 dry factor: the stored preamp uses the
+ * same scale as libVLC so existing presets keep their loudness.</p>
+ *
+ * <p>{@link #bands} is a derived ten-slot view kept for backwards compatibility
+ * (old eq.json files, the VLC-style slider UI and factory presets). Every write
+ * path should go through {@link #setCurve(EqCurve)} so the legacy view follows
+ * the curve.</p>
+ */
 public final class EqPreset {
     public static final int BANDS = 10;
     public static final float MIN_DB = -20f;
@@ -14,31 +26,57 @@ public final class EqPreset {
     };
 
     public float preamp = NEUTRAL_PREAMP;
+    /** Derived ten-slot view of {@link #curve}; refreshed by {@link #setCurve}. */
     public float[] bands = new float[BANDS];
+    private EqCurve curve;
 
     public EqPreset() {
+        setCurve(EqCurve.flat());
     }
 
     public EqPreset(float preamp, float[] source) {
         this.preamp = clamp(preamp);
+        float[] legacy = new float[BANDS];
         if (source != null) {
-            for (int i = 0; i < BANDS && i < source.length; i++) bands[i] = clamp(source[i]);
+            for (int i = 0; i < BANDS && i < source.length; i++) legacy[i] = clamp(source[i]);
         }
+        setCurve(EqCurve.fromBands(legacy, defaultFrequencies()));
+    }
+
+    public EqPreset(float preamp, EqCurve curve) {
+        this.preamp = clamp(preamp);
+        setCurve(curve);
     }
 
     public EqPreset copy() {
-        return new EqPreset(preamp, bands);
+        return new EqPreset(preamp, curve);
+    }
+
+    public EqCurve curve() {
+        return curve;
+    }
+
+    public void setCurve(EqCurve next) {
+        this.curve = next == null ? EqCurve.flat() : next;
+        this.bands = this.curve.legacyBands();
+    }
+
+    public void setBand(int index, float value) {
+        if (index < 0 || index >= BANDS) return;
+        setCurve(curve.withPoint(DEFAULT_FREQS[index], value));
     }
 
     public void flat() {
         preamp = NEUTRAL_PREAMP;
-        bands = new float[BANDS];
+        setCurve(EqCurve.flat());
     }
 
     public boolean sameAs(EqPreset other) {
         if (other == null || Math.abs(other.preamp - preamp) > 0.001f) return false;
-        for (int i = 0; i < BANDS; i++) {
-            if (Math.abs(other.bands[i] - bands[i]) > 0.001f) return false;
+        float[] mine = curve.sample(EqCurve.HQ_FREQS);
+        float[] theirs = other.curve.sample(EqCurve.HQ_FREQS);
+        for (int i = 0; i < mine.length; i++) {
+            if (Math.abs(mine[i] - theirs[i]) > 0.001f) return false;
         }
         return true;
     }
@@ -47,7 +85,14 @@ public final class EqPreset {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("preamp", preamp);
         map.put("bands", bands.clone());
+        map.put("points", curve.toPointList());
         return map;
+    }
+
+    public static List<Float> defaultFrequencies() {
+        List<Float> out = new ArrayList<>(DEFAULT_FREQS.length);
+        for (float freq : DEFAULT_FREQS) out.add(freq);
+        return out;
     }
 
     public static float clamp(float value) {

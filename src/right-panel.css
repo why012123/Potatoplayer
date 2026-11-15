@@ -1,0 +1,15 @@
+/* One persistent pane; no sliding/scaling glass layers when changing views. */
+.right-panel-host { display: contents; }
+.right-panel-shell { min-width: 0; }
+.right-panel-view { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; position: relative; }
+.right-panel-shell[data-panel-motion="full"] > .right-panel-view { animation: right-panel-content-in 160ms ease-out; }
+@keyframes right-panel-content-in { from { opacity: .72; } to { opacity: 1; } }
+.right-panel-shell .playback-lyrics-heading { display: flex; align-items: center; gap: 7px; flex: none; color: var(--muted); font-size: 11px; margin-top: 15px; padding: 7px 2px; }
+.queue-sidebar .eyebrow { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.queue-sidebar__summary { flex: none; color: var(--muted); font-size: 11px; padding: 15px 0; border-bottom: 1px solid var(--line-dark); margin-bottom: 8px; }
+.right-panel-shell .queue-sidebar > .queue-panel { flex: 1; height: auto; min-height: 0; overflow: hidden; }
+.right-panel-shell .queue-sidebar .queue-list { height: 100%; max-height: none; padding: 2px 0 10px; overscroll-behavior: contain; }
+.right-panel-shell .queue-sidebar .queue-row { height: 54px; }
+:root[data-density="compact"] .right-panel-shell .queue-sidebar .queue-row { height: 44px; }
+:root[data-animation="reduced"] .right-panel-view, .reduce-motion .right-panel-view { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .right-panel-view { animation: none !important; } }

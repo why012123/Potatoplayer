@@ -21,7 +21,7 @@ const { _electron: electron } = require('playwright-core');
     const page = await app.firstWindow(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.waitForSelector('.sidebar',{timeout:45000});
     await page.evaluate(()=>{
-      localStorage.setItem('potato:appearance:v1',JSON.stringify({language:'en',style:'editorial',animationLevel:'off',pageTransitions:false}));
+      localStorage.setItem('potato:appearance:v1',JSON.stringify({language:'en',style:'editorial',animationLevel:'full',pageTransitions:false}));
       localStorage.setItem('potato:theme','light');
       localStorage.setItem('potato:right-panel','1');localStorage.setItem('potato:right-panel-mode','player');
     });
@@ -40,10 +40,31 @@ const { _electron: electron } = require('playwright-core');
     assert.equal(buttons.length,4);assert.equal(buttons[2].name,'Switch to AI chat');
     assert.ok(buttons.every(b=>b.w===buttons[0].w && b.h===buttons[0].h && b.cls===buttons[0].cls),'four controls use identical sizing and styling');
     await page.screenshot({path:'/tmp/super-sidebar-player.png'});
+    await page.evaluate(()=>{window.__sidebarShell=document.querySelector('.right-panel-shell');});
+    assert.equal(await page.locator('.playback-view .np-tabs').count(),0);
     await toggle.click();
     const text=page.getByRole('textbox',{name:'Message to music assistant'});
     await text.fill('draft survives toggles');
+    await page.getByRole('button',{name:'Switch to play queue',exact:true}).click();
+    assert.equal(await page.locator('.queue-sidebar .queue-row').count(),2);
+    await page.screenshot({path:'/tmp/super-sidebar-queue.png'});
+    await page.getByRole('button',{name:'Minimize play queue',exact:true}).click();
+    await page.getByRole('button',{name:'Expand play queue',exact:true}).click();
+    await page.evaluate(()=>{window.__sidebarShell=document.querySelector('.right-panel-shell');});
     await page.getByRole('button',{name:'Switch to playback',exact:true}).click();
+    const frames=await page.evaluate(async()=>{
+      const samples=[];
+      for(let i=0;i<12;i++) {
+        await new Promise(requestAnimationFrame);
+        const shell=document.querySelector('.right-panel-shell');const box=shell.getBoundingClientRect();
+        samples.push({same:shell===window.__sidebarShell,x:box.x,y:box.y,w:box.width,h:box.height,
+          transform:getComputedStyle(shell).transform,art:getComputedStyle(document.querySelector('.now-playing__art-wrap')).transform});
+      }
+      return samples;
+    });
+    assert.ok(frames.every(f=>f.same&&f.transform==='none'&&f.art==='none'),'switch does not remount or move the pane/cover');
+    assert.ok(frames.every(f=>Math.abs(f.x-frames[0].x)<.5&&Math.abs(f.y-frames[0].y)<.5&&Math.abs(f.h-frames[0].h)<.5));
+
     await page.getByRole('button',{name:'Switch to AI chat',exact:true}).click();assert.equal(await text.inputValue(),'draft survives toggles');
     await text.fill('find Morning');await text.press('Enter');
     await page.waitForSelector('.ai-side-transcript .ai-result-track');
@@ -57,18 +78,21 @@ const { _electron: electron } = require('playwright-core');
     await page.getByRole('button',{name:'Minimize AI chat',exact:true}).click();
     assert.equal(await page.locator('.mini-player').count(),0);assert.equal(await text.inputValue(),'keep this draft');
     assert.equal(await page.locator('.ai-mini-reply').count(),0,'old replies must not pop up when minimizing');
-    await page.clock.install();
     await text.fill('find Evening');await text.press('Enter');
     await page.waitForSelector('.ai-mini-reply .ai-result-track');
     assert.equal(await page.locator('.ai-mini-reply .ai-result-track strong').innerText(),'Evening');
     await page.screenshot({path:'/tmp/super-sidebar-compact.png'});
-    await page.locator('.ai-mini-reply').hover();await page.clock.fastForward(13000);
+    await page.locator('.ai-mini-reply').hover();await page.waitForTimeout(13000);
     assert.equal(await page.locator('.ai-mini-reply').count(),1,'hover pauses dismissal');
     await page.mouse.move(2,2);
-    await page.getByRole('button',{name:'Close reply',exact:true}).focus();await page.clock.fastForward(13000);
+    await page.getByRole('button',{name:'Close reply',exact:true}).focus();await page.waitForTimeout(13000);
     assert.equal(await page.locator('.ai-mini-reply').count(),1,'keyboard focus pauses dismissal');
-    await text.focus();await page.clock.fastForward(13000);
-    await page.waitForSelector('.ai-mini-reply',{state:'detached'});
+    await text.focus();
+    await page.waitForTimeout(13000);
+    await page.waitForSelector('.ai-mini-reply',{state:'detached',timeout:3000}).catch(async error => {
+      console.error('Popup state:',await page.locator('.ai-mini-reply').evaluate(el=>({hover:el.matches(':hover'),focus:el.contains(document.activeElement),active:document.activeElement?.outerHTML,opacity:getComputedStyle(el).opacity})));
+      throw error;
+    });
     await page.getByRole('button',{name:'Expand AI chat',exact:true}).click();
     assert.equal(await page.locator('.ai-side-transcript .ai-turn').count(),2,'dismissal preserves history');
     await page.getByRole('button',{name:'Minimize AI chat',exact:true}).click();
@@ -79,10 +103,21 @@ const { _electron: electron } = require('playwright-core');
     await page.reload();await page.waitForSelector('.ai-mini-chat',{timeout:45000});
     assert.equal(await page.locator('.ai-mini-reply').count(),0,'reload never replays stale notifications');
     await page.getByRole('button',{name:'Expand AI chat',exact:true}).click();
+    await page.getByRole('button',{name:'Switch to play queue',exact:true}).click();
+    await page.getByRole('button',{name:'Switch to playback',exact:true}).click();
+    await page.getByRole('button',{name:'Switch to AI chat',exact:true}).click();
+    await page.getByRole('button',{name:'Switch to play queue',exact:true}).click();
+    const titles=await page.locator('.queue-row__text strong').allTextContents();
+    await page.locator('.queue-sidebar').getByRole('button',{name:'Play '+titles[1],exact:true}).click();
+    await page.waitForFunction(title=>document.querySelector('.queue-row.is-current strong')?.textContent===title,titles[1]);
+    // The remove control is intentionally revealed only on row hover/focus.
+    await page.locator('.queue-sidebar .queue-row').filter({has:page.getByRole('button',{name:'Play '+titles[0],exact:true})}).hover();
+    await page.getByRole('button',{name:'Remove '+titles[0]+' from queue',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelectorAll('.queue-sidebar .queue-row').length===1);
     await page.getByRole('button',{name:'Switch to playback',exact:true}).click();
     await page.getByRole('button',{name:'Hide now playing',exact:true}).click();await page.waitForSelector('.mini-player');
     assert.equal(await page.locator('.ai-mini-chat').count(),0);
     assert.deepEqual(errors,[]);
-    console.log('AI sidebar passed: identical toggle, mode/draft preservation, no navigation, playback continuity, compact replies, hover/focus timer, retained history, reload, original mini player.');
+    console.log('Right sidebar passed: three views, identical toggle, stable pane/cover, queue playback/removal/collapse, draft preservation, compact replies, hover/focus timer, history, reload, original mini player.');
   } finally {if(app)await app.close();fs.rmSync(home,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

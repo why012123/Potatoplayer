@@ -9,10 +9,20 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { EqPresetData, EqState } from "@/types";
+import type { EqPoint, EqPresetData, EqState } from "@/types";
 import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { Modal } from "@/components/Modal";
+import {
+  EQ_MAX_POINTS,
+  EqCurveEditor,
+  flatEqPoints,
+  logEqFrequencies,
+  pointsFromBands,
+  sampleEqCurveList,
+  setEqPoint,
+  sortEqPoints,
+} from "@/components/EqCurveEditor";
 
 function formatDb(value: number): string {
   const rounded = Math.abs(value) < 0.05 ? 0 : value;
@@ -24,6 +34,13 @@ type Target =
   | { kind: "global" }
   | { kind: "factory"; name: string }
   | { kind: "user"; name: string };
+
+interface Draft {
+  preamp: number;
+  points: EqPoint[];
+}
+
+type Mode = "curve" | "slider";
 
 function targetKey(target: Target): string {
   if (target.kind === "factory") return `factory:${target.name}`;
@@ -38,9 +55,27 @@ function parseTarget(value: string): Target {
   return { kind: "global" };
 }
 
-function copyPreset(preset: EqPresetData): EqPresetData {
-  return { name: preset.name, preamp: preset.preamp, bands: [...preset.bands] };
+function draftFromPreset(preset: EqPresetData | null | undefined, state: EqState | null): Draft {
+  if (!preset) return { preamp: state?.neutralPreamp ?? 12, points: flatEqPoints() };
+  const points = preset.points && preset.points.length >= 2
+    ? sortEqPoints(preset.points)
+    : pointsFromBands(preset.bands ?? [], state?.frequencies ?? []);
+  return { preamp: preset.preamp, points };
 }
+
+function sameDraft(a: Draft | null, b: Draft | null): boolean {
+  if (!a || !b) return a === b;
+  if (Math.abs(a.preamp - b.preamp) > 0.001) return false;
+  if (a.points.length !== b.points.length) return false;
+  return a.points.every((point, index) =>
+    Math.abs(point.freq - b.points[index].freq) < 0.01 && Math.abs(point.gain - b.points[index].gain) < 0.001);
+}
+
+const ENGINE_LABEL: Record<string, string> = {
+  potatohq: "potatoHQ",
+  vlc: "VLC",
+  mpv: "mpv",
+};
 
 export function EqualizerDialog() {
   const tr = useTr();
@@ -55,12 +90,14 @@ export function EqualizerDialog() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState<Target>({ kind: "global" });
-  const [draft, setDraft] = useState<EqPresetData | null>(null);
-  const [baseline, setBaseline] = useState<EqPresetData | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [baseline, setBaseline] = useState<Draft | null>(null);
+  const [mode, setMode] = useState<Mode>("curve");
   const [saveMenu, setSaveMenu] = useState(false);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const dirty = useMemo(() => !sameDraft(draft, baseline), [draft, baseline]);
 
   const load = async () => {
     setLoading(true);
@@ -70,11 +107,13 @@ export function EqualizerDialog() {
       setEq(next);
       const hasSong = Boolean(next.currentTrack?.hasSongPreset && next.songPreset);
       const initialTarget: Target = hasSong ? { kind: "song" } : { kind: "global" };
-      const initial = hasSong ? next.songPreset! : next.global ?? { name: "Global", preamp: next.preamp, bands: next.bands };
+      const initialPreset = hasSong
+        ? next.songPreset
+        : next.global ?? { name: "Global", preamp: next.preamp, bands: next.bands, points: next.points };
+      const initial = draftFromPreset(initialPreset, next);
       setTarget(initialTarget);
-      setBaseline(copyPreset(initial));
-      setDraft(copyPreset(initial));
-      setDirty(false);
+      setBaseline(initial);
+      setDraft(initial);
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -104,7 +143,9 @@ export function EqualizerDialog() {
   const baselineFor = (value: Target, state = eq): EqPresetData | null => {
     if (!state) return null;
     if (value.kind === "song") return state.songPreset ?? state.global ?? null;
-    if (value.kind === "global") return state.global ?? { name: "Global", preamp: state.preamp, bands: state.bands };
+    if (value.kind === "global") {
+      return state.global ?? { name: "Global", preamp: state.preamp, bands: state.bands, points: state.points };
+    }
     if (value.kind === "factory") return state.factoryPresets.find((item) => item.name === value.name) ?? null;
     return state.presets.find((item) => item.name === value.name) ?? null;
   };
@@ -113,23 +154,23 @@ export function EqualizerDialog() {
     setEq(next);
     const base = baselineFor(target, next);
     if (base && !dirty) {
-      setBaseline(copyPreset(base));
-      setDraft(copyPreset(base));
+      const nextDraft = draftFromPreset(base, next);
+      setBaseline(nextDraft);
+      setDraft(nextDraft);
     }
   };
 
-  const preview = (preset: EqPresetData) => {
+  const preview = (next: Draft) => {
     if (previewTimer.current) clearTimeout(previewTimer.current);
     previewTimer.current = setTimeout(() => {
       void window.potato
-        .invoke("eq.preview", { bands: preset.bands, preamp: preset.preamp })
+        .invoke("eq.preview", { points: next.points, preamp: next.preamp })
         .catch(() => undefined);
     }, 70);
   };
 
-  const applyDraftChange = (next: EqPresetData) => {
+  const applyDraft = (next: Draft) => {
     setDraft(next);
-    setDirty(true);
     preview(next);
   };
 
@@ -138,10 +179,10 @@ export function EqualizerDialog() {
     const nextBaseline = baselineFor(nextTarget);
     if (!nextBaseline) return;
     setTarget(nextTarget);
-    setBaseline(copyPreset(nextBaseline));
-    setDraft(copyPreset(nextBaseline));
-    setDirty(false);
-    preview(nextBaseline);
+    const nextDraft = draftFromPreset(nextBaseline, eq);
+    setBaseline(nextDraft);
+    setDraft(nextDraft);
+    preview(nextDraft);
   };
 
   const call = async (method: string, params?: Record<string, unknown>) => {
@@ -158,38 +199,43 @@ export function EqualizerDialog() {
     }
   };
 
-  const updateBand = (index: number, value: number) => {
+  const updateCurve = (points: EqPoint[]) => {
     if (!draft) return;
-    const bands = draft.bands.slice();
-    bands[index] = value;
-    applyDraftChange({ ...draft, bands });
+    applyDraft({ ...draft, points: sortEqPoints(points) });
+  };
+
+  const updateBand = (index: number, value: number) => {
+    if (!draft || !eq) return;
+    const freq = eq.frequencies[index];
+    if (freq == null) return;
+    applyDraft({ ...draft, points: setEqPoint(draft.points, freq, value) });
   };
 
   const updatePreamp = (value: number) => {
     if (!draft) return;
-    applyDraftChange({ ...draft, preamp: value });
+    applyDraft({ ...draft, preamp: value });
   };
 
   const resetToBaseline = () => {
     if (!baseline) return;
-    setDraft(copyPreset(baseline));
-    setDirty(false);
+    setDraft(baseline);
     preview(baseline);
   };
 
   const flat = () => {
     if (!draft) return;
-    const next = { ...draft, preamp: eq?.neutralPreamp ?? 12, bands: draft.bands.map(() => 0) };
-    applyDraftChange(next);
+    const next: Draft = { preamp: eq?.neutralPreamp ?? 12, points: flatEqPoints() };
+    applyDraft(next);
   };
+
+  const presetParams = () => (draft ? { points: draft.points, preamp: draft.preamp } : undefined);
 
   const saveToSong = async () => {
     if (!draft) return;
-    const next = await call("eq.saveSong", { bands: draft.bands, preamp: draft.preamp });
+    const next = await call("eq.saveSong", presetParams());
     if (next) {
       setTarget({ kind: "song" });
-      setBaseline(copyPreset(draft));
-      setDirty(false);
+      setBaseline(draft);
       pushToast(tr("EQ saved to this song", "均衡器已保存到当前歌曲"), eq?.currentTrack?.title, "success");
     }
     setSaveMenu(false);
@@ -197,11 +243,10 @@ export function EqualizerDialog() {
 
   const saveToGlobal = async () => {
     if (!draft) return;
-    const next = await call("eq.saveGlobal", { bands: draft.bands, preamp: draft.preamp });
+    const next = await call("eq.saveGlobal", presetParams());
     if (next) {
       setTarget({ kind: "global" });
-      setBaseline(copyPreset(draft));
-      setDirty(false);
+      setBaseline(draft);
       pushToast(tr("EQ saved globally", "均衡器已全局保存"), undefined, "success");
     }
     setSaveMenu(false);
@@ -216,11 +261,10 @@ export function EqualizerDialog() {
       placeholder: tr("My listening curve", "我的聆听曲线"),
       confirmLabel: tr("Save preset", "保存预设"),
       onSubmit: async (name) => {
-        const next = await call("eq.saveNamed", { name, bands: draft.bands, preamp: draft.preamp });
+        const next = await call("eq.saveNamed", { name, ...(presetParams() ?? {}) });
         if (next) {
           setTarget({ kind: "user", name: name.trim() });
-          setBaseline(copyPreset(draft));
-          setDirty(false);
+          setBaseline(draft);
         }
       },
     });
@@ -256,6 +300,17 @@ export function EqualizerDialog() {
     if (next && next.enabled && draft) preview(draft);
   };
 
+  const sliderValues = useMemo(
+    () => (draft && eq ? sampleEqCurveList(draft.points, eq.frequencies) : []),
+    [draft, eq],
+  );
+
+  const curveBands = useMemo(() => {
+    if (!eq) return [] as number[];
+    if (eq.engine === "potatohq") return logEqFrequencies(20, 20000, eq.curveBands ?? 31);
+    return eq.frequencies;
+  }, [eq]);
+
   const activeSongLabel = eq?.currentTrack
     ? `${eq.currentTrack.title} · ${eq.currentTrack.artist}`
     : tr("No track playing", "暂无播放歌曲");
@@ -266,6 +321,7 @@ export function EqualizerDialog() {
     if (target.kind === "factory") return target.name;
     return target.name;
   }, [target, tr]);
+  const engineLabel = ENGINE_LABEL[eq?.engine ?? ""] ?? (eq?.engine ? eq.engine : "—");
 
   return (
     <AnimatePresence>
@@ -279,8 +335,8 @@ export function EqualizerDialog() {
               <h2 id="eq-title">{tr("Equalizer", "均衡器")}</h2>
               <p>
                 {tr(
-                  "Ten VLC bands and preamp. Edit a song curve, preview it live, then save.",
-                  "VLC 十段频段与前置放大。编辑歌曲曲线，实时试听，然后保存。",
+                  "Draw the curve, potatoHQ renders it as 31 bands. VLC and mpv resample it onto their fixed bands.",
+                  "拖动控制点随意画曲线，potatoHQ 以 31 段还原；VLC / mpv 会采样到各自的固定频点。",
                 )}
               </p>
             </div>
@@ -309,7 +365,7 @@ export function EqualizerDialog() {
 
           {loading ? (
             <div className="eq-loading">
-              <LoaderCircle size={20} className="is-spinning" /> {tr("Reading VLC equalizer…", "正在读取 VLC 均衡器…")}
+              <LoaderCircle size={20} className="is-spinning" /> {tr("Reading equalizer state…", "正在读取均衡器状态…")}
             </div>
           ) : error || !eq || !draft ? (
             <div className="eq-error">
@@ -321,8 +377,8 @@ export function EqualizerDialog() {
                 <div className="eq-warning">
                   <AlertCircle size={15} />
                   {tr(
-                    "VLC’s equalizer is not available in this installation. Curves can still be saved.",
-                    "当前安装的 VLC 不支持均衡器，但仍可保存曲线。",
+                    "This engine has no equalizer. Curves can still be drawn and saved.",
+                    "当前引擎没有均衡器，但仍可绘制并保存曲线。",
                   )}
                 </div>
               )}
@@ -346,10 +402,30 @@ export function EqualizerDialog() {
                   </select>
                 </label>
                 <div className="eq-toolbar__actions">
+                  <div className="eq-mode" role="tablist" aria-label={tr("Editor mode", "编辑模式")}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === "curve"}
+                      className={mode === "curve" ? "is-active" : ""}
+                      onClick={() => setMode("curve")}
+                    >
+                      {tr("Curve", "曲线")}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === "slider"}
+                      className={mode === "slider" ? "is-active" : ""}
+                      onClick={() => setMode("slider")}
+                    >
+                      {tr("Bands", "滑块")}
+                    </button>
+                  </div>
                   <button type="button" className="button button--glass button--small" onClick={flat}>
                     <RotateCcw size={13} /> {tr("Flat", "平直")}
                   </button>
-                  <button type="button" className="button button--glass button--small" onClick={resetToBaseline}>
+                  <button type="button" className="button button--glass button--small" onClick={resetToBaseline} disabled={!dirty}>
                     {tr("Reset", "重置")}
                   </button>
                   <div className="eq-save-wrap" ref={saveMenuRef}>
@@ -404,39 +480,50 @@ export function EqualizerDialog() {
                 )}
               </div>
 
-              <div className={`eq-stage ${eq.enabled ? "" : "is-bypassed"}`}>
-                <div className="eq-scale" aria-hidden="true"><span>+20</span><span>0</span><span>−20</span></div>
-                <div className="eq-bands">
-                  {eq.labels.map((label, index) => {
-                    const value = draft.bands[index] ?? 0;
-                    const magnitude = Math.min(1, Math.abs(value) / 20) * 50;
-                    return (
-                      <div className="eq-band" key={label}>
-                        <span className="eq-band__value">{formatDb(value)}</span>
-                        <div className="eq-band__rail">
-                          <span className="eq-band__zero" />
-                          <span className="eq-band__fill" style={value >= 0 ? { bottom: "50%", height: `${magnitude}%` } : { top: "50%", height: `${magnitude}%` }} />
-                          <input
-                            type="range"
-                            min={-20}
-                            max={20}
-                            step={0.5}
-                            value={value}
-                            className="eq-band__input"
-                            aria-label={tr("{label} hertz band", "{label} 赫兹频段", { label })}
-                            onChange={(event) => updateBand(index, Number(event.target.value))}
-                          />
+              {mode === "curve" ? (
+                <EqCurveEditor
+                  points={draft.points}
+                  bandFrequencies={curveBands}
+                  onChange={updateCurve}
+                  className={eq.enabled ? undefined : "is-bypassed"}
+                />
+              ) : (
+                <div className={`eq-stage ${eq.enabled ? "" : "is-bypassed"}`}>
+                  <div className="eq-scale" aria-hidden="true"><span>+20</span><span>0</span><span>−20</span></div>
+                  <div className="eq-bands">
+                    {eq.labels.map((label, index) => {
+                      const value = sliderValues[index] ?? 0;
+                      const magnitude = Math.min(1, Math.abs(value) / 20) * 50;
+                      return (
+                        <div className="eq-band" key={label}>
+                          <span className="eq-band__value">{formatDb(value)}</span>
+                          <div className="eq-band__rail">
+                            <span className="eq-band__zero" />
+                            <span className="eq-band__fill" style={value >= 0 ? { bottom: "50%", height: `${magnitude}%` } : { top: "50%", height: `${magnitude}%` }} />
+                            <input
+                              type="range"
+                              min={-20}
+                              max={20}
+                              step={0.5}
+                              value={value}
+                              className="eq-band__input"
+                              aria-label={tr("{label} hertz band", "{label} 赫兹频段", { label })}
+                              onChange={(event) => updateBand(index, Number(event.target.value))}
+                            />
+                          </div>
+                          <span className="eq-band__freq">{label}</span>
                         </div>
-                        <span className="eq-band__freq">{label}</span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="eq-preamp">
                 <div className="eq-preamp__head">
-                  <span>{tr("Preamp", "前置放大")} <em>{tr("12 dB = unity", "12 dB 为基准")}</em></span>
+                  <span>
+                    {tr("Preamp", "前置放大")} <em>{tr("12 dB = unity", "12 dB 为基准")}</em>
+                  </span>
                   <strong>{formatDb(draft.preamp - eq.neutralPreamp)} dB</strong>
                 </div>
                 <input
@@ -456,9 +543,10 @@ export function EqualizerDialog() {
                 <span>
                   <SlidersHorizontal size={13} />{" "}
                   {eq.available
-                    ? tr("10-band VLC equalizer", "VLC 十段均衡器")
+                    ? tr("{engine} · {bands} bands from the curve", "{engine} · 曲线按 {bands} 段还原", { engine: engineLabel, bands: String(eq.curveBands ?? 0) })
                     : tr("Curve saved; playback EQ unavailable", "曲线已保存；播放均衡器不可用")}
                   <em>· {tr("{count} song presets", "{count} 个歌曲预设", { count: eq.songCount ?? 0 })}</em>
+                  <em>· {tr("{max} points max", "最多 {max} 个控制点", { max: String(eq.maxPoints ?? EQ_MAX_POINTS) })}</em>
                 </span>
                 <button type="button" className="text-button" onClick={() => void load()} disabled={busy}>
                   {tr("Refresh", "刷新")}

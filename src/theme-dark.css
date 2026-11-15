@@ -610,6 +610,50 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+[data-theme="dark"] .eq-mode {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .eq-mode button.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .eq-curve {
+  background:
+    radial-gradient(70% 110% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 75%),
+    rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .eq-curve__plot {
+  fill: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .eq-curve__grid line {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .eq-curve__grid.is-zero line {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] .eq-curve__zero {
+  stroke: rgba(255, 255, 255, 0.24);
+}
+
+[data-theme="dark"] .eq-curve__point {
+  fill: #181516;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+}
+
+[data-theme="dark"] .eq-curve__point.is-dragging {
+  fill: var(--accent);
+  stroke: #fff;
+}
+
 [data-theme="dark"] .custom-segment {
   background: rgba(255, 255, 255, 0.07);
 }
