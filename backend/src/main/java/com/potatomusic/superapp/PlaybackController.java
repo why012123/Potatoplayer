@@ -91,37 +91,42 @@ public final class PlaybackController {
             if (fallback != null) {
                 host.emit("toast", Map.of("kind", "error", "message", fallback));
             }
-            created.setListener(new PlaybackEngine.Listener() {
-                @Override
-                public void onFinished() {
-                    events.execute(() -> handleFinished());
-                }
-
-                @Override
-                public void onSpectrum(java.util.List<Double> bars) {
-                    host.emit("engine.spectrum", Map.of("bars", bars));
-                }
-
-                @Override
-                public void onAdvanced(String path) {
-                    events.execute(() -> handleAdvanced(path));
-                }
-
-                @Override
-                public void onError(String message) {
-                    events.execute(() -> {
-                        synchronized (PlaybackController.this) {
-                            playing = false;
-                            host.emit("toast", Map.of("kind", "error", "message", message));
-                            emitState();
-                        }
-                    });
-                }
-            });
             created.applyEq(host.eqStore().global, host.eqStore().on);
             engine = created;
         }
         return engine;
+    }
+
+    private long playbackGeneration;
+
+    private void listenToTrack(PlaybackEngine source, long generation) {
+        source.setListener(new PlaybackEngine.Listener() {
+            private void enqueue(Runnable event) {
+                try {
+                    events.execute(() -> {
+                        synchronized (PlaybackController.this) {
+                            if (!shuttingDown && generation == playbackGeneration) event.run();
+                        }
+                    });
+                } catch (java.util.concurrent.RejectedExecutionException ignored) {
+                    // Native output can finish while the controller is shutting down.
+                }
+            }
+
+            public void onFinished() { enqueue(() -> handleFinished()); }
+            public void onAdvanced(String path) { enqueue(() -> handleAdvanced(path)); }
+            public void onSpectrum(List<Double> bars) {
+                host.emit("engine.spectrum", Map.of("bars", bars));
+            }
+            public void onError(String message) {
+                enqueue(() -> {
+                    loaded = false;
+                    playing = false;
+                    host.emit("toast", Map.of("kind", "error", "message", message));
+                    emitState();
+                });
+            }
+        });
     }
 
     /** Push the persisted virtual sound field to the active engine, live. */
@@ -493,6 +498,9 @@ public final class PlaybackController {
             stopAtEnd();
             return;
         }
+        playbackGeneration++;
+        loaded = false;
+        playing = false;
         currentId = track.id;
         duration = Math.max(0, track.duration);
         time = Math.max(0, startAt);
@@ -514,12 +522,18 @@ public final class PlaybackController {
         // the new VLC output inherits the equalizer without a filter rebuild.
         EqPreset preset = host.eqStore().effectiveFor(track.path, host.neteaseIdFor(track.path));
         e.applyEq(preset, host.eqStore().on);
-        e.play(track.path);
+        listenToTrack(e, playbackGeneration);
+        try {
+            e.play(track.path);
+            if (startAt > 0.5) e.seek(startAt);
+        } catch (RuntimeException failure) {
+            playbackGeneration++;
+            e.stop();
+            emitState();
+            throw failure;
+        }
         loaded = true;
         playing = true;
-        if (startAt > 0.5) {
-            e.seek(startAt);
-        }
         host.settings().lastTrackId = track.id;
         host.settings().lastPosition = startAt;
         resetStatsClock(track.id, startAt);
@@ -615,6 +629,7 @@ public final class PlaybackController {
     }
 
     private void stopAtEnd() {
+        playbackGeneration++;
         PlaybackEngine e = engine;
         if (e != null) {
             e.setVisualization(false);
@@ -712,7 +727,7 @@ public final class PlaybackController {
 
     private void syncTime() {
         PlaybackEngine e = engine;
-        if (e == null || currentId == null) {
+        if (e == null || !loaded || currentId == null) {
             return;
         }
         double engineTime = e.time();

@@ -17,6 +17,7 @@ public final class BackendSelfTest {
         testScannerMetadataNeed();
         testStableIds();
         testLrcParsing();
+        testCustomCoverValidation();
         testLegacyImport();
         testNeteaseBindingMigration();
         testTaxonomyMerge();
@@ -24,6 +25,7 @@ public final class BackendSelfTest {
         testEqCurve();
         testListeningStats();
         testBilibiliParsing();
+        testBilibiliAudio();
         testPlaybackRepeat();
         testDownloadQueue();
         testPlaylistSync();
@@ -222,6 +224,70 @@ public final class BackendSelfTest {
         check("Hello".equals(payload.lines.get(0).text), "first line parsed");
         check("你好".equals(payload.lines.get(0).translation), "translation merged by timestamp");
         check(Math.abs(payload.lines.get(3).time - 12.345) < 0.0001, "centiseconds parsed");
+    }
+
+    /** Custom cover imports only accept real image bytes and a sane file size. */
+    private static void testCustomCoverValidation() throws Exception {
+        Path dir = Files.createTempDirectory("potato-cover-test");
+        try {
+            byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+            byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0, 0, 0};
+            byte[] webp = {'R', 'I', 'F', 'F', 36, 0, 0, 0, 'W', 'E', 'B', 'P'};
+            Path pngFile = dir.resolve("art.png");
+            Path jpgFile = dir.resolve("art.JPG");
+            Path webpFile = dir.resolve("art.webp");
+            Path disguised = dir.resolve("photo.png");
+            Path gifFile = dir.resolve("art.gif");
+            Path badFile = dir.resolve("broken.png");
+            Path emptyFile = dir.resolve("empty.jpg");
+            Path hugeFile = dir.resolve("huge.jpg");
+            Files.write(pngFile, png);
+            Files.write(jpgFile, jpeg);
+            Files.write(webpFile, webp);
+            Files.write(disguised, jpeg);
+            Files.write(gifFile, new byte[]{'G', 'I', 'F', '8', '9', 'a', 0, 0});
+            Files.write(badFile, "not an image at all".getBytes(StandardCharsets.US_ASCII));
+            Files.write(emptyFile, new byte[0]);
+            try (var channel = java.nio.channels.FileChannel.open(hugeFile,
+                    java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE)) {
+                channel.write(java.nio.ByteBuffer.wrap(jpeg));
+                // Writing one byte past the cap grows the (sparse) file to 20 MB + 1.
+                channel.position(20L * 1024 * 1024);
+                channel.write(java.nio.ByteBuffer.wrap(new byte[]{0}));
+            }
+            check("png".equals(Backend.coverImageExtension(pngFile)), "PNG magic accepted");
+            check("jpg".equals(Backend.coverImageExtension(jpgFile)), "JPEG magic accepted with uppercase extension");
+            check("webp".equals(Backend.coverImageExtension(webpFile)), "WebP magic accepted");
+            check("jpg".equals(Backend.coverImageExtension(disguised)), "content magic wins over the file name");
+            checkThrows(() -> Backend.coverImageExtension(gifFile), "JPG", "GIF covers are rejected");
+            checkThrows(() -> Backend.coverImageExtension(badFile), "valid JPG", "fake image bytes are rejected");
+            checkThrows(() -> Backend.coverImageExtension(emptyFile), "empty", "empty covers are rejected");
+            checkThrows(() -> Backend.coverImageExtension(hugeFile), "20 MB", "covers above 20 MB are rejected");
+            checkThrows(() -> Backend.coverImageExtension(dir.resolve("missing.png")), "no longer exists", "missing covers are rejected");
+            // The restore pointer must survive the copy() used by patchMetadata.
+            Track track = new Track();
+            track.coverPath = "/tmp/custom.png";
+            track.coverBeforeCustom = "/tmp/folder-cover.png";
+            track.metadataOverrides.add("coverPath");
+            Track copied = track.copy();
+            check("/tmp/folder-cover.png".equals(copied.coverBeforeCustom), "copy keeps the pre-custom cover");
+            check(copied.metadataOverrides.contains("coverPath"), "copy keeps metadata overrides");
+        } finally {
+            try (var files = Files.list(dir)) { for (Path file : files.toList()) Files.deleteIfExists(file); }
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    private static void checkThrows(java.util.concurrent.Callable<?> action, String fragment, String message) {
+        try {
+            action.call();
+        } catch (IllegalArgumentException e) {
+            check(e.getMessage() != null && e.getMessage().contains(fragment), message + " (clear message)");
+            return;
+        } catch (Exception e) {
+            throw new AssertionError("FAILED: " + message + " (unexpected " + e + ")");
+        }
+        throw new AssertionError("FAILED: " + message);
     }
 
     private static void testLegacyImport() throws Exception {
@@ -490,6 +556,52 @@ public final class BackendSelfTest {
         check("https://www.bilibili.com/video/BV1xx411c7mD".equals(item.get("url")), "bilibili video url is built");
     }
 
+    private static void testBilibiliAudio() throws Exception {
+        var link = BilibiliService.parseVideoRef("https://www.bilibili.com/video/BV1B7411m7LV/?p=2");
+        check(link != null && link.page() == 2 && link.bvid().equals("BV1B7411m7LV"), "Bilibili link preserves the requested part");
+        check("170001".equals(BilibiliService.parseVideoRef("av170001").aid()), "Bilibili av links are accepted");
+        check(BilibiliService.parseVideoRef("https://bilibili.com.example.test/video/BV1B7411m7LV") == null,
+                "unrelated URLs are rejected");
+        var audio = Json.MAPPER.readTree("""
+                {"data":{"dash":{
+                  "video":[{"baseUrl":"https://v.bilivideo.com/video"}],
+                  "audio":[
+                    {"bandwidth":100,"mime_type":"audio/mp4","codecs":"mp4a.40.2","base_url":"https://a.bilivideo.com/low"},
+                    {"bandwidth":300,"mimeType":"audio/mp4","codecs":"mp4a.40.2","baseUrl":"https://b.bilivideo.com/high",
+                      "backupUrl":["https://c.bilivideo.cn/high","https://b.bilivideo.com.example.test/invalid"]},
+                    {"bandwidth":400,"mimeType":"video/mp4","codecs":"avc1","baseUrl":"https://v.bilivideo.com/not-audio"}
+                  ]}}}
+                """);
+        check(BilibiliService.audioUrls(audio).stream().map(Object::toString).toList().equals(List.of(
+                "https://b.bilivideo.com/high", "https://c.bilivideo.cn/high", "https://a.bilivideo.com/low")),
+                "only trusted audio-only URLs are selected, with higher bitrate first");
+        check(BilibiliService.completeRangeLength("bytes 0-99/100", 100) == 100,
+                "a CDN may deliver the entire track as a 206 response");
+        try {
+            BilibiliService.completeRangeLength("bytes 0-49/100", 50);
+            throw new AssertionError("partial CDN response must not be imported");
+        } catch (java.io.IOException expected) {
+            check(true, "a truncated CDN range is rejected");
+        }
+        check(BilibiliAudioExport.Format.parse("") == BilibiliAudioExport.Format.M4A
+                && BilibiliAudioExport.Format.parse("FLAC") == BilibiliAudioExport.Format.FLAC,
+                "export formats are explicit and old download requests keep their M4A default");
+        Path staged = Files.createTempFile("bili-audio-test", ".part");
+        try {
+            byte[] container = {0, 0, 0, 12, 'f', 't', 'y', 'p', 'M', '4', 'A', ' ', 1, 2, 3};
+            BilibiliService.copyAudio(new java.io.ByteArrayInputStream(container), staged, container.length, () -> {}, count -> {});
+            check(java.util.Arrays.equals(container, Files.readAllBytes(staged)), "source audio bytes are not re-encoded");
+            try {
+                BilibiliService.copyAudio(new java.io.ByteArrayInputStream(container), staged, container.length + 1, () -> {}, count -> {});
+                throw new AssertionError("incomplete Bilibili transfer must be rejected");
+            } catch (java.io.IOException expected) {
+                check(true, "incomplete transfer is rejected before publishing");
+            }
+        } finally {
+            Files.deleteIfExists(staged);
+        }
+    }
+
     private static void testPlaybackRepeat() throws Exception {
         Track a = new Track(); a.id = "a"; a.path = "/music/a.flac"; a.duration = 10;
         Track b = new Track(); b.id = "b"; b.path = "/music/b.flac"; b.duration = 10;
@@ -548,10 +660,20 @@ public final class BackendSelfTest {
                 player.setQueue(List.of("a", "b", "c"));
                 player.next(false);
                 check("b".equals(player.state().get("trackId")), "manual next still skips under repeat-one");
-                player.play("c", List.of("a", "b", "c"), 0);
+                synchronized (player) {
+                    engine.listener.onFinished(); // queued EOF for b, delivered after manual selection of c
+                    player.play("c", List.of("a", "b", "c"), 0);
+                }
                 player.setRepeat("all");
                 if (gapless) check(a.path.equals(engine.next), "repeat-all preloads queue head at end");
                 player.setRepeat("off");
+                // A later error on the current stream acts as an executor barrier.
+                engine.listener.onError("decoder closed");
+                awaitPlayback(() -> Boolean.FALSE.equals(player.state().get("playing")));
+                int starts = engine.plays;
+                player.toggle();
+                check(engine.plays == starts + 1 && "c".equals(player.state().get("trackId")),
+                        "retry reopens selected track after decoder error and stale EOF");
                 if (gapless) check(engine.next.isEmpty(), "repeat-off clears final preload");
                 engine.listener.onFinished();
                 awaitPlayback(() -> Boolean.FALSE.equals(player.state().get("playing")));

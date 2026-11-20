@@ -8,6 +8,7 @@ import {
   Cloud,
   RefreshCw,
   Disc3,
+  Film,
   FolderOpen,
   Gamepad2,
   Heart,
@@ -253,6 +254,17 @@ export function Sidebar() {
             {onlineSource === "qq" ? "QQ MUSIC" : "NETEASE"}
           </button>
         </div>
+        <button
+          type="button"
+          className={clsx("nav-item nav-item--online", current.kind === "video-extract" && "is-active")}
+          aria-current={current.kind === "video-extract" ? "page" : undefined}
+          onClick={() => navigate({ kind: "video-extract" })}
+        >
+          {current.kind === "video-extract" && <motion.span className="nav-item__pill" layoutId="nav-active-pill"
+            transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
+          <Film size={17} strokeWidth={1.9} />
+          <span>{tr("Video extraction", "视频提取")}</span>
+        </button>
         <button
           type="button"
           className={clsx("nav-item nav-item--online", current.kind === "sync" && "is-active")}

@@ -31,6 +31,10 @@ export interface PotatoAPI {
     listener: (status: Partial<Record<"toggle" | "next" | "previous" | "stop", boolean>> | null) => void,
   ): () => void;
   pickFolder(): Promise<string | null>;
+  /** Pick a cover image; `dataUrl` is a max-512px preview safe for the renderer. */
+  pickImage(): Promise<{ path: string; name: string; dataUrl: string } | null>;
+  /** Pick an .lrc/.txt file and read it as text (UTF-8, GBK fallback). */
+  pickLyrics(): Promise<{ path: string; name: string; text: string } | null>;
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<boolean>;
   coverPalette(path: string): Promise<Palette | null>;

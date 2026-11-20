@@ -1,5 +1,19 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+// The Ultra window renders a static archive snapshot baked at build time. The
+// main process can hand it the live library archive instead, generated from
+// library.json on demand. Only ask for it from the Ultra window: the call is
+// synchronous, so the Super shell never pays for it.
+const isUltraWindow = String(globalThis.location?.pathname || "").includes("/ultra-rhine/");
+let ultraArchives = null;
+if (isUltraWindow) {
+  try {
+    ultraArchives = ipcRenderer.sendSync("ultra:archives") || null;
+  } catch {
+    ultraArchives = null;
+  }
+}
+
 let latestMediaShortcutStatus = null;
 ipcRenderer.on("media:shortcut-status", (_event, status) => {
   latestMediaShortcutStatus = status || null;
@@ -30,6 +44,8 @@ contextBridge.exposeInMainWorld("potato", {
     return () => ipcRenderer.removeListener("media:shortcut-status", handler);
   },
   pickFolder: () => ipcRenderer.invoke("dialog:pick-folder"),
+  pickImage: () => ipcRenderer.invoke("dialog:pick-image"),
+  pickLyrics: () => ipcRenderer.invoke("dialog:pick-lyrics-file"),
   openPath: (target) => ipcRenderer.invoke("app:open-path", target),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
   coverPalette: (target) => ipcRenderer.invoke("cover:palette", target),
@@ -43,6 +59,7 @@ contextBridge.exposeInMainWorld("potato", {
     return () => ipcRenderer.removeListener("together:progress", handler);
   },
   openUltra: () => ipcRenderer.invoke("ultra:open"),
+  ultraArchives,
   rendererReady: () => ipcRenderer.send("app:renderer-ready"),
   platform: process.platform,
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
@@ -29,6 +29,7 @@ import { useAppStore } from "@/store";
 import { useTr } from "@/lib/i18n";
 import { RightPanelSwitch } from "@/components/RightPanelSwitch";
 import { formatTime } from "@/lib/format";
+import { useLyricAutoScroll } from "@/lib/useLyricAutoScroll";
 
 const SILENT_BARS = Array.from({ length: 48 }, () => 0);
 
@@ -114,20 +115,9 @@ export function NowPlaying() {
     return index;
   }, [lyrics, time]);
 
-  const lyricRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  useEffect(() => {
-    lyricRefs.current = [];
-  }, [track?.id]);
-
-  useEffect(() => {
-    if (activeLyric < 0) return;
-    const node = lyricRefs.current[activeLyric];
-    const container = node?.parentElement?.parentElement;
-    if (!node || !container) return;
-    const top = node.offsetTop - container.clientHeight / 2 + node.clientHeight / 2;
-    container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-  }, [activeLyric]);
+  // Auto-centre the active line, yielding to the listener for 3 s after they
+  // scroll the list by hand (shared with the immersive view).
+  const { scrollRef: lyricsScrollRef, lineRefs: lyricRefs } = useLyricAutoScroll(track?.id, activeLyric);
 
   const onPlay = () => {
     if (!track) return;
@@ -401,7 +391,7 @@ export function NowPlaying() {
                     <span />
                   </div>
                 ) : lyrics?.found && lyrics.lines.length ? (
-                  <div className="lyrics-scroll">
+                  <div className="lyrics-scroll" ref={lyricsScrollRef}>
                     <div className="lyrics-lines">
                       {lyrics.lines.map((line, index) => {
                         const active = index === activeLyric;

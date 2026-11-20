@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * QQ Music bridge.
@@ -51,7 +50,6 @@ public final class QQMusicService {
             .cookieHandler(cookies)
             .build();
     private final DownloadQueue downloader = new DownloadQueue();
-    private final AtomicInteger jobSequence = new AtomicInteger(2000);
     private volatile Process serviceProcess;
     private volatile Map<String, Object> cachedStatus;
     private volatile long cachedAt;
@@ -339,7 +337,7 @@ public final class QQMusicService {
     public Map<String, Object> download(String mid, String quality, String block, String genre, String title,
                                         boolean allowDowngrade) {
         if (mid == null || mid.isBlank()) throw new IllegalArgumentException("Missing QQ Music song mid.");
-        String jobId = "qq-" + jobSequence.incrementAndGet();
+        String jobId = "qq-" + java.util.UUID.randomUUID();
         downloader.submit(jobId,
                 () -> emit("download.progress", progress(jobId, mid, title.isBlank() ? mid : title, 0, -1, "queued")),
                 () -> downloadJob(

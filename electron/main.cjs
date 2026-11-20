@@ -6,6 +6,7 @@ const { pathToFileURL } = require("node:url");
 const { BackendProcess } = require("./backend.cjs");
 const { registerTogether } = require("./together.cjs");
 const { createAiService } = require("./ai-service.cjs");
+const { ensureUltraArchives } = require("./ultra-archives.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 // Isolated test runs must not share localStorage/preferences with the real app.
@@ -225,6 +226,12 @@ function registerMediaShortcuts() {
 }
 
 function createWindow() {
+  // macOS can emit "activate" before "ready" (e.g. clicking the Dock icon
+  // while launching); creating a BrowserWindow then throws.
+  if (!app.isReady()) {
+    app.whenReady().then(createWindow);
+    return;
+  }
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 856,
@@ -299,6 +306,17 @@ function createWindow() {
 }
 
 function createUltraWindow() {
+  if (!app.isReady()) {
+    app.whenReady().then(createUltraWindow);
+    return;
+  }
+  // Build the runtime archive before the renderer asks for it, so the
+  // synchronous bridge call in preload stays fast.
+  try {
+    ensureUltraArchives({ dataDir: dataDir() });
+  } catch (error) {
+    console.error("[ultra] archive pre-generation failed:", error.message);
+  }
   if (ultraWindow && !ultraWindow.isDestroyed()) {
     ultraWindow.show();
     ultraWindow.focus();
@@ -356,6 +374,27 @@ function createUltraWindow() {
   } else {
     ultraWindow.loadFile(ultraEntry);
   }
+}
+
+/**
+ * After a library scan, rebuild the Ultra archive and reload an open Ultra
+ * window so its 3D shelves mirror the new library without a restart.
+ */
+let ultraArchiveTimer = null;
+function refreshUltraArchives() {
+  if (ultraArchiveTimer) clearTimeout(ultraArchiveTimer);
+  ultraArchiveTimer = setTimeout(() => {
+    ultraArchiveTimer = null;
+    try {
+      ensureUltraArchives({ dataDir: dataDir(), force: true });
+    } catch (error) {
+      console.error("[ultra] archive refresh failed:", error.message);
+      return;
+    }
+    if (ultraWindow && !ultraWindow.isDestroyed() && !ultraWindow.webContents.isLoading()) {
+      ultraWindow.webContents.reload();
+    }
+  }, 1500);
 }
 
 async function attemptCapture() {
@@ -458,6 +497,7 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       for (const win of [mainWindow, ultraWindow]) {
         if (win && !win.isDestroyed()) win.webContents.send("backend:event", message);
       }
+      if (message.event === "scan.done") refreshUltraArchives();
     });
     backend.on("backend-exit", () => {
       for (const win of [mainWindow, ultraWindow]) {
@@ -497,8 +537,15 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
         return result.response === 1;
       },
     });
+    backend.on("event", (message) => {
+      try {
+        aiService.observeBackendEvent(message);
+      } catch (error) {
+        console.error("[ai] could not update download receipt:", error.message);
+      }
+    });
     app.on("before-quit", () => {
-      void aiService.handle("ai.cancel");
+      void aiService.handle("ai.shutdown");
     });
 
     ipcMain.on("media:update", (_event, payload) => {
@@ -528,6 +575,72 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
         buttonLabel: "Use this folder",
       });
       return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+    });
+
+    // ─── Song editor: custom cover art / LRC lyrics pickers ───────────────
+    // POTATO_TEST_PICK_IMAGE and POTATO_TEST_PICK_LYRICS substitute a fixed path
+    // for the native dialog so automated checks never drive the real file picker.
+    ipcMain.handle("dialog:pick-image", async () => {
+      let filePath = process.env.POTATO_TEST_PICK_IMAGE || null;
+      if (!filePath) {
+        const result = await dialog.showOpenDialog(mainWindow, {
+          title: "Choose cover art",
+          properties: ["openFile"],
+          filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp"] }],
+        });
+        if (result.canceled || !result.filePaths.length) return null;
+        filePath = result.filePaths[0];
+      }
+      try {
+        const stat = await fs.promises.stat(filePath);
+        if (!stat.isFile()) throw new Error("That is not an image file.");
+        if (stat.size > 20 * 1024 * 1024) throw new Error("Cover art must be 20 MB or smaller.");
+        const image = nativeImage.createFromPath(filePath);
+        if (image.isEmpty()) throw new Error("That file could not be read as an image.");
+        const size = image.getSize();
+        const largest = Math.max(size.width, size.height);
+        // Downscale for the preview only; the backend keeps the original bytes.
+        const preview = largest > 512
+          ? image.resize({
+              width: Math.max(1, Math.round((size.width * 512) / largest)),
+              height: Math.max(1, Math.round((size.height * 512) / largest)),
+              quality: "good",
+            })
+          : image;
+        return { path: filePath, name: path.basename(filePath), dataUrl: preview.toDataURL() };
+      } catch (error) {
+        throw new Error(error?.message || "Could not read that image.");
+      }
+    });
+
+    ipcMain.handle("dialog:pick-lyrics-file", async () => {
+      let filePath = process.env.POTATO_TEST_PICK_LYRICS || null;
+      if (!filePath) {
+        const result = await dialog.showOpenDialog(mainWindow, {
+          title: "Import lyrics",
+          properties: ["openFile"],
+          filters: [{ name: "Lyrics", extensions: ["lrc", "txt"] }],
+        });
+        if (result.canceled || !result.filePaths.length) return null;
+        filePath = result.filePaths[0];
+      }
+      try {
+        const stat = await fs.promises.stat(filePath);
+        if (!stat.isFile()) throw new Error("That is not a lyrics file.");
+        if (stat.size > 2 * 1024 * 1024) throw new Error("Lyrics files must be 2 MB or smaller.");
+        const bytes = await fs.promises.readFile(filePath);
+        let text;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          // Legacy Chinese LRC files are commonly GBK; Electron ships full ICU.
+          text = new TextDecoder("gbk").decode(bytes);
+        }
+        if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+        return { path: filePath, name: path.basename(filePath), text };
+      } catch (error) {
+        throw new Error(error?.message || "Could not read that lyrics file.");
+      }
     });
 
     ipcMain.handle("app:open-path", async (_event, target) => {
@@ -596,6 +709,18 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
       createUltraWindow();
     });
 
+    // The Ultra window asks for the live archive synchronously while its
+    // preload runs; keep this cheap by reusing the cached generation.
+    ipcMain.on("ultra:archives", (event) => {
+      let payload = null;
+      try {
+        payload = ensureUltraArchives({ dataDir: dataDir() });
+      } catch (error) {
+        console.error("[ultra] archive generation failed:", error.message);
+      }
+      event.returnValue = payload || null;
+    });
+
     ipcMain.on("app:renderer-ready", () => {
       if (capturePath) setTimeout(() => void attemptCapture(), 450);
     });
@@ -615,6 +740,7 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
   });
 
   app.on("activate", () => {
+    if (!app.isReady()) return;
     if (BrowserWindow.getAllWindows().length === 0) {
       if (ultraMode) createUltraWindow();
       else createWindow();

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * NetEase Cloud Music bridge.
@@ -49,7 +48,6 @@ public final class NeteaseService {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
     private final DownloadQueue downloader = new DownloadQueue();
-    private final AtomicInteger jobSequence = new AtomicInteger(1000);
     private volatile String cookie;
     private volatile Process serviceProcess;
     private volatile Map<String, Object> cachedStatus;
@@ -672,7 +670,7 @@ public final class NeteaseService {
         if (neteaseId == null || neteaseId.isBlank()) {
             throw new IllegalArgumentException("Missing song id.");
         }
-        String jobId = "netease-" + jobSequence.incrementAndGet();
+        String jobId = "netease-" + java.util.UUID.randomUUID();
         downloader.submit(jobId,
                 () -> emit("download.progress", progress(jobId, neteaseId, title.isBlank() ? neteaseId : title, 0, -1, "queued")),
                 () -> downloadJob(

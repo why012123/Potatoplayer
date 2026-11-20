@@ -14,6 +14,7 @@ function backend() {
   if(method==='bootstrap')return state;
   if(method==='playback.state')return state.playback;
   if(method==='library.patchMetadata') {const t=state.tracks.find(t=>t.id===p.trackId);Object.assign(t,p.patch);return {track:t};}
+  if(method==='library.changeQualities') return {queuedCount:1,queued:[{jobId:'quality-job',trackId:'a',title:'鳥の詩',quality:p.quality}],skipped:[]};
   if(method==='playback.setQueue')state.playback.queue=p.queue;
   if(method==='playlist.create') {const playlist={id:'new',name:p.name,trackIds:[]};state.playlists.push(playlist);return {playlist};}
   if(method==='playlist.addTracks') {state.playlists.find(t=>t.id===p.playlistId).trackIds.push(...p.trackIds);return {ok:true};}
@@ -386,7 +387,7 @@ test('Quality change tool supports explicit downgrade and maps to library.change
 
 test('Service executes a model-initiated downgrade once and reports the action',async()=>{
  let round=0;const requests=[];
- const s=setup(async(_url,options)=>{requests.push(JSON.parse(options.body));return (++round<3)?sse({tool_calls:[call('change_track_quality',{trackIds:['a'],quality:'lossless'})]}):sse({content:'已降级到无损。'});});
+ const s=setup(async(_url,options)=>{requests.push(JSON.parse(options.body));return (++round<3)?sse({tool_calls:[call('change_track_quality',{trackIds:['a'],quality:'lossless'})]}):sse({content:'无损版本已加入下载队列。'});});
  await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
  const result=await s.service.handle('ai.chat',{requestId:'quality-downgrade',prompt:'把这首超清母带降到无损，太大了',currentTrackId:'a'});
  const calls=s.b.calls.filter(c=>c.method==='library.changeQualities');
@@ -397,7 +398,144 @@ test('Service executes a model-initiated downgrade once and reports the action',
  const system=requests[0].messages[0].content;
  assert.match(system,/change_track_quality/);assert.match(system,/绝不自动降级/);assert.match(system,/downgradeAvailable/);assert.match(system,/不能自动回滚/);
  assert.equal(result.actions[0].name,'change_track_quality');
- assert.equal(result.actions[0].status,'done');
- assert.equal(result.explanation,'已降级到无损。');
+ assert.equal(result.actions[0].status,'queued');
+ assert.equal(result.actions[0].jobs[0].jobId,'quality-job');
+ assert.equal(result.explanation,'无损版本已加入下载队列。');
  fs.rmSync(s.dataDir,{recursive:true,force:true});
+});
+
+test('An invalid edit and a partially applied request both resume until the missing fields are saved',async()=>{
+ const replies=[
+  {tool_calls:[call('update_tracks',{trackIds:['wrong'],patch:{rating:8}})]},
+  {content:'已经完成。'},
+  {tool_calls:[call('update_tracks',{trackIds:['a'],patch:{rating:8}})]},
+  {content:'已完成所有修改。'},
+  {tool_calls:[call('update_tracks',{trackIds:['a'],patch:{note:'春'}})]},
+  {content:'评分和备注已更新。'},
+ ];
+ const s=setup(async()=>sse(replies.shift()));
+ try {
+  await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+  const result=await s.service.handle('ai.chat',{requestId:'fields',prompt:'把评分改为8，备注设为春'});
+  assert.equal(result.actions[0].status,'error');
+  assert.equal(s.b.state.tracks[0].rating,8);
+  assert.equal(s.b.state.tracks[0].note,'春');
+  assert.equal(replies.length,0);
+ } finally { fs.rmSync(s.dataDir,{recursive:true,force:true}); }
+});
+
+test('A counted batch is still pending after only the first track is edited',async()=>{
+ const replies=[
+  {tool_calls:[call('update_tracks',{trackIds:['a'],patch:{note:'春'}})]},
+  {content:'两首都改好了。'},
+  {tool_calls:[call('update_tracks',{trackIds:['b'],patch:{note:'春'}})]},
+  {content:'两首备注已更新。'},
+ ];
+ const s=setup(async()=>sse(replies.shift()));
+ try {
+  await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+  await s.service.handle('ai.chat',{requestId:'batch',prompt:'把这两首歌的备注设为春'});
+  assert.deepEqual(s.b.state.tracks.map(track=>track.note),['春','春']);
+ } finally { fs.rmSync(s.dataDir,{recursive:true,force:true}); }
+});
+
+test('Unified search preserves audio specs, typed local sources and statistics periods', async () => {
+  const b = backend();
+  Object.assign(b.state.tracks[0], {codec:'FLAC', sampleRate:96000, bitDepth:24, path:'/private/fixture.flac'});
+  Object.assign(b.state.tracks[1], {codec:'FLAC', sampleRate:44100, bitDepth:16});
+  b.state.settings = {playbackEngine:'potatohq', outputMode:'pcm', libraryRoot:'/private/fixture'};
+  b.state.playlists.push({id:'night',name:'Night',trackIds:['a']});
+  const s = setup(async () => assert.fail('local search must never hit the provider'), {
+    invoke: (method, args) => {
+      if (method === 'stats.get') return {days:[{date:'2026-11-01',seconds:15,plays:1},{date:'2026-11-20',seconds:30,plays:2}],
+        tracks:[{trackId:'a',title:'鳥の詩',seconds:45,plays:3}]};
+      if (method === 'lyrics.get') return {lines:[{time:12,text:'A night of stars',translation:'星夜'}]};
+      if (method === 'eq.state') return {enabled:true,currentTrack:{title:'鳥の詩',path:'/private/fixture.flac'}};
+      return b.invoke(method,args);
+    },
+  });
+  try {
+    const c = await s.service.handle('ai.conversations.create',{title:'听感'});
+    s.service.conversations.append(c.id,{prompt:'副歌像漂浮在海面',contextTrackId:'a'});
+    await s.service.handle('ai.memory.song.upsert',{trackId:'a',facts:['副歌有漂浮感']});
+    const impressions = await s.service.handle('ai.search',{scopes:['impressions','history'],query:'漂浮',trackIds:['a']});
+    assert.equal(impressions.groups.impressions.items[0].source,'song_memory');
+    assert.equal(impressions.groups.history.items[0].conversationId,c.id);
+    const results = await s.service.handle('ai.search',{scopes:['quality','stats','playlists','lyrics','settings'],
+      trackIds:['a'],minSampleRate:96000,minBitDepth:24,fromDate:'2026-11-20'});
+    assert.equal(results.groups.quality.items[0].track.codec,'FLAC');
+    assert.equal(results.groups.playlists.items[0].playlistId,'night');
+    assert.equal(results.groups.lyrics.items[0].lines[0].time,12);
+    assert.equal(results.groups.stats.periodSeconds,30);
+    assert.equal(results.groups.stats.tracks[0].period,'all_time');
+    assert.equal(results.groups.settings.eq.enabled,true);
+    assert.doesNotMatch(JSON.stringify(results),/private.*fixture/);
+  } finally { fs.rmSync(s.dataDir,{recursive:true,force:true}); }
+});
+
+test('Clear listening impressions get a memory review and opt-out removes write tools', async () => {
+  const s = setup(async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.messages.some(message => /别保存/.test(message.content || ''))) {
+      assert.ok(!body.tools.some(tool => tool.function.name === 'remember_song'));
+      return sse({content:'理解。'});
+    }
+    if (body.messages.at(-1).role === 'tool') return sse({content:'记下了副歌里的鼓点。'});
+    if (body.messages.some(message => message.content?.startsWith('复核上一条'))) {
+      return sse({tool_calls:[call('remember_song',{trackId:'a',facts:['用户喜欢副歌里的鼓点']})]});
+    }
+    return sse({content:'那段鼓点很突出。'});
+  });
+  try {
+    await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+    const r = await s.service.handle('ai.chat',{requestId:'impression',prompt:'我很喜欢副歌里的鼓点',currentTrackId:'a'});
+    assert.ok(r.actions.some(action => action.name==='remember_song' && action.operation && action.status==='done'));
+    await s.service.handle('ai.chat',{requestId:'opt-out',prompt:'我很喜欢副歌里的鼓点，别保存',currentTrackId:'a'});
+    assert.equal(s.service.memory.snapshot().stats.facts,1);
+  } finally { fs.rmSync(s.dataDir,{recursive:true,force:true}); }
+});
+
+test('Download completion is persisted in the originating turn and automatically delivered to the model', async () => {
+  const bodies = [];
+  const s = setup(async (_url, options) => {
+    const body = JSON.parse(options.body); bodies.push(body);
+    if (body.messages[0].content.startsWith('You are reporting a completed download batch')) {
+      assert.equal(body.tools,undefined,'background model must be unable to take actions');
+      const notice = JSON.parse(body.messages[1].content);
+      assert.equal(notice.type,'download_results');
+      assert.equal(notice.jobs[0].status,'done');
+      assert.equal(notice.jobs[0].replaced,true);
+      assert.doesNotMatch(JSON.stringify(notice),/private/);
+      return sse({content:'无损文件已替换旧版。'});
+    }
+    if (body.messages.at(-1).role === 'tool') {
+      assert.equal(JSON.parse(body.messages.at(-1).content).operationFeedback.status,'queued');
+      return sse({content:'已加入队列。'});
+    }
+    return sse({tool_calls:[call('change_track_quality',{trackIds:['a'],quality:'lossless'})]});
+  });
+  try {
+    await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+    const r = await s.service.handle('ai.chat',{requestId:'job',prompt:'把这首歌降到无损',currentTrackId:'a'});
+    assert.equal(r.actions[0].status,'queued');
+    s.service.observeBackendEvent({event:'download.done',data:{jobId:'quality-job',title:'鳥の詩',quality:'lossless',replaced:true,path:'/private/fixture.flac'}});
+    const read = () => s.service.conversations.get(r.conversationId).turns[0].result;
+    assert.equal(read().actions[0].status,'done');
+    for (let i=0;i<20 && !read().downloadSummary;i++) await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(read().downloadSummary,'无损文件已替换旧版。');
+    assert.ok(s.events.some(event=>event.event==='ai.download.updated' && event.data.turnId===r.turnId));
+    s.service.observeBackendEvent({event:'download.done',data:{jobId:'quality-job',replaced:true}});
+    assert.equal(bodies.length,3,'one final report even if the event is repeated');
+    const reopened = createAiService({dataDir:s.dataDir,safeStorage:secure,invoke:s.b.invoke,emit:()=>{},confirm:async()=>false});
+    assert.equal(reopened.conversations.get(r.conversationId).turns[0].result.actions[0].jobs[0].status,'done');
+  } finally { fs.rmSync(s.dataDir,{recursive:true,force:true}); }
+});
+
+test('Queries about download status and available quality cannot enqueue an operation', async () => {
+  const { taskPolicy } = require('../electron/ai-policy.cjs');
+  for (const prompt of ['刚才下载完成了吗？', '下载完成了吗？', '有哪些歌可以升级音质？', '查刚才下载的结果']) {
+    assert.equal(taskPolicy(prompt).inspectionOnly,true);
+    assert.equal(taskPolicy(prompt).writes.length,0);
+  }
+  assert.ok(taskPolicy('把这首歌的音质升级到无损').writes.includes('upgrade_track_quality'));
 });

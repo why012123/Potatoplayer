@@ -84,6 +84,7 @@ interface AppStore {
   searchQuery: string;
   sortMode: SortMode;
   previewTrackId: string | null;
+  editorTrackId: string | null;
   lyrics: LyricsPayload | null;
   lyricsLoading: boolean;
   lyricsTrackId: string | null;
@@ -179,6 +180,8 @@ interface AppStore {
       note: string;
       neteaseId: string;
       qqId: string;
+      /** Custom LRC text; omitted by callers that should not touch lyrics. */
+      lyricsOverride?: string;
     },
   ) => Promise<boolean>;
   deleteTrack: (trackId: string) => Promise<boolean>;
@@ -316,6 +319,8 @@ function initialView(): View {
       return { kind: "editor" };
     case "discover":
       return { kind: "discover" };
+    case "video-extract":
+      return { kind: "video-extract" };
     case "sync":
       return { kind: "sync" };
     default:
@@ -444,7 +449,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s2.1.0",
+  version: "s2.1.3",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
@@ -476,6 +481,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   searchQuery: "",
   sortMode: "title",
   previewTrackId: null,
+  editorTrackId: null,
   lyrics: null,
   lyricsLoading: false,
   lyricsTrackId: null,
@@ -707,7 +713,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         break;
       }
       case "download.progress": {
-        const job = data as Partial<DownloadJob> & { jobId: string; downloaded: number; total: number; phase: string; source?: OnlineSource };
+        const job = data as Partial<DownloadJob> & { jobId: string; downloaded: number; total: number; phase: string };
         const current = get().downloads.find((item) => item.jobId === job.jobId);
         if (current && current.status !== "running") break;
         const neteaseId = job.neteaseId ?? current?.neteaseId ?? "";
@@ -724,6 +730,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           status: "running",
           importId: pendingImport?.importId ?? current?.importId,
           source: job.source ?? current?.source ?? get().onlineSource,
+          bvid: job.bvid ?? current?.bvid,
+          cid: job.cid ?? current?.cid,
+          exportFormat: job.exportFormat ?? current?.exportFormat,
           createdAt: current?.createdAt ?? Date.now(),
         };
         set({
@@ -751,6 +760,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           status: "done",
           importId: pendingImport?.importId ?? current?.importId,
           source: payload.source ?? current?.source ?? get().onlineSource,
+          bvid: payload.bvid ?? current?.bvid,
+          cid: payload.cid ?? current?.cid,
+          exportFormat: payload.exportFormat ?? current?.exportFormat,
           duplicate: payload.duplicate ?? current?.duplicate,
           updated: payload.updated ?? current?.updated,
           replaced: payload.replaced ?? current?.replaced,
@@ -777,7 +789,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (!next.importId) {
           const label = `${payload.artist ?? ""}${payload.artist ? " — " : ""}${payload.title ?? ""}`;
           const served = payload.quality ?? payload.requestedQuality;
-          const qualityText = served ? downloadQualityLabel(served) : "";
+          const qualityText = next.exportFormat?.toUpperCase() ?? (served ? downloadQualityLabel(served) : "");
           if (payload.replaced) {
             const previous = payload.previousQuality
               ? lx("was {quality}", "原为 {quality}", { quality: downloadQualityLabel(payload.previousQuality) })
@@ -803,7 +815,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             );
           } else {
             get().pushToast(
-              lx("Downloaded to your library", "已下载到资料库"),
+              next.source === "bilibili" ? lx("Audio imported to your library", "原声已保存到资料库") : lx("Downloaded to your library", "已下载到资料库"),
               [label, qualityText].filter(Boolean).join(" · "),
               "success",
             );
@@ -815,13 +827,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       case "download.cancelled":
       case "download.error": {
         const cancelled = event === "download.cancelled";
-        const payload = data as { jobId: string; neteaseId?: string; message: string; source?: OnlineSource };
+        const payload = data as Partial<DownloadJob> & { jobId: string };
         const current = get().downloads.find((item) => item.jobId === payload.jobId);
         const neteaseId = payload.neteaseId ?? current?.neteaseId ?? "";
         const failedJob: DownloadJob = {
           jobId: payload.jobId,
           neteaseId,
-          title: current?.title ?? "NetEase song",
+          title: payload.title ?? current?.title ?? lx("Audio download", "音频下载"),
           artist: current?.artist,
           path: current?.path,
           downloaded: current?.downloaded ?? 0,
@@ -831,6 +843,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           message: payload.message,
           importId: current?.importId,
           source: payload.source ?? current?.source ?? get().onlineSource,
+          bvid: payload.bvid ?? current?.bvid,
+          cid: payload.cid ?? current?.cid,
+          exportFormat: payload.exportFormat ?? current?.exportFormat,
           createdAt: current?.createdAt ?? Date.now(),
         };
         set({
@@ -1537,7 +1552,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   retryDownload: async (jobId) => {
     const job = get().downloads.find((item) => item.jobId === jobId);
-    if (!job?.neteaseId) return;
+    if (!job || !(job.neteaseId || (job.bvid && job.cid))) return;
     try {
       const source = job.source ?? "netease";
       const preferred = get().downloadQuality;
@@ -1549,7 +1564,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
               ? "flac"
               : "320"
           : preferred;
-      const result = await bridge().invoke<{ jobId: string }>(`${source}.download`, {
+      const result = await bridge().invoke<{ jobId: string }>(`${source}.download`, source === "bilibili" ? {
+        bvid: job.bvid, cid: job.cid, title: job.title, format: job.exportFormat ?? "m4a",
+      } : {
         id: job.neteaseId,
         title: job.title,
         quality,

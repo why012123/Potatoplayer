@@ -17,7 +17,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = json.loads((ROOT / 'package.json').read_text())['version']
 ARCH = subprocess.check_output(['uname', '-m'], text=True).strip()
-OUT = ROOT / 'release'
+# Build output defaults to the repository's release/ directory, but that can sit
+# inside an iCloud-synced folder where every new file is uploaded through
+# CloudKit (thousands of small files => tens of minutes). POTATO_PACKAGE_OUT
+# lets callers stage on a local disk and copy the final artifacts afterwards.
+OUT = Path(os.environ.get('POTATO_PACKAGE_OUT') or (ROOT / 'release'))
 STAGE = OUT / f'macos-{ARCH}'
 APP = STAGE / 'PotatoMusic.app'
 RES = APP / 'Contents/Resources'
@@ -167,7 +171,7 @@ def main():
         (RUNTIME / 'vlc/plugins' / name).unlink(missing_ok=True)
     copy(vlc.parent / 'Resources/English.lproj/COPYING.rtf', NOTICES / 'VLC-COPYING.rtf') if (vlc.parent / 'Resources/English.lproj/COPYING.rtf').exists() else None
     for name, source in [('potatohq', ROOT / 'engines/potatoHQ/build/potatohq'),
-                         ('mpv', shutil.which('mpv')), ('node', shutil.which('node'))]:
+                         ('mpv', shutil.which('mpv')), ('ffmpeg', shutil.which('ffmpeg')), ('node', shutil.which('node'))]:
         if not source:
             raise RuntimeError(f'{name} is required on the build machine')
         bundle_binary(source, RUNTIME / 'bin' / name)
@@ -245,7 +249,7 @@ def finalize():
     # It has to be applied after the final signature check (the FinderInfo
     # marker is not sealed and codesign treats it as detritus).
     print('[package] applying Finder custom icon (macOS 26 icon-jail workaround)', flush=True)
-    icon_tool = ROOT / 'release' / '.app-icon-tool'
+    icon_tool = OUT / '.app-icon-tool'
     run('swiftc', '-O', ROOT / 'native/app-icon/main.swift', '-o', icon_tool)
     run(icon_tool, ROOT / 'build/icon.png', APP)
     icon_tool.unlink(missing_ok=True)

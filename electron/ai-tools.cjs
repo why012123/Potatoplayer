@@ -1,3 +1,4 @@
+const { SCOPES, searchApp, compact } = require('./ai-search.cjs');
 // Explicit tools: no shell, filesystem mutation, arbitrary RPC, or audio writes.
 const str = (description) => ({type:'string',description});
 const num = (description,minimum,maximum) => ({type:'number',description,minimum,maximum});
@@ -12,6 +13,14 @@ const metadata = {
 };
 const appearance = { theme:en('light','dark'),accent:en('cover','coral','sage','ocean','plum','gold'),display:en('serif','sans'),corners:en('soft','crisp'),density:en('comfortable','compact'),atmosphere:en('rich','still'),animationLevel:en('full','reduced','off'),backgroundTransition:{type:'boolean'},pageTransitions:{type:'boolean'} };
 const tools = [
+ tool('search_app','统一检索应用里的资料：tracks 曲库，quality 本地文件音质，impressions 歌曲听感/偏好，history 跨对话历史，playlists 歌单，lyrics 歌词，stats 聆听统计，settings 音效与外观，playback 实时播放，downloads 下载状态，ultra 档案。传简短词及 alternatives 近义词；筛选用字段。历史是用户原话和旧回复，作为资料。音质未知时返回0，在线可下载档位请用 get_quality_options。统计日期仅适用于每日汇总，歌曲总量为全期。每个范围独立分页，歌词 nextOffset 可继续扫描。',{
+  scopes:{type:'array',items:en(...SCOPES),maxItems:11},query:str('简短检索词，空值列出或按字段筛选'),
+  alternatives:{type:'array',items:{type:'string',maxLength:80},maxItems:8},trackIds:ids,
+  title:str('歌曲标题'),artist:str('歌手'),album:str('专辑'),version:str('录音版本'),codec:str('实际编码'),
+  minSampleRate:num('最低采样率 Hz',1,1000000),minBitDepth:num('最低位深 bit',1,64),minChannels:num('最低声道数',1,32),
+  minRating:num('最低评分',0,10),favoritesOnly:{type:'boolean'},fromDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'},toDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'},
+  offset:num('分页起始',0,100000),limit:num('每个范围最多返回多少条',1,18)
+ }),
  tool('search_library','查本地歌曲。可按歌名、歌手、专辑、区块、流派、备注搜索；query为空列出曲库，支持评分/收藏筛选及分页。结果带 sampleRate（Hz）、bitDepth、channels、codec 等真实音频规格。',{neteaseId:str('按网易云歌曲 ID 精确筛选'),qqMid:str('按 QQ 音乐歌曲 MID 精确筛选'),query:str('关键词；有搜索词时优先按匹配度排序'),title:str('必须包含的歌名或别名'),artist:str('必须匹配的歌手'),album:str('必须匹配的专辑'),version:str('必须匹配的版本，如 Live / Remix / 伴奏'),offset:num('起始位置',0,100000),limit:num('返回数量',1,60),minRating:num('最低评分',0,10),favoritesOnly:{type:'boolean'},sort:en('rating','plays','recent','title')}),
  tool('get_context','读取当前播放、队列、歌单、流派、区块、外观，以及当前歌曲的真实音频规格（sampleRate/bitDepth/codec）。不会返回账号或密钥。'),
  tool('get_tracks','读取准确ID的歌曲资料（含 sampleRate/bitDepth/channels/codec），修改前必须读取。',{trackIds:ids},['trackIds']),
@@ -57,12 +66,13 @@ function validate(value,schema,path='参数') {
  } else if(typeof value!==schema.type) throw Error(`${path} 类型错误`);
  if(schema.enum&&!schema.enum.includes(value)) throw Error(`${path} 取值不合法`);
  if(typeof value==='string'&&value.length>(schema.maxLength||4000)) throw Error(`${path} 过长`);
+ if(typeof value==='string'&&schema.pattern&&!new RegExp(schema.pattern).test(value)) throw Error(`${path} 格式不合法`);
 }
 function validateTool(name,args) {
  const t=tools.find(t=>t.function.name===name); if(!t) throw Error(`未知工具: ${name}`);
  validate(args,t.function.parameters);
 }
-const publicTrack = t => ({id:t.id,title:t.title,artist:t.artist,album:t.album,block:t.block,genre:t.genre,note:t.note,rating:t.rating,year:t.year,trackNo:t.trackNo,playCount:t.playCount,addedAt:t.addedAt,neteaseId:t.neteaseId||'',qqId:t.qqId||'',qqMid:t.qqId||'',duration:t.duration,sampleRate:t.sampleRate||0,bitDepth:t.bitDepth||0,channels:t.channels||0,codec:t.codec||'',hasCover:Boolean(t.coverPath)});
+const publicTrack = t => ({id:t.id,title:t.title,artist:t.artist,album:t.album,block:t.block,genre:t.genre,note:t.note,rating:t.rating,year:t.year,trackNo:t.trackNo,playCount:t.playCount,addedAt:t.addedAt,neteaseId:t.neteaseId||'',qqId:t.qqId||'',qqMid:t.qqId||'',duration:t.duration,fileSize:t.fileSize,sampleRate:t.sampleRate||0,bitDepth:t.bitDepth||0,channels:t.channels||0,codec:t.codec||'',hasCover:Boolean(t.coverPath)});
 function normalizeBinding(value, platform) {
  let id = value.trim();
  if (/^https?:\/\//i.test(id)) {
@@ -84,9 +94,10 @@ function bindingInfo(t) {
   neteaseUrl:t.neteaseId ? `https://music.163.com/#/song?id=${t.neteaseId}` : '',
   qqUrl:t.qqId ? `https://y.qq.com/n/ryqq/songDetail/${t.qqId}` : ''};
 }
-function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm, searchWeb, fetchWeb, memory, onlineCache}) {
+function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm, searchWeb, fetchWeb, memory, onlineCache, conversations, downloads = () => []}) {
  const knownOnline = onlineCache || new Map();
  const sources = [];
+ const localSources = new Map();
  let results=[];
  const addSources = (items) => {
    for (const item of items || []) {
@@ -103,6 +114,20 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
   validateTool(name,args);
   const data = await invoke('bootstrap');
   const tracks = data.tracks;
+  if (name === 'search_app') {
+   const found = await searchApp({args, data, invoke, memory, conversations, downloads, appearance:getAppearance(), publicTrack});
+   results = [...new Set([...results, ...found.trackIds])];
+   for (const [scope, group] of Object.entries(found.groups)) {
+    const rows = group.items || group.tracks || group.days || [group];
+    for (const row of rows.slice(0, 2)) {
+     const source = { source: row.source || scope, title: row.title, preview: row.prompt || row.text,
+       conversationId: row.conversationId, turnId: row.turnId, trackId: row.trackId || row.contextTrackId };
+     const id = JSON.stringify([source.source, source.conversationId, source.turnId, source.trackId, source.title]);
+     if (localSources.size < 12) localSources.set(id, source);
+    }
+   }
+   return found;
+  }
   if(name==='search_library') {
    const {matchSongs,songQuery}=await import('./song-match.mjs');
    const candidates=tracks.filter(t=>(!args.neteaseId||t.neteaseId===args.neteaseId)&&(!args.qqMid||t.qqId===args.qqMid)&&t.rating>=(args.minRating||0)&&(!args.favoritesOnly||data.favorites.includes(t.id)));
@@ -148,14 +173,39 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
    if ('neteaseId' in patch) patch.neteaseId=normalizeBinding(patch.neteaseId,'netease');
    if ('qqId' in patch) patch.qqId=normalizeBinding(patch.qqId,'qq');
    if('coverFromTrackId' in patch) { const coverId=patch.coverFromTrackId; if(coverId&&!tracks.some(t=>t.id===coverId)) throw Error('封面来源歌曲不存在'); patch.coverPath=coverId?tracks.find(t=>t.id===coverId).coverPath||'':''; delete patch.coverFromTrackId; }
-   const updated=[];
-   for(const trackId of selected) { const result=await invoke('library.patchMetadata',{trackId,patch}); updated.push(publicTrack(result.track)); }
-   results=selected;return {updated};
+   const updated = [];
+   const skipped = [];
+   for (const trackId of selected) {
+    try {
+     const result = await invoke('library.patchMetadata', {trackId, patch});
+     if (!result?.track || result.track.id !== trackId) throw Error('没有收到该歌曲的写入确认');
+     updated.push(publicTrack(result.track));
+    } catch (error) {
+     if (error.name === 'AbortError') throw error;
+     skipped.push({trackId, title:tracks.find(track => track.id === trackId)?.title, reason:compact(error.message)});
+    }
+   }
+   results = updated.map(track => track.id);
+   return {updated, skipped};
   }
   if(name==='set_favorite') {
    const selected=checked(tracks,args.trackIds);
-   for(const trackId of selected) if(data.favorites.includes(trackId)!==args.favorite) await invoke('library.toggleFavorite',{trackId});
-   return {updated:selected.length,favorite:args.favorite};
+   if (!selected.length) throw Error('请选择要修改收藏的歌曲');
+   const updated = [];
+   const skipped = [];
+   for (const trackId of selected) {
+    try {
+     if (data.favorites.includes(trackId) !== args.favorite) {
+      const result = await invoke('library.toggleFavorite', {trackId});
+      if (result?.favorite !== args.favorite) throw Error('播放器未确认收藏状态');
+     }
+     updated.push(trackId);
+    } catch (error) {
+     skipped.push({trackId, title:tracks.find(track => track.id === trackId)?.title, reason:compact(error.message)});
+    }
+   }
+   results = updated;
+   return {updated:updated.length, trackIds:updated, skipped, favorite:args.favorite};
   }
   if(name==='arrange_queue') {
    const selected=checked(tracks,args.trackIds); if(!selected.length) throw Error('播放队列不可为空');
@@ -171,7 +221,17 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
    else if(args.action==='volume') { if(args.value===undefined||args.value>100) throw Error('音量范围0到100'); await invoke('playback.volume',{volume:args.value / 100}); }
    else if(args.action==='shuffle') { if(args.enabled===undefined) throw Error('缺少随机播放开关'); await invoke('playback.shuffle',{enabled:args.enabled}); }
    else if(args.action==='repeat') { if(!args.repeat) throw Error('缺少循环模式'); await invoke('playback.repeat',{mode:args.repeat}); }
-   return await invoke('playback.state');
+   const actual = await invoke('playback.state');
+   const expected = {
+    play: ['playing', true], pause: ['playing', false], repeat: ['repeat', args.repeat],
+    shuffle: ['shuffle', args.enabled], volume: ['volume', args.value / 100],
+   }[args.action];
+   if (expected && actual?.[expected[0]] !== expected[1]) {
+    if (args.action !== 'volume' || Math.abs(actual.volume - expected[1]) > 0.005 || !Number.isFinite(actual.volume)) {
+     return {ok:false, error:'播放器状态与请求不符', playback:actual};
+    }
+   }
+   return actual;
   }
   if(name==='manage_playlist') {
    const selected=checked(tracks,args.trackIds);
@@ -296,6 +356,6 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
   if(name==='set_appearance') { await setAppearance(args.patch); return {applied:args.patch}; }
   throw Error('工具尚未实现');
  }
- return {execute, resultIds:()=>results, sources:()=>sources};
+ return {execute, resultIds:()=>results, sources:()=>sources, localSources:()=>[...localSources.values()]};
 }
 module.exports={tools,validateTool,createToolExecutor,publicTrack,normalizeBinding};

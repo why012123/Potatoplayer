@@ -187,7 +187,10 @@ public final class MpvPlaybackEngine implements PlaybackEngine {
                     case "property-change" -> handleProperty(message.path("name").asText(""), message.get("data"));
                     case "end-file" -> {
                         String reason = message.path("reason").asText("");
-                        if ("eof".equals(reason)) {
+                        if ("error".equals(reason)) {
+                            Listener l = listener;
+                            if (l != null) l.onError(message.path("file_error").asText("mpv 无法播放此文件"));
+                        } else if ("eof".equals(reason)) {
                             ended = true;
                             Listener l = listener;
                             if (l != null) l.onFinished();

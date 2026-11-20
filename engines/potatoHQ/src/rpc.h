@@ -2,6 +2,7 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -30,6 +31,7 @@ class RpcServer {
   Engine& engine_;
   std::atomic<bool> running_{true};
   std::thread ticker_;
+  std::mutex playbackMutex_;
   bool lastFinished_ = false;
   bool lastPlaying_ = false;
 };

@@ -1,0 +1,33 @@
+.bili-search { margin-block-end: 20px; }
+.bili-search .online-search { width: 100%; }
+.bili-video { padding: clamp(14px, 2vw, 24px); border-radius: var(--radius, 18px); display: grid; gap: 14px; }
+.bili-video__head { display: grid; grid-template-columns: clamp(72px, 15%, 128px) minmax(0, 1fr) auto; align-items: center; gap: 14px; }
+.bili-video__head h2, .bili-results__head h2 { margin: 4px 0; font-size: 17px; overflow-wrap: anywhere; }
+.bili-video__head p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.bili-video__close { align-self: start; }
+.bili-thumb { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 10px; background: var(--glass); }
+.bili-thumb--empty { display: grid; place-items: center; color: var(--muted); }
+.bili-video__actions, .bili-transfer, .bili-results__head, .bili-pagination, .bili-parts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bili-parts { color: var(--muted); font-size: 12px; }
+.bili-parts select { max-width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--glass-strong); color: var(--text); font: inherit; }
+.bili-player { display: block; border: 0; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #101014; }
+.bili-description, .bili-hint, .bili-transfer, .bili-pagination { font-size: 12px; color: var(--muted); }
+.bili-description summary { cursor: pointer; }
+.bili-description p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bili-transfer__error { color: var(--danger, var(--text)); }
+.bili-results { margin-top: 22px; }
+.bili-results__head { justify-content: space-between; margin-bottom: 10px; }
+.bili-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+.bili-card { min-width: 0; display: grid; gap: 8px; cursor: pointer; padding: 8px; border-radius: 13px; text-align: left; }
+.bili-card:is(:hover, .is-selected) { border-color: var(--accent); }
+.bili-card__image { position: relative; min-width: 0; }
+.bili-card__image > span { position: absolute; bottom: 5px; right: 5px; padding: 2px 5px; border-radius: 5px; background: rgb(0 0 0 / .68); color: white; font-size: 10px; }
+.bili-card__copy { display: grid; gap: 4px; min-width: 0; padding: 0 2px 3px; }
+.bili-card__copy strong { font-size: 12px; color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bili-card__copy span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-corners="crisp"] :is(.bili-video, .bili-card, .bili-thumb, .bili-player) { border-radius: 5px; }
+
+.bili-search-fallback { margin-top: 8px; }
+
+.bili-format { display: grid; gap: 5px; }
+.bili-format small { color: var(--muted); font-size: 11px; }

@@ -95,7 +95,7 @@ public final class VlcPlaybackEngine implements PlaybackEngine {
 
     public void play(String path) {
         requireAvailable();
-        player.media().play(path);
+        if (!player.media().play(path)) throw new IllegalStateException("VLC 无法打开此文件");
     }
 
     public void pause() {

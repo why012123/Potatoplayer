@@ -107,7 +107,7 @@ export function AiSidebar() {
       <header><span>{tr("AI reply", "AI 回复")}</span><small>{tr("Saved in chat", "已保留在对话中")}</small>
         <IconButton label={tr("Close reply", "关闭回复")} variant="ghost" size="sm" onClick={dismiss}><X size={15} /></IconButton>
       </header>
-      <div className="ai-mini-reply__body"><AiTurnView turn={popup} onRetry={send} /></div>
+      <div className="ai-mini-reply__body"><AiTurnView turn={turns.find(turn => turn.id === popup.id) ?? popup} onRetry={send} /></div>
       <button className="ai-mini-reply__expand" onClick={() => setOpen(true)}>{tr("View conversation", "查看完整对话")}<Maximize2 size={13} /></button>
     </motion.section>}</AnimatePresence>
     {composer}

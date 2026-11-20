@@ -41,6 +41,7 @@ void RpcServer::startTicker() {
     while (running_.load(std::memory_order_acquire)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       if (!running_.load(std::memory_order_acquire)) break;
+      std::lock_guard lock(playbackMutex_);
       ++tick;
       if (engine_.visualizationDemand()) {
         if (engine_.spectrumBars(bars, 48)) {
@@ -222,6 +223,16 @@ Json RpcServer::dispatch(const std::string& method, const Json& params) {
     emitState();
     return engine_.status();
   }
+  if (method == "playback.recover") {
+    const double position = params.has("position") ? params["position"].asNumber(engine_.position())
+                                                  : engine_.position();
+    std::string err;
+    if (!engine_.recover(position, &err)) {
+      throw std::runtime_error(err.empty() ? "recover failed" : err);
+    }
+    emitState();
+    return engine_.status();
+  }
   if (method == "playback.setNext") {
     const std::string nextPath = params["path"].asString("");
     engine_.setNext(nextPath, params["trackId"].asString(""));
@@ -316,6 +327,7 @@ void RpcServer::handleLine(const std::string& line) {
   }
   Json params = request.has("params") ? request["params"] : Json::object();
   try {
+    std::lock_guard lock(playbackMutex_);
     Json result = dispatch(method, params);
     Json msg = Json::object();
     msg.set("id", id);

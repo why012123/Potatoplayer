@@ -13,6 +13,8 @@ export interface Track {
   /** Sidecar lyrics override path or inline text, when the library records it. */
   lyricsOverride?: string;
   coverPath: string | null;
+  /** Fields explicitly edited in the library; empty/absent means scanner defaults. */
+  metadataOverrides?: string[];
   duration: number;
   /** Measured from the audio file; missing or zero means not available. */
   sampleRate?: number;
@@ -178,6 +180,7 @@ export type View =
   | { kind: "block"; name: string }
   | { kind: "genre"; name: string }
   | { kind: "discover" }
+  | { kind: "video-extract" }
   | { kind: "sync" }
   | { kind: "playlist"; id: string }
   | { kind: "album"; key: string }
@@ -348,6 +351,9 @@ export interface EqState {
   songCount?: number;
 }
 
+export type DownloadSource = OnlineSource | "bilibili";
+export type BilibiliExportFormat = "m4a" | "flac" | "mp3";
+
 export interface DownloadJob {
   jobId: string;
   neteaseId: string;
@@ -360,7 +366,10 @@ export interface DownloadJob {
   status: "running" | "done" | "error" | "cancelled";
   message?: string;
   importId?: string;
-  source?: OnlineSource;
+  source?: DownloadSource;
+  bvid?: string;
+  cid?: number;
+  exportFormat?: BilibiliExportFormat;
   duplicate?: boolean;
   updated?: boolean;
   /** True when an existing copy was replaced by a better-quality download. */
@@ -408,7 +417,10 @@ export interface DownloadDone {
   previousQuality?: DownloadQuality;
   block?: string;
   genre?: string;
-  source?: OnlineSource;
+  source?: DownloadSource;
+  bvid?: string;
+  cid?: number;
+  exportFormat?: BilibiliExportFormat;
 }
 
 export interface PlaylistImport {

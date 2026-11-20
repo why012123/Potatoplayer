@@ -4,17 +4,81 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s2.1.0`. The line started at `s1.0.0`. `s2.0.0` merged
+- **Current release:** `s2.1.3`. The line started at `s1.0.0`. `s2.0.0` merged
   the **一起听 / Together** online rooms and the **AI 助手 / AI 工作台** edition
   into Super; since then `s2.0.x` patch releases keep the same visual system and
   refine the AI surfaces.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`2.1.0`).
+  the equivalent plain semver (`2.1.3`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s2.1.3 — 2026-11-20
+
+### Added
+
+- **歌曲编辑：自定义封面**：歌曲编辑页最下方新增封面区。可从本地选择 JPG / PNG / WebP 图片（≤ 20 MB），选中后立即预览；保存时图片被复制进应用数据目录并写入曲库，音频文件保持原样。已自定义过封面的歌曲可一键恢复导入前的封面。
+- **歌曲编辑：导入 LRC 歌词**：同一位置可导入 `.lrc` / `.txt` 歌词文件（自动识别 UTF-8 与 GBK 编码）。歌词保存进曲库元数据后立刻用于滚动歌词显示，无需在音频目录旁放文件；也可随时移除，回退到同名 `.lrc` 或资料库歌词。同样不改动音频文件。
+- **歌词手动滚动后自动归位**：实时滚动歌词被鼠标滚轮 / 触控板 / 拖动滚动条 / 键盘手动滚动时，自动居中会暂停，方便回看前面的歌词；停止手动操作 3 秒后平滑回到当前播放的那一句并恢复自动跟随。右侧歌词面板与沉浸式歌词视图都生效。
+
+### Fixed
+
+- **切歌爆音 / 电流声（potatoHQ）**：修复点击上一首 / 下一首等切歌操作时的可闻爆音。根因是每次切歌都会把 CoreAudio 输出单元整套关闭（`AudioOutputUnitStop` → `AudioUnitUninitialize` → 销毁 → 重建 → 重启），即使两首歌采样率完全相同也重启硬件流；同时旧歌波形被半途硬切、新歌没有淡入，又叠加了一个数字台阶声。现在：
+  - 设备、声道、客户端格式、有效采样率都不变时**保持输出单元运行**，只更换解码源，换歌期间输出静音——同采样率切歌不再触碰硬件流（`engine.status.outputReopens` 保持为 0）；
+  - 换歌前后各约 15 ms 增益淡出 / 淡入，消除波形硬切；快速连续切歌同样生效；
+  - 只有采样率确实变化时才重配，且只重配一次（先淡出，重配后淡入）；DoP / DSD 路径不施加增益渐变，保留位流完整；
+  - 新文件探测失败时不再中断正在播放的歌曲；
+  - `engine.status` 新增 `outputOpens` / `outputReopens` / `outputReuses` / `switchFadeMs`，便于诊断。
+
+### Notes
+
+- 切歌爆音修复的验证全部基于 stub 输出单元与离线渲染断言：同采样率切歌 0 次重开、连续 4 次快速切歌仍 0 次、相邻采样最大台阶 < 0.01（硬切为 0.5）、改率切歌恰好 1 次重开、`recover()` 强制重建 1 次；测试全程未改动系统音量、未打开真实音频设备。
+- 若设备切换采样率本身会产生硬件瞬态，可把 `followSourceRate` 设为 false：设备采样率不再变动，由引擎重采样，换歌完全不会触发硬件重配。
+- 封面图片保存在数据目录 `custom-covers/` 下，歌词保存在 `library.json` 的曲目字段中，都不写入音频文件本身。
+- 手动滚动的暂停/恢复基于真实用户输入事件（wheel / touch / pointer / 翻页键），自动滚动不会误判为手动操作。
+
+## s2.1.2 — 2026-11-20
+
+### Fixed
+
+- **切歌后无声（potatoHQ）**：修复"进度条/频谱/歌词都正常，但没有声音"的问题。根因是切歌时引擎先关闭再重开 CoreAudio 输出，并对同一设备连续做"还原采样率 → 设置新采样率"两次硬件重配置；某些时序下 `AudioOutputUnitStart` 返回成功但 IOProc 实际从未跑起来，引擎仍报告 playing。现在：
+  - 切歌不再先还原旧采样率（每首歌最多一次硬件重配），并在改率后等待设备稳定再打开输出；
+  - `start()` 会校验渲染回调真的开始（约 120ms 内无回调则重试一次，仍失败则明确报错而非静默播放）；
+  - 新增 `playback.recover`：在当前进度软重启输出，不改变播放位置。
+- **输出卡死自愈**：Java 侧新增看门狗（700ms 轮询 `engine.status`），发现 playing 但 callbacks/position 停滞，或 macOS 默认输出设备发生变化时，自动按当前进度恢复输出。
+- **设备变化监听**：CoreAudio 输出注册默认输出设备变化监听（插拔耳机、蓝牙路由切换），触发重新打开输出。
+- 引擎状态新增 `routeChanged` 字段，便于后续诊断。
+
+### Notes
+
+- 修复验证方式：引擎音量 0 + 系统音量 0 + 关闭采样率切换 + 仅 44.1k 文件（全程静音）；快速连续 8 次切歌后 callbacks 持续增长，`playback.recover` 从 12.5s 恢复并继续渲染。
+- 引擎测试：`phq_tests` 102 项、`phq_playback_tests` 74 项、`phq_device_tests` 7 项全部通过。
+
+## s2.1.1 — 2026-11-20
+
+### Added
+
+- **Ultra 运行时曲库**：Ultra 的三维档案馆不再依赖构建期快照 —— 打开 Ultra 窗口时，主进程从当前 `library.json` 实时生成档案（缓存到数据目录 `ultra/archives.json`，库未变化时直接复用）；曲库扫描完成后自动重新生成，并重载已打开的 Ultra 窗口。打包安装版终于能显示本机真实曲库，而不是内置示例档案。档案导出链接在运行时曲库模式下自动隐藏（`.txt` 是构建期静态产物）。
+- **AI 应用检索**：统一查曲库、文件音质、听感、旧对话、歌词、歌单、统计、设置、实时播放、下载和 Ultra 档案资料，检索结果附本地来源。
+- **操作与下载反馈**：对话根据应用回执显示完成、部分完成、排队、跳过、取消和失败；AI 发起的下载结束后，真实结果回到原对话并交给 AI 汇报。
+- 具体歌曲听感会触发一次记忆复核；明确要求记住时检查写入结果，尊重不保存的要求。
+
+- 左栏「在线」下新增独立的 B 站「视频提取」。支持关键词、视频链接或 BV／av 号、分 P 预览，以及 M4A、FLAC、MP3 导出。M4A 原样保留公开 AAC 音轨，下载与转换走同一队列，完成后自动入库。
+- B 站取音轨会尝试备用地址，并在传输失败后刷新一次播放地址。下载任务会显示失败阶段和具体原因。
+
+### Fixed
+
+- 修复 macOS 启动竞态：`activate` 事件早于 `ready` 触发时创建主窗口会抛 `Cannot create BrowserWindow before app is ready`（Dock 点击/重复启动时偶发）。
+- 修复快速切歌时延迟的结束通知可能误停新歌的问题；potatoHQ 切歌时先停止旧音频读写，再清空缓冲区。
+- 歌曲打开失败后可直接重试。
+- AI 编辑会核对成功写入的操作和明确指定的字段，工具报错或漏项时继续处理；在歌曲编辑页询问"这首歌"会使用选中的曲目。
+
+### Notes
+
+- 公开安装包仍不包含个人曲库：构建期使用示例档案，运行时再替换为本机数据，隐私边界不变。
 
 ## s2.1.0 — 2026-11-15
 

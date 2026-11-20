@@ -8,12 +8,45 @@ export interface AiSource {
   site?: string;
 }
 
+export interface AiDownloadReceipt {
+  jobId: string;
+  status: string;
+  title?: string;
+  quality?: string;
+  requestedQuality?: string;
+  previousQuality?: string;
+  duplicate?: boolean;
+  replaced?: boolean;
+  upgradeUnavailable?: boolean;
+  downgradeUnavailable?: boolean;
+  message?: string;
+}
+
+export interface AiAction {
+  name: string;
+  status: string;
+  detail?: string;
+  operation?: boolean;
+  jobs?: AiDownloadReceipt[];
+}
+
+export interface AiLocalSource {
+  source: string;
+  title?: string;
+  preview?: string;
+  conversationId?: string;
+  turnId?: string;
+  trackId?: string;
+}
+
 export interface AssistantResult {
   intent: AssistantIntent;
   title: string;
   explanation: string;
   trackIds: string[];
-  actions?: Array<{ name: string; status: string; detail?: string }>;
+  actions?: AiAction[];
+  localSources?: AiLocalSource[];
+  downloadSummary?: string;
   sources?: AiSource[];
 }
 
@@ -33,6 +66,7 @@ export interface AssistantTurn {
   error?: string;
   streaming?: string;
   activity?: string[];
+  operations?: AiAction[];
   provider?: "deepseek" | "local";
   contextTrackId?: string;
 }

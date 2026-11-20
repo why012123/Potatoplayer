@@ -1,3 +1,4 @@
+import { receiveAssistantDownload } from "@/ai/assistant";
 import { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
 import clsx from "clsx";
@@ -27,6 +28,7 @@ import { SongEditorPage } from "@/pages/SongEditorPage";
 import { CollectionsPage } from "@/pages/CollectionsPage";
 import { TagPage } from "@/pages/TagPage";
 import { SyncPage } from "@/pages/SyncPage";
+import { BilibiliExtractPage } from "@/pages/BilibiliExtractPage";
 import { DiscoverPage } from "@/pages/DiscoverPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { DailyMixPage } from "@/pages/DailyMixPage";
@@ -129,6 +131,10 @@ function FatalScreen({ message }: { message: string }) {
 }
 
 export default function App() {
+  useEffect(() => window.potato.onEvent(({ event, data }) => {
+    if (event === "ai.download.updated") receiveAssistantDownload(data as Parameters<typeof receiveAssistantDownload>[0]);
+  }), []);
+
   const initialize = useAppStore((state) => state.initialize);
   const loading = useAppStore((state) => state.loading);
   const fatalError = useAppStore((state) => state.fatalError);
@@ -366,6 +372,8 @@ export default function App() {
         return <SyncPage />;
       case "discover":
         return <DiscoverPage />;
+      case "video-extract":
+        return <BilibiliExtractPage />;
       case "playlist":
         return <PlaylistPage />;
       case "album":

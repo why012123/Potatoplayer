@@ -5,6 +5,7 @@ import { matchSongs, normalizeSongText as normalize, songQuery } from "../../ele
 import type { Track } from "@/types";
 import { useAppStore } from "@/store";
 import type {
+  AiAction,
   AssistantContext,
   AssistantIntent,
   AssistantResult,
@@ -33,8 +34,7 @@ export type {
   SongMemory,
 } from "./types";
 
-/** Providers propose songs only. Playback and library writes stay in UI actions.
- * A future remote provider should call an Electron IPC backend, never expose keys here. */
+/** Local matching and the IPC-backed assistant share this entry point. */
 export interface MusicAssistantProvider {
   id: string;
   label: string;
@@ -46,6 +46,9 @@ export const localProvider: MusicAssistantProvider = {
   id: "local",
   get label() { return lx("Local mode · No model connected", "本地模式 · 未连接模型"); },
   async suggest(prompt, context, signal) {
+    if (/(?:编辑|修改|更改|补全|更新).{0,16}(?:歌曲|资料|歌名|歌手|专辑|流派|备注|评分)|(?:歌名|评分|备注|歌手|流派|年份|专辑).{0,5}(?:改成|改为|设为)|\b(?:edit|update|rename) (?:this |the )?(?:song|track|metadata)\b/i.test(prompt)) {
+      throw new Error(lx("Connect DeepSeek in AI settings to edit song details. No changes were made.", "请先在 AI 连接设置中启用 DeepSeek，再发送编辑请求。本次没有修改歌曲。"));
+    }
     // Built-in English suggestions use the same local matching vocabulary.
     const suggestions: Record<string, string> = {
       "recommend a playlist for me": "为我推荐一份歌单",
@@ -205,11 +208,12 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
         // The DeepSeek path can still create its own conversation server-side.
       }
     }
-    const contextTrackId = state.playback?.trackId ?? state.previewTrackId ?? undefined;
+    const editorTarget = state.viewHistory[state.viewIndex]?.kind === "editor" ? state.editorTrackId : null;
+    const contextTrackId = editorTarget ?? state.playback?.trackId ?? state.previewTrackId ?? undefined;
     try {
       const result = await provider.suggest(
         prompt,
-        { tracks: state.tracks, favorites: state.favorites, currentTrackId: state.playback?.trackId ?? state.previewTrackId },
+        { tracks: state.tracks, favorites: state.favorites, currentTrackId: contextTrackId ?? null },
         pending.signal,
       );
       if (pending.signal.aborted || id !== String(requestId)) return;
@@ -222,7 +226,7 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
       const chat = result as ChatResponse;
       if (chat.conversationId && !get().conversationId) conversationId = chat.conversationId;
       set({
-        turns: get().turns.map((turn) => (turn.id === id ? { ...turn, result: safe, provider: provider.id === "deepseek" ? "deepseek" : "local" } : turn)),
+        turns: get().turns.map((turn) => (turn.id === id ? { ...turn, id: chat.turnId ?? turn.id, result: safe, provider: provider.id === "deepseek" ? "deepseek" : "local" } : turn)),
         ...(chat.conversationId ? { conversationId: chat.conversationId } : {}),
         ...(chat.conversation
           ? { conversations: [chat.conversation, ...get().conversations.filter((item) => item.id !== chat.conversation!.id)] }
@@ -355,14 +359,15 @@ export function setMusicAssistantProvider(next: MusicAssistantProvider) {
   useAssistant.setState({ providerLabel: next.label });
 }
 
-const toolLabels = (): Record<string, string> => ({
+export const toolLabels = (): Record<string, string> => ({
+  search_app: lx("Searching Potatoplayer", "检索应用资料"),
   search_library: lx("Searching your library", "检索本地曲库"),
   get_context: lx("Reading playback and playlists", "读取播放与歌单"),
   get_tracks: lx("Reading song details", "读取歌曲资料"),
   get_track_bindings: lx("Reading NetEase IDs / QQ MIDs", "查看网易云 ID / QQ MID"),
   update_track_bindings: lx("Updating platform song IDs", "更新平台歌曲标识"),
   search_qq: lx("Searching QQ Music", "搜索 QQ 音乐"),
-  download_qq: lx("Queuing a QQ download", "加入 QQ 下载任务"),
+  download_qq: lx("QQ Music download", "QQ 音乐下载"),
   get_listening_stats: lx("Reading listening stats", "读取聆听统计"),
   get_lyrics: lx("Reading lyrics", "读取歌词"),
   update_tracks: lx("Updating song details", "更新歌曲资料"),
@@ -373,7 +378,7 @@ const toolLabels = (): Record<string, string> => ({
   search_netease: lx("Searching NetEase Music", "搜索网易云完整资料"),
   get_netease_song_details: lx("Reading song and album details", "读取歌曲与专辑详情"),
   get_netease_comments: lx("Reading NetEase comments", "读取网易云评论"),
-  download_netease: lx("Queuing a download", "加入下载任务"),
+  download_netease: lx("NetEase download", "网易云下载"),
   web_search: lx("Searching the web", "联网搜索"),
   web_fetch: lx("Reading a web page", "读取网页"),
   get_song_memory: lx("Reading song memories", "读取歌曲记忆"),
@@ -384,6 +389,23 @@ const toolLabels = (): Record<string, string> => ({
   forget_preference: lx("Deleting a preference", "删除长期记忆"),
   set_appearance: lx("Updating appearance", "调整外观"),
 });
+
+export function receiveAssistantDownload(data: { conversationId?: string; turnId?: string; actions?: AiAction[]; downloadSummary?: string }) {
+  if (data.conversationId !== useAssistant.getState().conversationId || !data.turnId) return;
+  const jobIds = new Set(data.actions?.flatMap(action => action.jobs?.map(job => job.jobId) ?? []));
+  useAssistant.setState(state => ({
+    turns: state.turns.map(turn => {
+      const matchesJob = turn.error && turn.operations?.some(action => action.jobs?.some(job => jobIds.has(job.jobId)));
+      if (turn.id !== data.turnId && !matchesJob) return turn;
+      const result: AssistantResult = turn.result ?? { intent: "search", title: "", explanation: "", trackIds: [] };
+      return {
+        ...turn, id: data.turnId!,
+        result: { ...result, ...(data.actions ? { actions: data.actions } : {}),
+          ...(data.downloadSummary ? { downloadSummary: data.downloadSummary } : {}) },
+      };
+    }),
+  }));
+}
 
 const deepseekProvider: MusicAssistantProvider = {
   id: "deepseek",
@@ -397,7 +419,7 @@ const deepseekProvider: MusicAssistantProvider = {
     signal.addEventListener("abort", cancel, { once: true });
     const off = window.potato.onEvent(({ event, data }) => {
       if (event !== "ai.progress") return;
-      const d = data as { requestId: string; type: string; text?: string; name?: string; status?: string; detail?: string; patch?: Record<string, unknown>; token?: string };
+      const d = data as AiAction & { requestId: string; type: string; text?: string; patch?: Record<string, unknown>; token?: string };
       if (d.requestId !== id || signal.aborted) return;
       if (d.type === "appearance" && d.patch) {
         // Super owns its appearance system (theme presets, accent, display and
@@ -420,9 +442,10 @@ const deepseekProvider: MusicAssistantProvider = {
                 ...(d.type === "text" ? { streaming: d.text } : {}),
                 ...(d.type === "tool"
                   ? {
+                      operations: d.operation && d.status !== "running" ? [...(turn.operations ?? []), d] : turn.operations,
                       activity: [
                         ...(turn.activity ?? []).slice(-19),
-                        `${d.status === "done" ? "✓" : d.status === "error" ? "!" : "…"} ${toolLabels()[d.name ?? ""] ?? d.name}${d.detail ? ` · ${d.detail}` : ""}`,
+                        `${d.status === "done" ? "✓" : d.status === "running" || d.status === "queued" ? "…" : "!"} ${toolLabels()[d.name ?? ""] ?? d.name}${d.detail ? ` · ${d.detail}` : ""}`,
                       ],
                     }
                   : {}),

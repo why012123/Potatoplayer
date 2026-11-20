@@ -52,6 +52,9 @@ class Engine {
   void pause();
   void resume();
   bool seek(double seconds, std::string* error);
+  // Soft restart of the current track at `position`; used when the output
+  // stalls (no callbacks) or macOS moved the default output device.
+  bool recover(double position, std::string* error);
   void setVolume(double v);
   void applyEq(const std::vector<EqBand>& bands, double preampDb);
   void setOutputOptions(const std::string& deviceId, bool exclusive);
@@ -59,6 +62,11 @@ class Engine {
   void setChannels(int channels);
   void setExclusive(bool exclusive);
   void setFollowSourceRate(bool follow);
+  // Track-switch de-click: production default is ~15 ms of gain ramp on each
+  // side of a switch. Tests set the length explicitly (frames < 0 falls back to
+  // the millisecond value, 0 disables the ramps) so the capture stays exact.
+  void setSwitchFadeMs(double ms);
+  void setSwitchFadeFrames(int frames);
   void setSpatial(bool enabled, double x, double y);
   void setVisualization(bool enabled);
   void setCrossfeed(bool enabled, double strength);
@@ -85,6 +93,18 @@ class Engine {
   std::string lastError() const;
 
  private:
+  bool playInternal(const std::string& path, double startSeconds, std::string* error,
+                    const std::string& trackId, const std::string& nextPath,
+                    const std::string& nextTrackId, bool forceReopen);
+  void stopInternal(bool restoreOutputRate);
+  // Track-switch transport: fade the old waveform out, keep the render thread
+  // quiet while the source changes, then fade the new waveform in.
+  uint64_t switchFadeFrames(int rate) const;
+  void beginSwitchFade(float from, float to, uint64_t frames);
+  void resetSwitchFade(float gain);
+  bool waitForSwitchFade(int rate);
+  void waitForRenderIdle();
+  void applySwitchFade(float* out, size_t frames, int channels);
   void decodeLoopPcm();
   void decodeLoopDop();
   void render(void* data, size_t frames);
@@ -147,6 +167,22 @@ class Engine {
   // Position model: seconds = trackStartPosition + (framesRendered - trackStartFrame)/rate.
   std::atomic<uint64_t> trackStartFrame_{0};
   std::atomic<double> trackStartPosition_{0.0};
+
+  // Track-switch de-click state. `switchSwapActive_` makes the render callback
+  // output silence while the control thread swaps the decode source under a
+  // live CoreAudio unit; `renderDepth_` lets the control thread wait until no
+  // callback is inside the ring before it clears/resets it.
+  std::atomic<bool> switchSwapActive_{false};
+  std::atomic<uint32_t> renderDepth_{0};
+  std::atomic<float> switchFadeFrom_{1.0f};
+  std::atomic<float> switchFadeTo_{1.0f};
+  std::atomic<uint64_t> switchFadeLength_{0};
+  std::atomic<uint64_t> switchFadePos_{0};
+  std::atomic<double> switchFadeMs_{15.0};
+  std::atomic<int> switchFadeFrameOverride_{-1};  // <0 = derive from switchFadeMs_
+  std::atomic<uint64_t> outputOpens_{0};
+  std::atomic<uint64_t> outputReopens_{0};
+  std::atomic<uint64_t> outputReuses_{0};
 
   FloatRing ring_;
   Int32Ring dopRing_;

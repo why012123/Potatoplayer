@@ -181,6 +181,12 @@ public final class LibraryScanner {
                 track.qqId = binding.qqMid();
             }
         }
+        BilibiliService.ImportedAudio imported = BilibiliService.importedAudio(musicRoot, absolute);
+        if (imported != null) {
+            if (notBlank(imported.title())) track.title = imported.title();
+            if (notBlank(imported.artist())) track.artist = imported.artist();
+            if (track.duration <= 0) track.duration = Math.max(0, imported.duration());
+        }
         if (track.coverPath == null) {
             Path folderCover = folderCover(absolute.getParent());
             if (folderCover != null) {

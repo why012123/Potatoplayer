@@ -23,6 +23,21 @@ function cleanTagList(value, maxItems = 8, maxLength = 32) {
   return [...new Set(value.map((item) => text(item, maxLength)).filter(Boolean))].slice(0, maxItems);
 }
 
+const { downloadReceipt, attachJobStates } = require('./ai-feedback.cjs');
+
+function cleanJob(value) {
+  if (!['queued', 'running', 'done', 'error', 'cancelled', 'unknown'].includes(value?.status)) return null;
+  return downloadReceipt(value, value.status);
+}
+
+function cleanLocalSources(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).filter(item => item && typeof item.source === 'string').map(item => ({
+    source: text(item.source, 40), title: text(item.title, 200), preview: text(item.preview, 300),
+    conversationId: text(item.conversationId, 120), turnId: text(item.turnId, 120), trackId: text(item.trackId, 120),
+  }));
+}
+
 function cleanActions(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -32,7 +47,9 @@ function cleanActions(value) {
       const name = text(item.name, 60);
       const status = text(item.status, 20) || 'done';
       const detail = text(item.detail, 500);
-      return name ? { name, status, ...(detail ? { detail } : {}) } : null;
+      const jobs = Array.isArray(item.jobs) ? item.jobs.slice(0, 100).map(cleanJob).filter(Boolean) : [];
+      return name ? { name, status, operation: item.operation === true, ...(detail ? { detail } : {}),
+        ...(jobs.length ? { jobs } : {}) } : null;
     })
     .filter(Boolean);
 }
@@ -60,6 +77,7 @@ function cleanResult(value) {
     : [];
   const actions = cleanActions(value.actions);
   const sources = cleanSources(value.sources);
+  const localSources = cleanLocalSources(value.localSources);
   return {
     intent,
     title: text(value.title, 300),
@@ -67,6 +85,8 @@ function cleanResult(value) {
     trackIds,
     ...(actions.length ? { actions } : {}),
     ...(sources.length ? { sources } : {}),
+    ...(localSources.length ? { localSources } : {}),
+    ...(typeof value.downloadSummary === 'string' ? { downloadSummary: text(value.downloadSummary, 1000) } : {}),
   };
 }
 
@@ -247,6 +267,68 @@ function createConversationStore({ dataDir, emit }) {
     return { ok: true, id: removed.id };
   }
 
+  function searchTurns() {
+    return state.conversations.flatMap(conversation => conversation.turns.filter(turn => turn.prompt).map(turn => ({
+      conversationId: conversation.id, turnId: turn.id, title: conversation.title,
+      createdAt: turn.createdAt, contextTrackId: turn.contextTrackId, prompt: turn.prompt,
+      answer: turn.result?.explanation,
+    })));
+  }
+
+  function updateDownload(receipt) {
+    const updates = [];
+    for (const conversation of state.conversations) {
+      for (const turn of conversation.turns) {
+        let changed = false;
+        if (!turn.result?.actions) continue;
+        turn.result.actions = turn.result.actions.map(action => {
+          if (!action.jobs?.some(job => job.jobId === receipt.jobId)) return action;
+          changed = true;
+          return attachJobStates(action, job => job.jobId === receipt.jobId ? { ...job, ...receipt, title: receipt.title || job.title } : job);
+        });
+        if (changed) updates.push({ conversationId: conversation.id, turnId: turn.id, actions: turn.result.actions, receipt });
+      }
+    }
+    if (updates.length) persist();
+    for (const data of updates) emit?.({ event: 'ai.download.updated', data });
+    return updates;
+  }
+
+  function finishDownloadReport(conversationId, turnId, summaryText) {
+    const turn = state.conversations.find(item => item.id === conversationId)?.turns.find(item => item.id === turnId);
+    if (!turn?.result) return;
+    turn.result.downloadSummary = text(summaryText, 1000);
+    persist();
+    emit?.({ event: 'ai.download.updated', data: { conversationId, turnId, downloadSummary: turn.result.downloadSummary } });
+  }
+
+  function markInterruptedDownloads() {
+    let changed = false;
+    for (const conversation of state.conversations) {
+      for (const turn of conversation.turns) {
+        if (!turn.result?.actions) continue;
+        turn.result.actions = turn.result.actions.map(action => attachJobStates(action, job => {
+          if (job.status !== 'queued' && job.status !== 'running') return job;
+          changed = true;
+          return { ...job, status: 'unknown' };
+        }));
+      }
+    }
+    if (changed) persist();
+  }
+
+  function downloadHistory() {
+    return state.conversations.flatMap(conversation => conversation.turns.flatMap(turn =>
+      (turn.result?.actions || []).flatMap(action => (action.jobs || []).map(job => ({
+        ...job, conversationId: conversation.id, turnId: turn.id,
+      })))));
+  }
+
+  function downloadContext(id) {
+    const { turns } = find(id);
+    return turns.flatMap(turn => (turn.result?.actions || []).flatMap(action => action.jobs || [])).slice(-20);
+  }
+
   function messages(id, limit = 8) {
     const conversation = find(String(id || ''));
     const turns = conversation.turns.slice(-Math.max(1, Math.min(20, limit)));
@@ -267,6 +349,13 @@ function createConversationStore({ dataDir, emit }) {
     setPinned,
     remove,
     messages,
+    has: id => state.conversations.some(conversation => conversation.id === id),
+    searchTurns,
+    updateDownload,
+    finishDownloadReport,
+    markInterruptedDownloads,
+    downloadContext,
+    downloadHistory,
     file,
     stats: () => ({ conversations: state.conversations.length, updatedAt: lastUpdated || Math.max(0, ...state.conversations.map((item) => item.updatedAt || 0)) }),
   };

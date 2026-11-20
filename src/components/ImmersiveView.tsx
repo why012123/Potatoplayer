@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import clsx from "clsx";
 import {
@@ -30,6 +30,7 @@ import { useTr } from "@/lib/i18n";
 import { Lyric3DStage } from "@/components/Lyric3DStage";
 import { ImmersiveCustomizer } from "@/components/ImmersiveCustomizer";
 import { SpectrumBars } from "@/components/SpectrumBars";
+import { useLyricAutoScroll } from "@/lib/useLyricAutoScroll";
 import {
   accentFromPreferences,
   loadImmersivePreferences,
@@ -103,16 +104,12 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
     return index;
   }, [lyrics, time]);
 
-  const lyricRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  useEffect(() => {
-    const node = lyricRefs.current[activeLyric];
-    const container = node?.parentElement?.parentElement;
-    if (node && container) {
-      const top = node.offsetTop - container.clientHeight / 2 + node.clientHeight / 2;
-      container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-    }
-  }, [activeLyric]);
+  // Auto-centre the active line, yielding to the listener for 3 s after they
+  // scroll the list by hand (shared with the right-panel view).
+  const {
+    scrollRef: lyricsScrollRef,
+    lineRefs: lyricRefs,
+  } = useLyricAutoScroll(track?.id, activeLyric);
 
   useEffect(() => {
     if (!track) setImmersive(false);
@@ -373,7 +370,7 @@ export function ImmersiveView({ palette }: { palette: { primary: string; seconda
                 {lyrics?.translated && <em>{tr("Original + translation", "原文 + 翻译")}</em>}
               </div>
               {lyrics?.found && lyrics.lines.length ? (
-                <div className="immerse__lyrics-scroll">
+                <div className="immerse__lyrics-scroll" ref={lyricsScrollRef}>
                   <div className="immerse__lyrics">
                     {lyrics.lines.map((line, index) => {
                       const active = index === activeLyric;

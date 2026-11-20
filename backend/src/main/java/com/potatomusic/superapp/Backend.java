@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s2.1.0";
+    public static final String VERSION = "s2.1.3";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -97,7 +98,7 @@ public final class Backend implements PlaybackController.Host {
         this.playback.warmUpAsync();
         this.netease = new NeteaseService(this);
         this.qq = new QQMusicService(this);
-        this.bilibili = new BilibiliService();
+        this.bilibili = new BilibiliService(this::libraryRootPath, emitter, this::rescanAfterDownload);
         this.playlistSync = new PlaylistSync(store.dataDir().resolve("playlist_sync.json"), new PlaylistSync.Host() {
             public PlaylistSync.Local snapshot(String kind, String target) { return syncSnapshot(kind, target); }
             public void apply(PlaylistSync.Binding b, PlaylistSync.Local expected, List<String> ids, boolean replace) {
@@ -183,6 +184,8 @@ public final class Backend implements PlaybackController.Host {
                                 try { Track.class.getField(field).set(fresh, Track.class.getField(field).get(old)); }
                                 catch (ReflectiveOperationException ignored) { }
                             }
+                            // Keep the "restore to this artwork" pointer across rescans.
+                            if (old.coverBeforeCustom != null) fresh.coverBeforeCustom = old.coverBeforeCustom;
                         }
                     }
                     state.tracks = scanned;
@@ -462,8 +465,14 @@ public final class Backend implements PlaybackController.Host {
         return Map.of("blocks", copies(state.blocks), "genres", copies(state.genres));
     }
 
+    /** Kept for callers that only edit filing metadata (downloads, AI tools). */
     public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
                                            String neteaseId, String qqId) {
+        return updateTrack(trackId, block, genre, rating, note, neteaseId, qqId, null);
+    }
+
+    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
+                                           String neteaseId, String qqId, String lyricsOverride) {
         Track track = findTrack(trackId);
         if (track == null) {
             throw new IllegalArgumentException("Unknown track.");
@@ -478,6 +487,13 @@ public final class Backend implements PlaybackController.Host {
             track.rating = Math.max(0, Math.min(10, rating));
             String cleanNote = note == null ? "" : note.trim();
             track.note = cleanNote.length() > 2000 ? cleanNote.substring(0, 2000) : cleanNote;
+            // A null override leaves the stored lyrics untouched; an empty string
+            // clears the library override and falls back to the sidecar .lrc file.
+            if (lyricsOverride != null) {
+                String cleanLyrics = lyricsOverride.trim();
+                track.lyricsOverride = cleanLyrics.length() > 200000 ? cleanLyrics.substring(0, 200000) : cleanLyrics;
+                if (!track.metadataOverrides.contains("lyricsOverride")) track.metadataOverrides.add("lyricsOverride");
+            }
             ensureTagForValueLocked(state.blocks, track.block);
             ensureTagForValueLocked(state.genres, track.genre);
             updateBindingLocked(track, neteaseId, qqId);
@@ -485,6 +501,149 @@ public final class Backend implements PlaybackController.Host {
         saveNow();
         emitter.accept("track.updated", track);
         return Map.of("track", track, "blocks", copies(state.blocks), "genres", copies(state.genres));
+    }
+
+    // ─── Custom cover art (library metadata only; never edits the audio file) ──
+
+    /** Upper bound accepted for a user-picked cover image. */
+    private static final long MAX_CUSTOM_COVER_BYTES = 20L * 1024 * 1024;
+
+    /**
+     * Validates a picked cover image and returns its canonical extension
+     * ("jpg", "png" or "webp") based on the file's magic bytes. Package-private so
+     * the dependency-free self test can exercise it without a data directory.
+     */
+    static String coverImageExtension(Path source) throws IOException {
+        if (source == null || !Files.isRegularFile(source)) {
+            throw new IllegalArgumentException("That image file no longer exists.");
+        }
+        String name = source.getFileName().toString().toLowerCase(Locale.ROOT);
+        int dot = name.lastIndexOf('.');
+        String suffix = dot < 0 ? "" : name.substring(dot + 1);
+        if (!List.of("jpg", "jpeg", "png", "webp").contains(suffix)) {
+            throw new IllegalArgumentException("Cover art must be a JPG, PNG or WebP image.");
+        }
+        long size = Files.size(source);
+        if (size <= 0) {
+            throw new IllegalArgumentException("That image file is empty.");
+        }
+        if (size > MAX_CUSTOM_COVER_BYTES) {
+            throw new IllegalArgumentException("Cover art must be 20 MB or smaller.");
+        }
+        byte[] head = new byte[12];
+        try (var stream = Files.newInputStream(source)) {
+            int read = stream.readNBytes(head, 0, head.length);
+            if (read < 4) {
+                throw new IllegalArgumentException("That file is not a valid JPG, PNG or WebP image.");
+            }
+        }
+        boolean jpeg = (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF;
+        boolean png = (head[0] & 0xFF) == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G';
+        boolean webp = head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P';
+        if (jpeg) return "jpg";
+        if (png) return "png";
+        if (webp) return "webp";
+        throw new IllegalArgumentException("That file is not a valid JPG, PNG or WebP image.");
+    }
+
+    /** Removes every generated cover file for one track so changing format leaves no junk. */
+    private void deleteCustomCoversLocked(String trackId) {
+        Path root = store.dataDir().resolve("custom-covers");
+        if (!Files.isDirectory(root)) return;
+        String prefix = "custom-" + trackId + ".";
+        try (var files = Files.list(root)) {
+            for (Path file : files.toList()) {
+                if (!file.getFileName().toString().startsWith(prefix)) continue;
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException ignored) {
+                    // A leftover file is harmless; the library no longer references it.
+                }
+            }
+        } catch (IOException ignored) {
+            // Nothing to clean up if the folder cannot be listed.
+        }
+    }
+
+    /**
+     * Copies a user-picked image into the app data folder and points the track at
+     * it. The audio file is never touched; only library metadata changes.
+     */
+    public Map<String, Object> importCover(String trackId, String sourcePath) {
+        Track track = findTrack(trackId);
+        if (track == null) {
+            throw new IllegalArgumentException("Unknown track.");
+        }
+        if (sourcePath == null || sourcePath.isBlank()) {
+            throw new IllegalArgumentException("Choose an image file first.");
+        }
+        Path source;
+        try {
+            source = Path.of(sourcePath).toAbsolutePath().normalize();
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("That image path is not valid.");
+        }
+        if (!Files.isRegularFile(source)) {
+            throw new IllegalArgumentException("That image file no longer exists.");
+        }
+        String extension;
+        try {
+            extension = coverImageExtension(source);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read that image file.");
+        }
+        synchronized (lock) {
+            Path target = store.dataDir().resolve("custom-covers")
+                    .resolve("custom-" + track.id + "." + extension).toAbsolutePath().normalize();
+            try {
+                Files.createDirectories(target.getParent());
+                if (!source.equals(target)) {
+                    deleteCustomCoversLocked(track.id);
+                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Could not save the cover image: " + e.getMessage());
+            }
+            if (track.metadataOverrides == null) track.metadataOverrides = new ArrayList<>();
+            // Remember what was showing before the first custom cover, so "restore"
+            // can return to the folder cover instead of a generated placeholder.
+            if (!hasMetadataOverride(track, "coverPath") && blank(track.coverBeforeCustom) && !blank(track.coverPath)) {
+                track.coverBeforeCustom = track.coverPath;
+            }
+            track.coverPath = target.toString();
+            if (!track.metadataOverrides.contains("coverPath")) track.metadataOverrides.add("coverPath");
+        }
+        saveNow();
+        emitter.accept("track.updated", track);
+        return Map.of("track", track);
+    }
+
+    /** Restores the artwork that was showing before a custom cover was imported. */
+    public Map<String, Object> clearCover(String trackId) {
+        Track track = findTrack(trackId);
+        if (track == null) {
+            throw new IllegalArgumentException("Unknown track.");
+        }
+        synchronized (lock) {
+            if (track.metadataOverrides == null) track.metadataOverrides = new ArrayList<>();
+            String previous = track.coverBeforeCustom;
+            boolean canRestore = false;
+            if (!blank(previous)) {
+                try {
+                    canRestore = Files.isRegularFile(Path.of(previous));
+                } catch (RuntimeException ignored) {
+                    canRestore = false;
+                }
+            }
+            track.coverPath = canRestore ? previous : "";
+            track.metadataOverrides.remove("coverPath");
+            track.coverBeforeCustom = null;
+            deleteCustomCoversLocked(track.id);
+        }
+        saveNow();
+        emitter.accept("track.updated", track);
+        return Map.of("track", track);
     }
 
     /**
@@ -879,7 +1038,7 @@ public final class Backend implements PlaybackController.Host {
                     if (target.getType() == String.class) {
                         if (!value.isTextual()) throw new IllegalArgumentException("Expected text: " + field);
                         String text = value.asText().trim();
-                        if (text.length() > (field.equals("note") ? 2000 : field.equals("lyricsOverride") ? 30000 : 1000)) throw new IllegalArgumentException("Text too long: " + field);
+                        if (text.length() > (field.equals("note") ? 2000 : field.equals("lyricsOverride") ? 200000 : 1000)) throw new IllegalArgumentException("Text too long: " + field);
                         if (field.equals("title") && text.isBlank()) throw new IllegalArgumentException("Title cannot be empty.");
                         if (field.equals("coverPath") && !text.isBlank() && state.tracks.stream().noneMatch(t -> text.equals(t.coverPath))) throw new IllegalArgumentException("Choose an existing library cover.");
                         target.set(next, text);
@@ -1545,6 +1704,7 @@ public final class Backend implements PlaybackController.Host {
         playlistSync.shutdown();
         netease.shutdown();
         qq.shutdown();
+        bilibili.shutdown();
         playback.shutdown();
         saveNow();
         saver.shutdownNow();
@@ -1794,7 +1954,10 @@ public final class Backend implements PlaybackController.Host {
                     number(p, "rating", 0),
                     text(p, "note", ""),
                     text(p, "neteaseId", ""),
-                    text(p, "qqId", ""));
+                    text(p, "qqId", ""),
+                    text(p, "lyricsOverride", null));
+            case "track.importCover" -> importCover(text(p, "trackId", ""), text(p, "sourcePath", ""));
+            case "track.clearCover" -> clearCover(text(p, "trackId", ""));
             case "library.bulkUpdate" -> bulkUpdate(
                     stringList(p.path("trackIds")),
                     text(p, "field", "block"),
@@ -1919,7 +2082,12 @@ public final class Backend implements PlaybackController.Host {
                     (int) number(p, "limit", 40),
                     text(p, "quality", "auto"));
             case "qq.cancelDownload" -> qq.cancelDownload(text(p, "jobId", ""));
-            case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20));
+            case "bilibili.search" -> bilibili.search(text(p, "keywords", ""), (int) number(p, "limit", 20),
+                    (int) number(p, "page", 1));
+            case "bilibili.video" -> bilibili.video(text(p, "input", ""));
+            case "bilibili.download" -> bilibili.download(text(p, "bvid", ""), p.path("cid").asLong(),
+                    text(p, "title", ""), text(p, "format", "m4a"));
+            case "bilibili.cancelDownload" -> bilibili.cancelDownload(text(p, "jobId", ""));
             case "app.shutdown" -> {
                 Thread thread = new Thread(() -> {
                     try {

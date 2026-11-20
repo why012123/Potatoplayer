@@ -1,4 +1,4 @@
-import content from "../content/archives.json" with { type: "json" };
+import sampleContent from "../content/archives.sample.json" with { type: "json" };
 
 export interface ArchiveRecord {
   id: string;
@@ -17,6 +17,27 @@ export interface ArchiveRecord {
   genre?: string;
   genreColor?: string;
 }
+
+export interface ArchiveContent {
+  categories: string[];
+  columns: string[];
+  records: ArchiveRecord[];
+}
+
+type PotatoBridge = { ultraArchives?: ArchiveContent | null };
+
+// The desktop app injects an archive generated from the live library.json, so
+// the shelves follow the real music folder. In a plain browser (or before the
+// first scan) fall back to the bundled sample archive.
+const injected = (
+  typeof window === "undefined" ? null : (window as { potato?: PotatoBridge }).potato?.ultraArchives
+) as ArchiveContent | null;
+const bundled = sampleContent as unknown as ArchiveContent;
+const runtimeArchive = Boolean(injected && Array.isArray(injected.records) && injected.records.length > 0);
+const content: ArchiveContent = runtimeArchive ? (injected as ArchiveContent) : bundled;
+
+/** True when the archive mirrors the live library instead of the bundled sample. */
+export const libraryInjected = runtimeArchive;
 
 export const records: ArchiveRecord[] = content.records;
 export const categories = ["全部档案", ...content.categories];

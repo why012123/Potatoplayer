@@ -8,7 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Disc3,
+  FileText,
   Heart,
+  ImagePlus,
   Layers3,
   Link2,
   LoaderCircle,
@@ -21,6 +23,7 @@ import {
   Sparkles,
   Tag as TagIcon,
   Trash2,
+  Upload,
 } from "lucide-react";
 import type { DownloadQuality, TagKind, Track } from "@/types";
 import { downloadQualityLabel, downloadQualityRank, useAppStore } from "@/store";
@@ -39,6 +42,8 @@ type Draft = {
   note: string;
   neteaseId: string;
   qqId: string;
+  /** Custom LRC text imported from a file; empty means use the sidecar lyrics. */
+  lyricsOverride: string;
 };
 
 function draftFor(track: Track | undefined): Draft {
@@ -49,6 +54,7 @@ function draftFor(track: Track | undefined): Draft {
     note: track?.note ?? "",
     neteaseId: track?.neteaseId ?? "",
     qqId: track?.qqId ?? "",
+    lyricsOverride: track?.lyricsOverride ?? "",
   };
 }
 
@@ -129,9 +135,17 @@ export function SongEditorPage() {
   const [qualityTier, setQualityTier] = useState<DownloadQuality | "">("");
   const [qualityConfirmOpen, setQualityConfirmOpen] = useState(false);
   const [qualityReload, setQualityReload] = useState(0);
+  // Cover/lyrics files are staged locally and only written to the library on save.
+  const [coverPick, setCoverPick] = useState<{ path: string; name: string; dataUrl: string } | null>(null);
+  const [clearCoverPending, setClearCoverPending] = useState(false);
+  const [lyricsPickName, setLyricsPickName] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = tracks.find((track) => track.id === selectedId) ?? tracks[0] ?? null;
+  useEffect(() => {
+    useAppStore.setState({ editorTrackId: selected?.id ?? null });
+    return () => useAppStore.setState({ editorTrackId: null });
+  }, [selected?.id]);
   const favorite = selected ? favorites.includes(selected.id) : false;
   const favoriteLabel = favorite ? tr("Remove from favorites", "取消收藏") : tr("Add to favorites", "添加收藏");
   const playing = Boolean(selected && playback?.trackId === selected.id && playback.playing);
@@ -273,7 +287,23 @@ export function SongEditorPage() {
   useEffect(() => {
     setDraft(draftFor(selected));
     setSaved(false);
-  }, [selected?.id, selected?.block, selected?.genre, selected?.rating, selected?.note, selected?.neteaseId, selected?.qqId]);
+  }, [
+    selected?.id,
+    selected?.block,
+    selected?.genre,
+    selected?.rating,
+    selected?.note,
+    selected?.neteaseId,
+    selected?.qqId,
+    selected?.lyricsOverride,
+  ]);
+
+  // Staged artwork/lyrics belong to one song only.
+  useEffect(() => {
+    setCoverPick(null);
+    setClearCoverPending(false);
+    setLyricsPickName(null);
+  }, [selected?.id]);
 
   const filtered = useMemo(() => {
     const rawQuery = query.trim();
@@ -294,10 +324,17 @@ export function SongEditorPage() {
       Math.abs(draft.rating - (selected?.rating ?? 0)) > 0.0001 ||
       draft.note !== (selected?.note ?? "") ||
       draft.neteaseId.trim() !== (selected?.neteaseId ?? "") ||
-      draft.qqId.trim() !== (selected?.qqId ?? ""));
+      draft.qqId.trim() !== (selected?.qqId ?? "") ||
+      draft.lyricsOverride !== (selected?.lyricsOverride ?? "") ||
+      Boolean(coverPick) ||
+      clearCoverPending);
 
   const blockColor = blocks.find((tag) => tag.name === draft.block)?.color ?? "#b8aa97";
   const genreColor = genres.find((tag) => tag.name === draft.genre)?.color ?? "#b8aa97";
+  const isCustomCover = Boolean(selected?.metadataOverrides?.includes("coverPath"));
+  const lyricsLineCount = draft.lyricsOverride.trim()
+    ? draft.lyricsOverride.trim().split(/\r?\n/).length
+    : 0;
   const stepList = filtered.some((track) => track.id === selected?.id) ? filtered : tracks;
   const selectedStep = selected ? stepList.findIndex((track) => track.id === selected.id) : -1;
 
@@ -320,20 +357,77 @@ export function SongEditorPage() {
     return () => window.clearTimeout(timer);
   }, [selectedId, filtered.length, rightPanelOpen]);
 
+  const pickCover = async () => {
+    try {
+      const picked = await window.potato.pickImage();
+      if (!picked) return;
+      setCoverPick(picked);
+      setClearCoverPending(false);
+    } catch (error) {
+      pushToast(
+        tr("Could not read that image", "无法读取该图片"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+    }
+  };
+
+  const pickLyricsFile = async () => {
+    try {
+      const picked = await window.potato.pickLyrics();
+      if (!picked) return;
+      setDraft((current) => ({ ...current, lyricsOverride: picked.text }));
+      setLyricsPickName(picked.name);
+    } catch (error) {
+      pushToast(
+        tr("Could not read that lyrics file", "无法读取该歌词文件"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+    }
+  };
+
   const saveDraft = async () => {
     if (!selected || !dirty || saving) return false;
+    const trackId = selected.id;
     setSaving(true);
-    const ok = await updateTrack(selected.id, {
+    const ok = await updateTrack(trackId, {
       block: draft.block,
       genre: draft.genre,
       rating: draft.rating,
       note: draft.note,
       neteaseId: draft.neteaseId,
       qqId: draft.qqId,
+      lyricsOverride: draft.lyricsOverride,
     });
+    if (!ok) {
+      setSaving(false);
+      return false;
+    }
+    // Artwork is a separate RPC so the image copy happens in the backend, never
+    // in the renderer; keep the staged pick on failure so the user can retry.
+    try {
+      if (coverPick) {
+        await window.potato.invoke("track.importCover", { trackId, sourcePath: coverPick.path });
+      }
+      if (clearCoverPending) {
+        await window.potato.invoke("track.clearCover", { trackId });
+      }
+    } catch (error) {
+      pushToast(
+        tr("Could not update cover art", "无法更新封面"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+      setSaving(false);
+      return false;
+    }
     setSaving(false);
-    if (ok) setSaved(true);
-    return ok;
+    setSaved(true);
+    setCoverPick(null);
+    setClearCoverPending(false);
+    setLyricsPickName(null);
+    return true;
   };
 
   const selectTrack = async (id: string) => {
@@ -355,6 +449,9 @@ export function SongEditorPage() {
   const revert = () => {
     setDraft(draftFor(selected));
     setSaved(false);
+    setCoverPick(null);
+    setClearCoverPending(false);
+    setLyricsPickName(null);
   };
 
   useEffect(() => {
@@ -815,6 +912,137 @@ export function SongEditorPage() {
                     onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                   />
                 </label>
+
+                <div className="editor-field editor-field--wide editor-artwork-field">
+                  <span>
+                    <ImagePlus size={12} /> {tr("Cover art", "封面")}
+                    <em>{tr("Library metadata only", "仅保存在资料库")}</em>
+                  </span>
+                  <div className="editor-artwork__body">
+                    <div className="editor-artwork__preview">
+                      {coverPick ? (
+                        <img src={coverPick.dataUrl} alt={tr("Selected cover preview", "已选封面预览")} />
+                      ) : (
+                        <Cover path={selected.coverPath} seed={coverSeed} label={selected.title} radius={12} />
+                      )}
+                    </div>
+                    <div className="editor-artwork__copy">
+                      <strong>
+                        {coverPick
+                          ? coverPick.name
+                          : clearCoverPending
+                            ? tr("Default cover will be restored on save", "保存后将恢复默认封面")
+                            : isCustomCover
+                              ? tr("Custom cover", "已自定义封面")
+                              : tr("Default cover", "默认封面")}
+                      </strong>
+                      <em>
+                        {coverPick
+                          ? tr("Preview only — save to apply.", "仅预览，保存后生效。")
+                          : isCustomCover
+                            ? tr("The image lives in the app data folder.", "图片保存在应用数据文件夹中。")
+                            : tr("Folder cover or generated artwork.", "文件夹封面或自动生成的封面。")}
+                      </em>
+                      <div className="editor-artwork__actions">
+                        <button
+                          type="button"
+                          className="button button--glass button--small"
+                          disabled={saving}
+                          onClick={() => void pickCover()}
+                        >
+                          <Upload size={13} /> {tr("Change cover", "更换封面")}
+                        </button>
+                        {coverPick ? (
+                          <button type="button" className="text-button" onClick={() => setCoverPick(null)}>
+                            {tr("Cancel selection", "取消选择")}
+                          </button>
+                        ) : clearCoverPending ? (
+                          <button type="button" className="text-button" onClick={() => setClearCoverPending(false)}>
+                            {tr("Cancel restore", "取消恢复")}
+                          </button>
+                        ) : isCustomCover ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            disabled={saving}
+                            onClick={() => setClearCoverPending(true)}
+                          >
+                            <RotateCcw size={12} /> {tr("Restore default cover", "恢复默认封面")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <em className="editor-artwork__hint">
+                        {tr(
+                          "The image is copied into Potatoplayer's data folder; the audio file is never modified.",
+                          "图片会复制到 Potatoplayer 的数据文件夹，音频文件不会被修改。",
+                        )}
+                      </em>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="editor-field editor-field--wide editor-lyrics-field">
+                  <span>
+                    <FileText size={12} /> {tr("Lyrics", "歌词")}
+                    <em>{tr("Library metadata only", "仅保存在资料库")}</em>
+                  </span>
+                  <div className="editor-lyrics__body">
+                    <div className="editor-lyrics__icon" aria-hidden="true">
+                      <FileText size={15} />
+                    </div>
+                    <div className="editor-lyrics__copy">
+                      <strong>
+                        {lyricsPickName
+                          ? tr("Imported {name}", "已导入 {name}", { name: lyricsPickName })
+                          : lyricsLineCount > 0
+                            ? tr(
+                                lyricsLineCount === 1 ? "Custom lyrics · {count} line" : "Custom lyrics · {count} lines",
+                                "已导入自定义歌词 · {count} 行",
+                                { count: lyricsLineCount },
+                              )
+                            : tr(
+                                "Not imported (sidecar .lrc or library lyrics are used)",
+                                "未导入（使用同名 .lrc 或资料库歌词）",
+                              )}
+                      </strong>
+                      <em>
+                        {tr(
+                          "Imported lyrics are saved into the library and override any sidecar .lrc file.",
+                          "导入的歌词会保存到资料库，并覆盖同名 .lrc 歌词。",
+                        )}
+                      </em>
+                      <div className="editor-lyrics__actions">
+                        <button
+                          type="button"
+                          className="button button--glass button--small"
+                          disabled={saving}
+                          onClick={() => void pickLyricsFile()}
+                        >
+                          <FileText size={13} /> {tr("Import LRC", "导入 LRC")}
+                        </button>
+                        {lyricsPickName || draft.lyricsOverride.trim() ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            disabled={saving}
+                            onClick={() => {
+                              setDraft((current) => ({ ...current, lyricsOverride: "" }));
+                              setLyricsPickName(null);
+                            }}
+                          >
+                            <Trash2 size={12} /> {tr("Remove custom lyrics", "移除自定义歌词")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <em className="editor-lyrics__hint">
+                        {tr(
+                          "Lyrics are stored as text in the library metadata; the audio file stays untouched.",
+                          "歌词以文本形式保存在资料库元数据中，音频文件保持不变。",
+                        )}
+                      </em>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="editor-savebar">

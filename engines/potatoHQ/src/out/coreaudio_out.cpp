@@ -1,5 +1,8 @@
 #include "out/coreaudio_out.h"
 
+#include <chrono>
+#include <thread>
+
 #include <unistd.h>
 
 #include <algorithm>
@@ -156,11 +159,29 @@ AudioDeviceID findDeviceByUid(const std::string& uid) {
   return 0;
 }
 
+// After changing a device's nominal rate the HAL needs a moment to settle; if
+// an AUHAL is created immediately it can acknowledge start-up without ever
+// scheduling an IOProc. Wait for the reported rate to converge first.
+bool waitForNominalRate(AudioDeviceID dev, int rate, int timeoutMs) {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (std::abs(nominalRate(dev) - static_cast<double>(rate)) < 1.0) return true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  return std::abs(nominalRate(dev) - static_cast<double>(rate)) < 1.0;
+}
+
 AudioDeviceID resolveDevice(const std::string& deviceId) {
   return deviceId.empty() ? defaultOutputDevice() : findDeviceByUid(deviceId);
 }
 
 }  // namespace
+
+OSStatus CoreAudioOutput::routeListener(AudioObjectID, UInt32,
+                                        const AudioObjectPropertyAddress*, void* clientData) {
+  if (clientData) static_cast<CoreAudioOutput*>(clientData)->routeChanged_.store(true);
+  return noErr;
+}
 
 CoreAudioOutput::~CoreAudioOutput() { close(); }
 
@@ -211,6 +232,30 @@ std::vector<int> CoreAudioOutput::supportedRates(const std::string& deviceId) {
   return d == 0 ? std::vector<int>{} : availableRates(d);
 }
 
+bool CoreAudioOutput::canReuse(const std::string& deviceId, int channels, bool hog,
+                               ClientFormat format, int requestedRate) const {
+  if (!unit_ || deviceId_ == 0) return false;
+  // Resolve exactly like open(): a saved device that vanished falls back to the
+  // current default output, so only a genuine device change forces a reopen.
+  AudioDeviceID dev = resolveDevice(deviceId);
+  if (dev == 0 && !deviceId.empty()) dev = defaultOutputDevice();
+  if (dev == 0 || dev != deviceId_) return false;
+  if (channels != channels_ || format != format_ || hog != hogRequested_) return false;
+  const double nominal = nominalRate(deviceId_);
+  // The AUHAL stream was initialized against the nominal rate observed in
+  // open(); if anything moved the device underneath us the client format no
+  // longer matches and the unit has to be rebuilt.
+  if (nominal > 0.0 && std::abs(nominal - static_cast<double>(sampleRate_)) >= 1.0) return false;
+  if (requestedRate > 0) {
+    if (requestedRate == sampleRate_) return true;
+    // open() can settle on a fallback rate (a Bluetooth headset refusing the
+    // requested one). Reuse that settled configuration instead of reopening on
+    // every switch as long as the request itself has not changed.
+    return requestedRate == requestedRate_;
+  }
+  return true;
+}
+
 OSStatus CoreAudioOutput::renderProc(void* refCon, AudioUnitRenderActionFlags* actionFlags,
                                      const AudioTimeStamp* timeStamp, UInt32 bus, UInt32 frames,
                                      AudioBufferList* ioData) {
@@ -237,6 +282,10 @@ bool CoreAudioOutput::open(const std::string& deviceId, int channels, bool hog, 
   close();
   channels_ = std::max(1, channels);
   format_ = format;
+  // Remember the request, not the result: canReuse() compares against what the
+  // engine asked for so a settled fallback rate does not thrash the hardware.
+  hogRequested_ = hog;
+  requestedRate_ = requestedRate;
 
   AudioDeviceID dev = resolveDevice(deviceId);
   // A saved USB/Bluetooth device may disappear between sessions. Falling back
@@ -263,6 +312,7 @@ bool CoreAudioOutput::open(const std::string& deviceId, int channels, bool hog, 
     }
     if (switched && std::abs(previous - nominalRate(dev)) > 1.0) {
       restoreRate_ = previous;
+      waitForNominalRate(dev, static_cast<int>(std::llround(nominalRate(dev))), 150);
     } else {
       restoreRate_ = 0.0;
     }
@@ -348,6 +398,13 @@ bool CoreAudioOutput::open(const std::string& deviceId, int channels, bool hog, 
     close();
     return false;
   }
+  AudioObjectPropertyAddress routeAddr{kAudioHardwarePropertyDefaultOutputDevice,
+                                       kAudioObjectPropertyScopeGlobal,
+                                       kAudioObjectPropertyElementMain};
+  if (AudioObjectAddPropertyListener(kAudioObjectSystemObject, &routeAddr,
+                                     &CoreAudioOutput::routeListener, this) == noErr) {
+    routeListenerActive_ = true;
+  }
   actualFormat_ = std::string(format_ == ClientFormat::Float32 ? "float32 " : "int24-in-32 ") +
                   std::to_string(sampleRate_) + " Hz " + std::to_string(channels_) + " ch" +
                   (hogAcquired_ ? " (hog)" : "");
@@ -359,26 +416,49 @@ bool CoreAudioOutput::start(std::string* error) {
     if (error) *error = "output not open";
     return false;
   }
-  if (AudioOutputUnitStart(static_cast<AudioUnit>(unit_)) != noErr) {
-    if (error) *error = "cannot start output unit";
-    return false;
+  // The HAL can acknowledge AudioOutputUnitStart after a route or rate change
+  // without scheduling an IOProc — the stream then runs "silently" while the
+  // engine still reports playing. Detect it quickly and start once more.
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    const uint64_t before = callbacks_.load(std::memory_order_relaxed);
+    if (AudioOutputUnitStart(static_cast<AudioUnit>(unit_)) != noErr) {
+      if (error) *error = "cannot start output unit";
+      return false;
+    }
+    for (int i = 0; i < 28; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      if (callbacks_.load(std::memory_order_relaxed) != before) return true;
+    }
+    AudioOutputUnitStop(static_cast<AudioUnit>(unit_));
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
   }
-  return true;
+  if (error) *error = "output unit started but produced no callbacks";
+  return false;
 }
 
 void CoreAudioOutput::stop() {
   if (unit_) AudioOutputUnitStop(static_cast<AudioUnit>(unit_));
 }
 
-void CoreAudioOutput::close() {
+void CoreAudioOutput::close(bool restoreRate) {
   if (unit_) {
     AudioOutputUnitStop(static_cast<AudioUnit>(unit_));
     AudioUnitUninitialize(static_cast<AudioUnit>(unit_));
     AudioComponentInstanceDispose(static_cast<AudioUnit>(unit_));
     unit_ = nullptr;
   }
-  if (restoreRate_ > 0.0 && deviceId_ != 0) {
+  if (routeListenerActive_) {
+    AudioObjectPropertyAddress routeAddr{kAudioHardwarePropertyDefaultOutputDevice,
+                                         kAudioObjectPropertyScopeGlobal,
+                                         kAudioObjectPropertyElementMain};
+    AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &routeAddr,
+                                      &CoreAudioOutput::routeListener, this);
+    routeListenerActive_ = false;
+  }
+  if (restoreRate && restoreRate_ > 0.0 && deviceId_ != 0) {
     setNominalRate(deviceId_, restoreRate_);
+    restoreRate_ = 0.0;
+  } else if (!restoreRate) {
     restoreRate_ = 0.0;
   }
   if (hogAcquired_ && deviceId_ != 0) {

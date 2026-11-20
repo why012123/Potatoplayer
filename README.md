@@ -12,7 +12,7 @@ PotatoMusic Super（原 Potatoplayer Super）是一个从旧 Potatoplayer Java �
 
 <p align="center">
   <a href="https://github.com/why012123/Potatoplayer/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/download-macOS%20Apple%20Silicon-111?style=flat-square"></a>
-  <img alt="当前版本" src="https://img.shields.io/badge/version-s2.1.0-c97b6b?style=flat-square">
+  <img alt="当前版本" src="https://img.shields.io/badge/version-s2.1.3-c97b6b?style=flat-square">
   <img alt="平台" src="https://img.shields.io/badge/platform-macOS%2013%2B-555?style=flat-square">
   <img alt="技术栈" src="https://img.shields.io/badge/Electron%20%2B%20React-Java%2021-4b8bbf?style=flat-square">
   <img alt="AI" src="https://img.shields.io/badge/AI-DeepSeek-6b5bd2?style=flat-square">
@@ -196,6 +196,8 @@ npm start        # 构建渲染层 + 后端，然后启动 Electron
 ## 数据与迁移
 
 曲库不移动、不重命名你的音乐文件。
+
+左侧「在线 → 视频提取」可预览 B 站视频并导出分 P 音轨。M4A 保留 B 站提供的 AAC 音轨；FLAC 和 MP3 使用 FFmpeg 转换。macOS 打包脚本会内置 FFmpeg，源码运行可从 PATH 或 `POTATOMUSIC_FFMPEG` 指定其路径。
 
 数据目录默认 `~/.potatoplayer-super/`（可用 `POTATOMUSIC_HOME` 覆盖）：
 

@@ -12,6 +12,11 @@ public class Track {
     public String note;
     public String lyricsOverride;
     public String coverPath;
+    /**
+     * Artwork the track showed before a custom cover was imported. Lets the user
+     * restore the folder/default cover without touching the audio file.
+     */
+    public String coverBeforeCustom;
     public int duration;
     /** Real audio specs read from the file by the scanner; 0 when unknown. */
     public int sampleRate;
@@ -43,6 +48,7 @@ public class Track {
         t.note = note;
         t.lyricsOverride = lyricsOverride;
         t.coverPath = coverPath;
+        t.coverBeforeCustom = coverBeforeCustom;
         t.duration = duration;
         t.sampleRate = sampleRate;
         t.bitDepth = bitDepth;

@@ -206,6 +206,8 @@ export function DownloadTasks() {
                                     ? tr("Waiting in the queue…", "正在排队…")
                                     : job.phase === "verifying"
                                       ? tr("Checking audio quality…", "正在校验音频与音质…")
+                                    : job.phase === "converting"
+                                    ? tr("Converting to {format}…", "正在转换为 {format}…", { format: job.exportFormat?.toUpperCase() ?? "" })
                                     : job.phase === "finalizing"
                                       ? tr("Preparing library files…", "正在整理封面、歌词与文件…")
                                     : job.total > 0

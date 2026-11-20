@@ -50,3 +50,7 @@ netease_cookie.txt
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Engine test fixtures (rebuilt by make -C engines/potatoHQ tests)
+build/*.wav
+build/*.dsf

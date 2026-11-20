@@ -35,7 +35,16 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
     private final AtomicLong nextId = new AtomicLong(1);
     private final Thread reader;
     private volatile Listener listener;
+    // Bound on the RPC reader thread at the ordered track-start event.
+    private Listener streamListener;
     private volatile String initError;
+    // Watchdog state: the engine can end up "playing" with a dead IOProc (no
+    // audio callbacks) after a track switch or an output-route change. Poll the
+    // engine status and soft-restart the current track when that happens.
+    private volatile String currentPath = "";
+    private volatile boolean playInFlight = false;
+    private volatile boolean watchdogRunning = true;
+    private final Thread watchdog;
     private volatile double cachedTime = 0;
     private volatile double cachedDuration = 0;
     private volatile boolean playing = false;
@@ -69,6 +78,74 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
             this.reader.start();
         } else {
             this.reader = null;
+        }
+        this.watchdog = new Thread(this::watchdogLoop, "potatohq-watchdog");
+        this.watchdog.setDaemon(true);
+        this.watchdog.start();
+    }
+
+    /**
+     * Detect a stalled output: the engine reports playing but the audio render
+     * callback count and the position no longer advance. Soft-restart the track
+     * in place (the C++ side reopens the output, so the UI keeps its position).
+     */
+    private void watchdogLoop() {
+        long lastCallbacks = -1;
+        double lastPosition = -1;
+        int stalled = 0;
+        while (watchdogRunning) {
+            try {
+                Thread.sleep(700);
+            } catch (InterruptedException e) {
+                return;
+            }
+            if (!watchdogRunning) return;
+            if (process == null || !process.isAlive() || writer == null) return;
+            if (!playing || paused || playInFlight) {
+                lastCallbacks = -1;
+                lastPosition = -1;
+                stalled = 0;
+                continue;
+            }
+            JsonNode status;
+            try {
+                status = call("engine.status", Map.of());
+            } catch (Exception e) {
+                lastCallbacks = -1;
+                stalled = 0;
+                continue;
+            }
+            final long callbacks = status.path("callbacks").asLong(-1);
+            final double position = status.path("position").asDouble(-1);
+            final boolean routeChanged = status.path("routeChanged").asBoolean(false);
+            final boolean sameCallbacks = callbacks >= 0 && callbacks == lastCallbacks;
+            final boolean samePosition = Math.abs(position - lastPosition) < 0.001;
+            lastCallbacks = callbacks;
+            lastPosition = position;
+            if (routeChanged) {
+                stalled = 2;  // the device underneath us moved: reopen immediately
+            } else if (sameCallbacks && samePosition) {
+                stalled++;
+            } else {
+                stalled = 0;
+            }
+            if (stalled >= 2) {
+                stalled = 0;
+                recoverOutput(routeChanged);
+            }
+        }
+    }
+
+    private void recoverOutput(boolean routeChanged) {
+        final String path = currentPath;
+        if (path == null || path.isEmpty()) return;
+        final double position = Math.max(0, cachedTime);
+        try {
+            call("playback.recover", Map.of("position", position));
+            System.err.println("[potatohq] recovered stalled output"
+                    + (routeChanged ? " (output route changed)" : "") + " at " + position);
+        } catch (Exception e) {
+            System.err.println("[potatohq] output recovery failed: " + e.getMessage());
         }
     }
 
@@ -141,15 +218,17 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
                 if (l != null) l.onSpectrum(bars);
             }
             case "playback.track" -> {
-                if (data.path("gapless").asBoolean(false)) {
+                if (!data.path("gapless").asBoolean(false)) {
+                    streamListener = listener;
+                } else {
                     String path = data.path("path").asText("");
-                    Listener l = listener;
+                    Listener l = streamListener;
                     if (l != null) l.onAdvanced(path);
                 }
             }
             case "playback.finished" -> {
                 playing = false;
-                Listener l = listener;
+                Listener l = streamListener;
                 if (l != null) l.onFinished();
             }
             case "toast" -> {
@@ -177,7 +256,10 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
                 writer.newLine();
                 writer.flush();
             }
-            JsonNode reply = future.get(3, TimeUnit.SECONDS);
+            // Replacing an output may restore the old sample rate, negotiate the new
+            // rate and prebuffer the decoder before acknowledging play.
+            long timeout = method.equals("playback.play") ? 15 : 3;
+            JsonNode reply = future.get(timeout, TimeUnit.SECONDS);
             if (reply.has("error")) {
                 String message = reply.path("error").path("message").asText("engine error");
                 throw new IllegalStateException(message);
@@ -259,17 +341,23 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
 
     @Override
     public void play(String path) {
-        call("playback.volume", Map.of("volume", volume));
-        if (dsdMult > 0) {
-            call("engine.setDsd", Map.of("dsd", dsdMult));
-        } else {
-            call("engine.setDsd", Map.of("dsd", 0));
+        playInFlight = true;
+        try {
+            call("playback.volume", Map.of("volume", volume));
+            if (dsdMult > 0) {
+                call("engine.setDsd", Map.of("dsd", dsdMult));
+            } else {
+                call("engine.setDsd", Map.of("dsd", 0));
+            }
+            JsonNode result = call("playback.play", Map.of("path", path));
+            cachedDuration = result.path("duration").asDouble(cachedDuration);
+            cachedTime = result.path("position").asDouble(0);
+            playing = true;
+            paused = false;
+            currentPath = path;
+        } finally {
+            playInFlight = false;
         }
-        JsonNode result = call("playback.play", Map.of("path", path));
-        cachedDuration = result.path("duration").asDouble(cachedDuration);
-        cachedTime = result.path("position").asDouble(0);
-        playing = true;
-        paused = false;
     }
 
     @Override
@@ -288,6 +376,7 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
 
     @Override
     public void stop() {
+        currentPath = "";
         try {
             call("playback.stop", Map.of());
         } catch (Exception ignored) {
@@ -374,6 +463,8 @@ public final class PotatoHqPlaybackEngine implements PlaybackEngine {
 
     @Override
     public void release() {
+        watchdogRunning = false;
+        currentPath = "";
         try {
             call("engine.shutdown", Map.of());
         } catch (Exception ignored) {
