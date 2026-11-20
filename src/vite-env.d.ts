@@ -36,6 +36,10 @@ export interface PotatoAPI {
   /** Pick an .lrc/.txt file and read it as text (UTF-8, GBK fallback). */
   pickLyrics(): Promise<{ path: string; name: string; text: string } | null>;
   openPath(path: string): Promise<void>;
+  /** Reveal an existing absolute path in Finder; false when it no longer exists. */
+  revealPath(path: string): Promise<boolean>;
+  /** Put text on the system clipboard; false when the text is rejected. */
+  copyText(text: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   coverPalette(path: string): Promise<Palette | null>;
   coverData(path: string): Promise<string | null>;

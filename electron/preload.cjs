@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld("potato", {
   pickImage: () => ipcRenderer.invoke("dialog:pick-image"),
   pickLyrics: () => ipcRenderer.invoke("dialog:pick-lyrics-file"),
   openPath: (target) => ipcRenderer.invoke("app:open-path", target),
+  revealPath: (target) => ipcRenderer.invoke("app:reveal-path", target),
+  copyText: (text) => ipcRenderer.invoke("app:copy-text", text),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
   coverPalette: (target) => ipcRenderer.invoke("cover:palette", target),
   coverData: (target) => ipcRenderer.invoke("cover:data", target),

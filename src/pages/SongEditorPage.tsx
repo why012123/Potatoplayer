@@ -7,13 +7,16 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Disc3,
   FileText,
+  FolderOpen,
   Heart,
   ImagePlus,
   Layers3,
   Link2,
   LoaderCircle,
+  Music2,
   Pause,
   Pencil,
   Play,
@@ -36,6 +39,7 @@ import { normalizeSearchText, trackSearchText } from "@/lib/search";
 import { coverUrl } from "@/lib/covers";
 
 type Draft = {
+  title: string;
   block: string;
   genre: string;
   rating: number;
@@ -48,6 +52,7 @@ type Draft = {
 
 function draftFor(track: Track | undefined): Draft {
   return {
+    title: track?.title ?? "",
     block: track?.block ?? "",
     genre: track?.genre ?? "",
     rating: track?.rating ?? 0,
@@ -289,6 +294,7 @@ export function SongEditorPage() {
     setSaved(false);
   }, [
     selected?.id,
+    selected?.title,
     selected?.block,
     selected?.genre,
     selected?.rating,
@@ -319,7 +325,8 @@ export function SongEditorPage() {
 
   const dirty =
     Boolean(selected) &&
-    (draft.block !== (selected?.block ?? "") ||
+    (draft.title !== (selected?.title ?? "") ||
+      draft.block !== (selected?.block ?? "") ||
       draft.genre !== (selected?.genre ?? "") ||
       Math.abs(draft.rating - (selected?.rating ?? 0)) > 0.0001 ||
       draft.note !== (selected?.note ?? "") ||
@@ -387,11 +394,58 @@ export function SongEditorPage() {
     }
   };
 
+  const copyTitle = async () => {
+    const value = draft.title.trim() || selected?.title || "";
+    if (!value) return;
+    try {
+      const copied = await window.potato.copyText(value);
+      if (copied) {
+        pushToast(tr("Title copied", "已复制歌名"), value, "success");
+      } else {
+        pushToast(tr("Could not copy the title", "无法复制歌名"), value, "error");
+      }
+    } catch (error) {
+      pushToast(
+        tr("Could not copy the title", "无法复制歌名"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+    }
+  };
+
+  const revealSource = async () => {
+    if (!selected?.path) return;
+    try {
+      const revealed = await window.potato.revealPath(selected.path);
+      if (revealed) {
+        pushToast(tr("Revealed in Finder", "已在 Finder 中显示"), selected.path, "success");
+      } else {
+        pushToast(tr("Could not find the source file", "找不到源文件"), selected.path, "error");
+      }
+    } catch (error) {
+      pushToast(
+        tr("Could not find the source file", "找不到源文件"),
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
+    }
+  };
+
   const saveDraft = async () => {
     if (!selected || !dirty || saving) return false;
+    const cleanTitle = draft.title.trim();
+    if (!cleanTitle) {
+      pushToast(
+        tr("Song title cannot be empty", "歌名不能为空"),
+        tr("Enter a name before saving.", "保存前请先填写歌名。"),
+        "error",
+      );
+      return false;
+    }
     const trackId = selected.id;
     setSaving(true);
     const ok = await updateTrack(trackId, {
+      title: cleanTitle,
       block: draft.block,
       genre: draft.genre,
       rating: draft.rating,
@@ -700,6 +754,32 @@ export function SongEditorPage() {
               </div>
 
               <div className="editor-form">
+                <div className="editor-field editor-field--wide editor-title-field">
+                  <span>
+                    <Music2 size={12} /> {tr("Song title", "歌名")} <em>{draft.title.length} / 1000</em>
+                  </span>
+                  <div className="editor-title__row">
+                    <input
+                      className="text-field editor-title__input"
+                      value={draft.title}
+                      maxLength={1000}
+                      aria-label={tr("Song title", "歌名")}
+                      placeholder={tr("Song title", "歌名")}
+                      onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="button button--glass button--small editor-title__copy"
+                      disabled={saving}
+                      title={tr("Copy title", "复制歌名")}
+                      aria-label={tr("Copy title", "复制歌名")}
+                      onClick={() => void copyTitle()}
+                    >
+                      <Copy size={13} /> {tr("Copy", "复制")}
+                    </button>
+                  </div>
+                </div>
+
                 <label className="editor-field">
                   <span>
                     <Layers3 size={12} /> {tr("Block", "区块")}
@@ -1042,6 +1122,32 @@ export function SongEditorPage() {
                       </em>
                     </div>
                   </div>
+                </div>
+
+                <div className="editor-field editor-field--wide editor-source-file">
+                  <span>
+                    <FolderOpen size={12} /> {tr("Source file", "源文件")}
+                    <em>{tr("Audio file on disk", "磁盘上的音频文件")}</em>
+                  </span>
+                  <div className="editor-source-file__row">
+                    <code className="editor-source-file__path" title={selected.path}>
+                      {selected.path}
+                    </code>
+                    <button
+                      type="button"
+                      className="button button--glass button--small editor-source-file__button"
+                      title={tr("Show in Finder", "打开源文件位置")}
+                      onClick={() => void revealSource()}
+                    >
+                      <FolderOpen size={13} /> {tr("Show in Finder", "打开源文件位置")}
+                    </button>
+                  </div>
+                  <em className="editor-source-file__hint">
+                    {tr(
+                      "Revealing the file only opens its folder; the audio file is never modified or played.",
+                      "仅打开文件所在位置，不会修改或播放音频文件。",
+                    )}
+                  </em>
                 </div>
               </div>
 

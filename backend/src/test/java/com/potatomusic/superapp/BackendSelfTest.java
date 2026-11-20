@@ -18,6 +18,7 @@ public final class BackendSelfTest {
         testStableIds();
         testLrcParsing();
         testCustomCoverValidation();
+        testTitleNormalisation();
         testLegacyImport();
         testNeteaseBindingMigration();
         testTaxonomyMerge();
@@ -276,6 +277,19 @@ public final class BackendSelfTest {
             try (var files = Files.list(dir)) { for (Path file : files.toList()) Files.deleteIfExists(file); }
             Files.deleteIfExists(dir);
         }
+    }
+
+    /** Editable titles are trimmed, required and capped; null leaves them untouched. */
+    private static void testTitleNormalisation() {
+        check(Backend.cleanTitleOrNull(null) == null, "null title is left untouched");
+        check("Song".equals(Backend.cleanTitleOrNull("  Song  ")), "title is trimmed");
+        check("标题".equals(Backend.cleanTitleOrNull("标题")), "unicode titles survive");
+        checkThrows(() -> Backend.cleanTitleOrNull("   "), "Title cannot be empty", "blank title is rejected");
+        checkThrows(() -> Backend.cleanTitleOrNull(""), "Title cannot be empty", "empty title is rejected");
+        String longTitle = "x".repeat(1200);
+        String capped = Backend.cleanTitleOrNull(longTitle);
+        check(capped != null && capped.length() == 1000, "long titles are capped at 1000 characters");
+        check(longTitle.startsWith(capped), "capping only truncates, never rewrites");
     }
 
     private static void checkThrows(java.util.concurrent.Callable<?> action, String fragment, String message) {

@@ -6576,6 +6576,60 @@ img {
   background: rgba(255, 255, 255, 0.045);
 }
 
+/* ── Editable title / source file row (s2.1.4) ───────────────────────────── */
+
+.editor-title__row,
+.editor-source-file__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-title__input {
+  flex: 1;
+  min-width: 0;
+  height: 35px;
+  font-size: 10.5px;
+}
+
+.editor-title__copy {
+  flex: none;
+  height: 35px;
+}
+
+.editor-source-file__row {
+  padding: 7px 8px 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft, rgba(255, 255, 255, 0.34));
+}
+
+.editor-source-file__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.editor-source-file__button {
+  flex: none;
+}
+
+.editor-source-file__hint {
+  font-style: normal;
+  font-size: 8.5px;
+  color: var(--faint);
+}
+
+[data-theme="dark"] .editor-source-file__row {
+  background: rgba(255, 255, 255, 0.045);
+}
+
 .editor-savebar {
   display: flex;
   align-items: center;

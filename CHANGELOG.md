@@ -4,17 +4,29 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s2.1.3`. The line started at `s1.0.0`. `s2.0.0` merged
+- **Current release:** `s2.1.4`. The line started at `s1.0.0`. `s2.0.0` merged
   the **一起听 / Together** online rooms and the **AI 助手 / AI 工作台** edition
   into Super; since then `s2.0.x` patch releases keep the same visual system and
   refine the AI surfaces.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`2.1.3`).
+  the equivalent plain semver (`2.1.4`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s2.1.4 — 2026-11-20
+
+### Added
+
+- **歌曲编辑：打开源文件位置**：歌曲编辑页最下方新增「源文件」区，显示音频文件的完整路径，并可一键在 Finder 中定位该文件；文件已不存在时会给出提示。只打开所在位置，不会修改或播放音频。
+- **歌曲编辑：歌名可修改 / 复制**：歌名可在编辑页直接修改，保存后写入曲库元数据（重新扫描不会覆盖，音频文件及其内嵌标签保持不变）；旁边新增一键复制歌名到剪贴板。
+
+### Notes
+
+- 歌名修改只写入资料库（`metadataOverrides` 标记 `title`），空歌名会被拒绝。
+- 「打开源文件位置」使用 macOS 的“在 Finder 中显示”，仅打开文件夹并选中文件。
 
 ## s2.1.3 — 2026-11-20
 

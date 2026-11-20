@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s2.1.3";
+    public static final String VERSION = "s2.1.4";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -468,15 +468,38 @@ public final class Backend implements PlaybackController.Host {
     /** Kept for callers that only edit filing metadata (downloads, AI tools). */
     public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
                                            String neteaseId, String qqId) {
-        return updateTrack(trackId, block, genre, rating, note, neteaseId, qqId, null);
+        return updateTrack(trackId, block, genre, rating, note, neteaseId, qqId, null, null);
+    }
+
+    /** Kept for callers that also pass a lyrics override but never touch the title. */
+    public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
+                                           String neteaseId, String qqId, String lyricsOverride) {
+        return updateTrack(trackId, block, genre, rating, note, neteaseId, qqId, lyricsOverride, null);
+    }
+
+    /**
+     * Validates and normalises a user-edited song title. A null title means "leave
+     * the stored title untouched"; empty text is rejected. Package-private so the
+     * dependency-free self test can exercise it without a data directory.
+     */
+    static String cleanTitleOrNull(String title) {
+        if (title == null) return null;
+        String clean = title.trim();
+        if (clean.isEmpty()) {
+            throw new IllegalArgumentException("Title cannot be empty.");
+        }
+        return clean.length() > 1000 ? clean.substring(0, 1000) : clean;
     }
 
     public Map<String, Object> updateTrack(String trackId, String block, String genre, double rating, String note,
-                                           String neteaseId, String qqId, String lyricsOverride) {
+                                           String neteaseId, String qqId, String lyricsOverride, String title) {
         Track track = findTrack(trackId);
         if (track == null) {
             throw new IllegalArgumentException("Unknown track.");
         }
+        // Validate before mutating anything: a rejected title must not leave the
+        // in-memory track half-edited.
+        String cleanTitle = cleanTitleOrNull(title);
         synchronized (lock) {
             if (track.metadataOverrides == null) track.metadataOverrides = new ArrayList<>();
             for (String field : List.of("block", "genre", "rating", "note", "neteaseId", "qqId")) {
@@ -487,6 +510,10 @@ public final class Backend implements PlaybackController.Host {
             track.rating = Math.max(0, Math.min(10, rating));
             String cleanNote = note == null ? "" : note.trim();
             track.note = cleanNote.length() > 2000 ? cleanNote.substring(0, 2000) : cleanNote;
+            if (cleanTitle != null) {
+                track.title = cleanTitle;
+                if (!track.metadataOverrides.contains("title")) track.metadataOverrides.add("title");
+            }
             // A null override leaves the stored lyrics untouched; an empty string
             // clears the library override and falls back to the sidecar .lrc file.
             if (lyricsOverride != null) {
@@ -1955,7 +1982,8 @@ public final class Backend implements PlaybackController.Host {
                     text(p, "note", ""),
                     text(p, "neteaseId", ""),
                     text(p, "qqId", ""),
-                    text(p, "lyricsOverride", null));
+                    text(p, "lyricsOverride", null),
+                    text(p, "title", null));
             case "track.importCover" -> importCover(text(p, "trackId", ""), text(p, "sourcePath", ""));
             case "track.clearCover" -> clearCover(text(p, "trackId", ""));
             case "library.bulkUpdate" -> bulkUpdate(

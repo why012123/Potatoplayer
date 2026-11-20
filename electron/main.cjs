@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, globalShortcut, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, net, protocol, shell, clipboard, globalShortcut, safeStorage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
@@ -646,6 +646,29 @@ if (!process.env.POTATO_ALLOW_SECOND_INSTANCE && !app.requestSingleInstanceLock(
     ipcMain.handle("app:open-path", async (_event, target) => {
       if (typeof target !== "string") return;
       await shell.openPath(target);
+    });
+
+    // Song editor: reveal the track's audio file in Finder without touching it.
+    ipcMain.handle("app:reveal-path", async (_event, target) => {
+      if (typeof target !== "string" || !target.trim()) return false;
+      let resolved;
+      try {
+        if (!path.isAbsolute(target)) return false;
+        resolved = path.normalize(target);
+        if (!fs.existsSync(resolved)) return false;
+      } catch {
+        return false;
+      }
+      shell.showItemInFolder(resolved);
+      return true;
+    });
+
+    // Song editor: copy the (possibly edited) title to the system clipboard.
+    ipcMain.handle("app:copy-text", async (_event, text) => {
+      if (typeof text !== "string") return false;
+      if (text.length > 1_000_000) return false;
+      clipboard.writeText(text);
+      return true;
     });
 
     ipcMain.handle("app:open-external", async (_event, target) => {

@@ -182,6 +182,8 @@ interface AppStore {
       qqId: string;
       /** Custom LRC text; omitted by callers that should not touch lyrics. */
       lyricsOverride?: string;
+      /** Editable song title; omitted by callers that should not rename the song. */
+      title?: string;
     },
   ) => Promise<boolean>;
   deleteTrack: (trackId: string) => Promise<boolean>;
@@ -449,7 +451,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   loading: true,
   fatalError: null,
-  version: "s2.1.3",
+  version: "s2.1.4",
   dataDir: "",
   libraryRoot: "",
   tracks: [],
