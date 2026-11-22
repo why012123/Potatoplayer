@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ArrowUp, AudioLines, Compass, Headphones, LoaderCircle, Plus, RotateCcw, Sparkles, Square } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useAssistant } from "./assistant";
+import { useClipboardImages } from "./ClipboardImages";
 export function AiComposer({ placeholder, autoFocus = false }: {
     placeholder?: string;
     autoFocus?: boolean;
@@ -11,13 +12,16 @@ export function AiComposer({ placeholder, autoFocus = false }: {
     const s = useAppStore();
     const assistant = useAssistant();
     const [draft, setDraft] = useState("");
+    const images = useClipboardImages(assistant.connected);
+    const canSend = Boolean(draft.trim() || images.files.length);
     const current = s.tracks.find((track) => track.id === (s.playback?.trackId ?? s.previewTrackId));
     const submit = () => {
-        if (!draft.trim() || assistant.busy)
+        if (!canSend || assistant.busy)
             return;
         const prompt = draft;
         setDraft("");
-        void assistant.ask(prompt);
+        void assistant.ask(prompt, { images: images.files });
+        images.clear();
     };
     return (<div className="ai-compose-area ai-workspace-composer">
       {current && (<button className="ai-context-track" type="button" title={tr("Find similar songs", "查找相似歌曲")} disabled={assistant.busy} onClick={() => void assistant.ask(tr("Find songs similar to this one", "找和这首相似的歌曲"))}>
@@ -31,7 +35,8 @@ export function AiComposer({ placeholder, autoFocus = false }: {
             event.preventDefault();
             submit();
         }}>
-        <textarea aria-label={tr("Message to music assistant", "给音乐助手的消息")} placeholder={placeholder ?? tr("What would you like to hear?", "想听什么？告诉我吧…")} value={draft} maxLength={1000} rows={2} autoFocus={autoFocus} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+        {images.preview}
+        <textarea onPaste={images.paste} aria-label={tr("Message to music assistant", "给音乐助手的消息")} placeholder={placeholder ?? tr("What would you like to hear?", "想听什么？告诉我吧…")} value={draft} maxLength={1000} rows={2} autoFocus={autoFocus} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 submit();
@@ -43,7 +48,7 @@ export function AiComposer({ placeholder, autoFocus = false }: {
           </span>
           {assistant.busy ? (<button type="button" aria-label={tr("Stop generating", "停止生成")} onClick={assistant.cancel}>
               <Square size={13}/>
-            </button>) : (<button type="submit" aria-label={tr("Send message", "发送消息")} disabled={!draft.trim()}>
+            </button>) : (<button type="submit" aria-label={tr("Send message", "发送消息")} disabled={!canSend}>
               <ArrowUp size={17}/>
             </button>)}
         </div>

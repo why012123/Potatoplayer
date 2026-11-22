@@ -284,6 +284,14 @@ public final class NeteaseService {
         return out;
     }
 
+    public JsonNode score(String id, boolean preview) {
+        if (id == null || !id.matches("[0-9]{1,20}")) throw new IllegalArgumentException("Invalid NetEase ID.");
+        requireService();
+        JsonNode response = get((preview ? "/sheet/preview?id=" : "/sheet/list?id=") + id, 12);
+        requireApiResult(response, preview ? "乐谱预览" : "乐谱目录");
+        return preview ? response.path("data") : response.path("data").path("musicSheetSimpleInfoVOS");
+    }
+
     public Map<String, Object> songDetails(String id) {
         requireService();
         if (id == null || !id.matches("\\d{1,20}")) throw new IllegalArgumentException("Invalid NetEase song ID.");

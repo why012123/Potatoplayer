@@ -1,3 +1,4 @@
+const { lookupScore, playbackPassage } = require('./ai-score.cjs');
 const { SCOPES, searchApp, compact } = require('./ai-search.cjs');
 // Explicit tools: no shell, filesystem mutation, arbitrary RPC, or audio writes.
 const str = (description) => ({type:'string',description});
@@ -27,6 +28,9 @@ const tools = [
  tool('get_track_bindings','读取歌曲的网易云 ID、QQ 音乐 MID 和歌曲链接。两个标识可同时存在；空字符串表示尚未绑定。',{trackIds:ids},['trackIds']),
  tool('update_track_bindings','设置或清除网易云歌曲 ID / QQ 音乐 MID。接受纯 ID 或对应平台歌曲链接；只改传入的平台，保留另一个。用户给出值时直接设置；不知道值时先搜索对应音乐平台，核对标题/歌手/版本。返回修改前后值。',{trackId:str('本地歌曲内部 ID'),neteaseId:str('网易云数字 ID 或歌曲链接；空字符串清除'),qqMid:str('QQ 歌曲 MID 或歌曲链接；空字符串清除')},['trackId']),
  tool('get_listening_stats','读取真实聆听统计，用于回顾听歌时长、次数和常听歌曲。'),
+ tool('get_playing_passage','读取发送问题时实际播放或暂停的歌曲、位置（秒）、当前歌词及上下句。遇到“这句”“刚听到的旋律”用这个工具。'),
+ tool('lookup_score','按本地歌曲 ID 从网易云和网页找乐谱、谱调和编配，返回可读正文和谱面图片编号。省略 ID 表示提问时播放的录音。',{trackId:str('本地歌曲 ID')}),
+ tool('read_score_pages','用视觉模型读本轮乐谱预览。选择同一来源的一至三张，核对可见歌词、音高、节奏、和弦和调号。',{pages:{type:'array',items:str('lookup_score 返回的图片编号'),maxItems:3}},['pages']),
  tool('get_lyrics','读取本地歌曲当前歌词，修改歌词前先读取。',{trackId:str('歌曲ID')},['trackId']),
  tool('update_tracks','修改歌曲资料，只更新传入字段，不修改音频文件。先确认歌名/ID再操作；用户要求修改时可直接执行。',{trackIds:ids,patch:obj(metadata)},['trackIds','patch']),
  tool('set_favorite','设置歌曲是否收藏。',{trackIds:ids,favorite:{type:'boolean'}},['trackIds','favorite']),
@@ -94,10 +98,12 @@ function bindingInfo(t) {
   neteaseUrl:t.neteaseId ? `https://music.163.com/#/song?id=${t.neteaseId}` : '',
   qqUrl:t.qqId ? `https://y.qq.com/n/ryqq/songDetail/${t.qqId}` : ''};
 }
-function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm, searchWeb, fetchWeb, memory, onlineCache, conversations, downloads = () => []}) {
+function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm, searchWeb, fetchWeb, memory, onlineCache, conversations, playbackCursor, turnTracks, readScorePages, downloads = () => []}) {
  const knownOnline = onlineCache || new Map();
  const sources = [];
  const localSources = new Map();
+ const scorePages = new Map();
+ let passage;
  let results=[];
  const addSources = (items) => {
    for (const item of items || []) {
@@ -112,8 +118,40 @@ function createToolExecutor({invoke, emit, getAppearance, setAppearance, confirm
  };
  async function execute(name,args) {
   validateTool(name,args);
-  const data = await invoke('bootstrap');
+  // Passage reads use the same library snapshot as the captured playhead.
+  const passageTool = ['get_playing_passage', 'lookup_score', 'read_score_pages'].includes(name);
+  const data = passageTool && turnTracks ? {tracks:turnTracks} : await invoke('bootstrap');
   const tracks = data.tracks;
+  if (name === 'get_playing_passage') {
+   if (passage) return passage;
+   const cursor = playbackCursor ?? data.playback;
+   const track = tracks.find(row => row.id === cursor?.trackId);
+   const lyrics = track ? await invoke('lyrics.get', {trackId:track.id}).catch(() => null) : null;
+   passage = playbackPassage(track, cursor, lyrics);
+   if (track) localSources.set('passage', {source:'playback', trackId:track.id, title:track.title,
+     preview: [passage.position === null ? '' : Math.floor(passage.position / 60) + ':' + String(Math.floor(passage.position % 60)).padStart(2,'0'), passage.current?.text].filter(Boolean).join(' · ')});
+   return passage;
+  }
+  if (name === 'lookup_score') {
+   const track = tracks.find(row => row.id === (args.trackId || (playbackCursor ?? data.playback)?.trackId));
+   if (!track) throw Error('没有找到目标录音');
+   const result = await lookupScore({track, invoke, searchWeb, fetchWeb, passage:passage?.track?.id === track.id ? passage : null,
+    registerPage:(url, source, number) => {
+      const id = 'page-' + (scorePages.size + 1);
+      scorePages.set(id, { url, source, number, trackId: track.id });
+      return id;
+    }});
+   if (result.netease.sheets?.length) addSources([{url:result.netease.url, title:track.title + ' · 网易云乐谱', site:'网易云音乐'}]);
+   addSources(result.web);
+   return result;
+  }
+  if (name === 'read_score_pages') {
+   const pages = [...new Set(args.pages)].map(id => scorePages.get(id));
+   if (!pages.length || pages.some(page => !page || page.source !== pages[0].source)) throw Error('请选择本轮同一来源返回的谱页编号');
+   const track = tracks.find(row => row.id === pages[0].trackId);
+   return { source:pages[0].source, pages:pages.map(page=>page.number), observations:await readScorePages(
+     pages.map(page=>page.url), passage?.track?.id === track?.id ? passage : { title:track?.title, artist:track?.artist }) };
+  }
   if (name === 'search_app') {
    const found = await searchApp({args, data, invoke, memory, conversations, downloads, appearance:getAppearance(), publicTrack});
    results = [...new Set([...results, ...found.trackIds])];

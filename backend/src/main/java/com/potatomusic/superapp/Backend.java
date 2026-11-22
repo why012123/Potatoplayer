@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The headless application service exposed to Electron over newline JSON-RPC. */
 public final class Backend implements PlaybackController.Host {
-    public static final String VERSION = "s2.1.4";
+    public static final String VERSION = "s2.1.5";
 
     private final Object lock = new Object();
     private final DataStore store;
@@ -2059,6 +2059,8 @@ public final class Backend implements PlaybackController.Host {
             case "netease.loginCookie" -> netease.loginCookie(text(p, "cookie", ""));
             case "netease.logout" -> netease.logout();
             case "netease.searchRich" -> netease.searchRich(text(p, "keywords", ""), (int) number(p, "limit", 15), (int) number(p, "offset", 0));
+            case "netease.scoreList" -> netease.score(text(p, "id", ""), false);
+            case "netease.scorePreview" -> netease.score(text(p, "id", ""), true);
             case "netease.songDetails" -> netease.songDetails(text(p, "id", ""));
             case "netease.search" -> netease.search(text(p, "keywords", ""), (int) number(p, "limit", 30));
             case "netease.aliases" -> netease.aliases();

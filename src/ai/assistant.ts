@@ -1,5 +1,6 @@
 import { documentLanguage, pickText, type TextVars } from "@/lib/text";
 const lx = (en: string, zh: string, vars?: TextVars) => pickText(documentLanguage(), en, zh, vars);
+import { encodeImage } from "./ClipboardImages";
 import { create } from "zustand";
 import { matchSongs, normalizeSongText as normalize, songQuery } from "../../electron/song-match.mjs";
 import type { Track } from "@/types";
@@ -140,7 +141,7 @@ interface AssistantStore {
   conversationId: string | null;
   conversations: ConversationSummary[];
   conversationsLoading: boolean;
-  ask: (prompt: string, options?: { navigate?: boolean }) => Promise<void>;
+  ask: (prompt: string, options?: { navigate?: boolean; images?: File[] }) => Promise<void>;
   startNew: () => void;
   clear: () => void;
   cancel: () => void;
@@ -162,6 +163,7 @@ function toTurn(turn: ConversationTurn): AssistantTurn {
   return {
     id: turn.id,
     prompt: turn.prompt,
+    imageCount: turn.imageCount,
     createdAt: turn.createdAt,
     result: turn.result,
     error: turn.error,
@@ -181,7 +183,8 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
   conversationsLoading: false,
 
   ask: async (raw, options) => {
-    const prompt = raw.trim().slice(0, 4000);
+    const images = options?.images ?? [];
+    const prompt = raw.trim().slice(0, 4000) || (images.length ? lx("Analyze the attached image.", "请分析附图。") : "");
     if (!prompt || get().busy) return;
     const id = String(++requestId);
     const pending = new AbortController();
@@ -191,7 +194,7 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
     if (options?.navigate !== false && state.viewHistory[state.viewIndex]?.kind !== "ai") state.navigate({ kind: "ai" });
     set({
       busy: true,
-      turns: [...get().turns.slice(-39), { id, requestId: id, prompt, createdAt: Date.now() }],
+      turns: [...get().turns.slice(-39), { id, requestId: id, prompt, imageCount: images.length, createdAt: Date.now() }],
     });
     let conversationId = get().conversationId;
     if (!conversationId) {
@@ -211,9 +214,12 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
     const editorTarget = state.viewHistory[state.viewIndex]?.kind === "editor" ? state.editorTrackId : null;
     const contextTrackId = editorTarget ?? state.playback?.trackId ?? state.previewTrackId ?? undefined;
     try {
+      if (images.length && provider.id === "local") throw Error(lx("Connect DeepSeek to send images.", "连接 DeepSeek 后即可发送图片。"));
+      const playback = state.playback;
       const result = await provider.suggest(
         prompt,
-        { tracks: state.tracks, favorites: state.favorites, currentTrackId: contextTrackId ?? null },
+        { tracks: state.tracks, favorites: state.favorites, currentTrackId: contextTrackId ?? null, images,
+          playbackCursor: { trackId: playback?.trackId ?? null, time: playback?.time ?? 0, playing: Boolean(playback?.playing) } },
         pending.signal,
       );
       if (pending.signal.aborted || id !== String(requestId)) return;
@@ -260,7 +266,7 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
       const aborted = pending.signal.aborted;
       if (!aborted && id === String(requestId)) {
         const message = error instanceof Error ? error.message : lx("Could not complete this request. Please try again.", "暂时无法完成，请重试。");
-        set({ turns: get().turns.map((turn) => (turn.id === id ? { ...turn, error: message } : turn)) });
+        set({ turns: get().turns.map((turn) => (turn.id === id ? { ...turn, error: message, retryImages: images } : turn)) });
         if (provider.id !== "deepseek" && conversationId) {
           try {
             await invoke("ai.conversations.append", {
@@ -369,6 +375,9 @@ export const toolLabels = (): Record<string, string> => ({
   search_qq: lx("Searching QQ Music", "搜索 QQ 音乐"),
   download_qq: lx("QQ Music download", "QQ 音乐下载"),
   get_listening_stats: lx("Reading listening stats", "读取聆听统计"),
+  get_playing_passage: lx("Locating the playing passage", "定位当前段落与上下句"),
+  lookup_score: lx("Finding scores and arrangements", "查找网易云与网页乐谱"),
+  read_score_pages: lx("Reading notation", "辨读谱面"),
   get_lyrics: lx("Reading lyrics", "读取歌词"),
   update_tracks: lx("Updating song details", "更新歌曲资料"),
   set_favorite: lx("Updating favorites", "更新收藏"),
@@ -454,10 +463,14 @@ const deepseekProvider: MusicAssistantProvider = {
       }));
     });
     try {
+      const images = await Promise.all((context.images ?? []).map(encodeImage));
+      signal.throwIfAborted();
       return await window.potato.invoke<ChatResponse>("ai.chat", {
         requestId: id,
         prompt,
         currentTrackId: context.currentTrackId,
+        playbackCursor: context.playbackCursor,
+        images,
         conversationId: useAssistant.getState().conversationId,
         title: conversationTitle(prompt),
         appearance: { ...current.appearance, theme: current.theme },

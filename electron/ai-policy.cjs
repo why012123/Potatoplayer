@@ -17,6 +17,14 @@ function taskPolicy(prompt, webEnabled = true) {
  const noWeb = /(?:不要|别|禁止|不用|无需|不许).{0,6}(?:联网|上网|搜索网页)|(?:do not|don't|without)\s+(?:browse|search the web)/i.test(prompt);
  const noAction = /(?:不要|别|禁止|不许|不用).{0,5}(?:改|编辑|更新|下载|播放|操作)|(?:只|仅仅|仅)(?:想|是)?(?:问|聊|讨论|解释)|\b(?:do not|don't)\s+(?:change|edit|download|play)/i.test(prompt);
  const research = /联网|上网|网上|搜索网页|查资料|查证|核实|来源|出处|背景|创作|作词|作曲|发行|发售|哪年|哪一年|什么时候|谁唱|演唱者|演出|新闻|最新|近况|介绍一下|讲讲.{0,12}(?:歌|专辑|歌手)|https?:\/\/|\b(?:research|browse|release|composer|latest|background)\b/i.test(prompt);
+ const musicAnalysis = /什么调|哪个调|调性|转调|和声|和弦|旋律|节奏|拍号|调式|配器|调号|曲谱|乐谱|简谱|琴谱|\b(?:key|melody|harmony|chords?|modulation|time signature|sheet music)\b/i.test(prompt);
+ const passage = /这(?:一)?(?:句|段|首)|现在(?:听|播|唱)|正在(?:听|播|唱)|刚(?:刚|才)(?:听|唱)|\b(?:this (?:part|passage|section|song|melody|line)|playing now)\b/i.test(prompt);
+ const asksAboutPassage = musicAnalysis || /分析.{0,5}这(?:一)?段|这(?:一)?段.{0,12}(?:分析|怎么写|怎么编)/.test(prompt);
+ const lyricPassage = passage && /(?:这句|正在唱|唱到|哪句|哪一句|上一句|下一句|上下句|这段歌词|this line|current lyric)/i.test(prompt) &&
+   /[？?]|什么|哪|意思|解释|翻译|上下句|分析|what|translate|explain/i.test(prompt);
+ const scorePassage = asksAboutPassage && (passage || /^(?:是)?什么调[呀呢啊？?！!。]*$/.test(prompt)) &&
+   /[？?]|分析|看看|查|听听|解读|为什么|怎么|什么|哪个|哪些|有没有|如何|用了|辨认|讲讲|解释|\b(?:what|why|analy[sz]e|explain|identify)\b/i.test(prompt) &&
+   !/《|https?:\/\/|这张|这幅|图中|图里|谱上/.test(prompt);
  const binding = /网易云.{0,8}(?:id|编号|标识)|qq\s*(?:音乐)?\s*(?:mid|id)|songmid|绑定/i.test(prompt);
  const read = /评论|热评|网友|查|搜|找|推荐|歌单|曲库|队列|评分|备注|统计|听歌|播放次数|时长|收藏|这首|这歌|当前.*歌|\b(?:find|search|recommend|library|queue)\b/i.test(prompt) || binding;
  const upgrade = /(?:升级|提升|提高|升到|换成(?!.{0,3}低)|替换(?!.{0,3}低)).{0,10}(?:音质|无损|hi-?res|母带|码率)|音质.{0,10}(?:升级|提升|提高|替换)|(?:hi-?res|hires|母带).{0,8}(?:升级|替换|重下|重新下载)/i.test(prompt);
@@ -53,7 +61,7 @@ function taskPolicy(prompt, webEnabled = true) {
  const sharedAssignment = fields.length === 1 && !/[，,；;。]|分别|其中/.test(prompt);
  const trackCount = countMatch && sharedAssignment ? Number(countMatch[1]) || numerals[countMatch[1]] : 1;
  const writes = [...new Set(groups.flat())];
- return { groups, fields, trackCount, noMemory, impression, inspectionOnly, web: useWeb, noWeb, writes, needsTool: useWeb || read || /听感|回忆|旧对话|上次.{0,8}说|采样率|位深|编码|下载.{0,8}(?:状态|进度)|音质|均衡器|聆听统计/i.test(prompt) || upgrade || downgrade || writes.length > 0 };
+ return { scorePassage, lyricPassage, groups, fields, trackCount, noMemory, impression, inspectionOnly, web: useWeb, noWeb, writes, needsTool: useWeb || read || /听感|回忆|旧对话|上次.{0,8}说|采样率|位深|编码|下载.{0,8}(?:状态|进度)|音质|均衡器|聆听统计/i.test(prompt) || upgrade || downgrade || writes.length > 0 };
 }
 function initialChoice(policy) {
  return policy.web ? {type:'function',function:{name:'web_search'}} : policy.needsTool ? 'required' : 'auto';

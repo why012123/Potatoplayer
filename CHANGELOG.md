@@ -4,17 +4,31 @@ All notable changes to Potatoplayer Super are documented here.
 
 ## Versioning
 
-- **Current release:** `s2.1.4`. The line started at `s1.0.0`. `s2.0.0` merged
+- **Current release:** `s2.1.5`. The line started at `s1.0.0`. `s2.0.0` merged
   the **一起听 / Together** online rooms and the **AI 助手 / AI 工作台** edition
   into Super; since then `s2.0.x` patch releases keep the same visual system and
   refine the AI surfaces.
 - The `s` prefix is the user-facing Super version label. The package metadata uses
-  the equivalent plain semver (`2.1.4`).
+  the equivalent plain semver (`2.1.5`).
 - Historical Super `1.0.0`–`1.0.4` entries are preserved below under
   **Legacy: Potatoplayer Super (1.0.x)**.
 - The complete **Potatoplayer Java 2.1.19 and earlier** changelog — including the
   Python 1.x lineage it inherited — is preserved at the bottom under
   **Legacy: Potatoplayer Java (2.1.19 and earlier)**.
+
+## s2.1.5 — 2026-11-22
+
+### Added
+
+- **AI 听歌段落分析（读谱）**：提问“这段 / 这句 / 现在听到的”时，助手先钉住**按下发送那一刻**的歌曲、播放位置与上下句歌词（之后再切歌也不会漂移），再从网易云乐谱目录和网页检索对应编配；若谱页预览图可读，会结合可见的谱号、调号、歌词或段落标记分析旋律、节奏、和声、转调、拍号等，并注明来源与时间点。只找到目录调名或和弦谱、或谱页对不上当前句时，会明确区分“可确认”与“仍缺证据”，不会声称听过音频或看过不可见的谱页。
+- **AI 剪贴板图片**：AI 工作台、右侧聊天栏、收起状态的小输入框都支持 ⌘V 粘贴截图；发送前可预览、逐张移除，也可以只发图。含图请求使用 DeepSeek Flash 读图（视觉请求固定走 flash 模型），历史保留文字回复与附图数量，**原图不落盘**。
+- 后端新增乐谱 RPC：`netease.scoreList`（乐谱目录）与 `netease.scorePreview`（可读谱页预览）。
+
+### Notes
+
+- 验证：36 项 AI 测试通过（段落钉住、网易云 + 网页双来源检索、视觉读谱模拟、剪贴板图片校验、离线/无歌词/网页兜底等）；网易云真实乐谱目录已核对；三个输入框的预览 / 移除 / 发送已静音验证。**模型读谱链路的识谱准确率使用模拟响应验证，尚未实测真实模型**。
+- 图片限制：单条消息最多 4 张、合计 ≤ 24 MiB，格式限 PNG / JPEG / GIF / WebP；未连接 DeepSeek 时粘贴会提示先连接。
+- 查询途中切歌不会改变本次分析的段落；新问题会重新取发送瞬间的位置。
 
 ## s2.1.4 — 2026-11-20
 

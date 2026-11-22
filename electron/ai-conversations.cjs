@@ -106,6 +106,7 @@ function cleanTurn(value) {
     ...(error ? { error } : {}),
     ...(activity.length ? { activity } : {}),
     ...(value?.provider === 'deepseek' || value?.provider === 'local' ? { provider: value.provider } : {}),
+    ...(Number.isInteger(value?.imageCount) && value.imageCount > 0 ? { imageCount: Math.min(4, value.imageCount) } : {}),
     ...(typeof value?.contextTrackId === 'string' && value.contextTrackId ? { contextTrackId: text(value.contextTrackId, 120) } : {}),
   };
 }
@@ -333,7 +334,7 @@ function createConversationStore({ dataDir, emit }) {
     const conversation = find(String(id || ''));
     const turns = conversation.turns.slice(-Math.max(1, Math.min(20, limit)));
     return turns.flatMap((turn) => {
-      const messages = [{ role: 'user', content: turn.prompt }];
+      const messages = [{ role: 'user', content: turn.imageCount ? turn.prompt + ' [历史附图 ' + turn.imageCount + ' 张，本轮未重传]' : turn.prompt }];
       const content = turn.result?.explanation || turn.error || (turn.result?.title ?? '');
       if (content) messages.push({ role: 'assistant', content });
       return messages;

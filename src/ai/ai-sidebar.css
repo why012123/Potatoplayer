@@ -64,3 +64,9 @@
 
 :root[data-density="compact"] .ai-side-input { padding-top: 8px; }
 :root[data-density="compact"] .ai-side-composer:not(.is-compact) { padding: 9px; }
+
+.ai-pasted-images { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--text); }
+.ai-pasted-images button { display: inline-flex; align-items: center; gap: 2px; padding: 2px; color: inherit; background: var(--ws-inset, transparent); border: 1px solid var(--ws-border, currentColor); border-radius: 6px; cursor: pointer; }
+.ai-pasted-images img { width: 30px; height: 30px; object-fit: cover; border-radius: 4px; }
+.ai-side-composer.is-compact .ai-pasted-images { max-width: 42%; }
+.ai-user-message small { display: block; opacity: .75; }

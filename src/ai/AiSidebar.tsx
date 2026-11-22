@@ -9,6 +9,8 @@ import { useAssistant } from "./assistant";
 import { AiTurnView } from "./AiTurnView";
 import type { AssistantTurn } from "./types";
 
+import { useClipboardImages } from "./ClipboardImages";
+
 const REPLY_LIFETIME = 12_000;
 
 // Remains mounted across collapse and mode changes: drafts and in-flight replies survive.
@@ -26,6 +28,8 @@ export function AiSidebar() {
   const reducedMotion = systemReducedMotion || legacyReducedMotion;
   const conversationId = useAssistant((s) => s.conversationId);
   const [draft, setDraft] = useState("");
+  const images = useClipboardImages(connected);
+  const canSend = Boolean(draft.trim() || images.files.length);
   const [popup, setPopup] = useState<AssistantTurn | null>(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -34,18 +38,19 @@ export function AiSidebar() {
   const transcript = useRef<HTMLDivElement>(null);
   const followEnd = useRef(true);
 
-  const send = (prompt: string) => {
-    if (!prompt.trim() || useAssistant.getState().busy) return;
+  const send = (prompt: string, files: File[] = []) => {
+    if ((!prompt.trim() && !files.length) || useAssistant.getState().busy) return;
     setPopup(null);
     setHovered(false);
     setFocused(false);
     followEnd.current = true;
-    void useAssistant.getState().ask(prompt, { navigate: false });
+    void useAssistant.getState().ask(prompt, { navigate: false, images: files });
     pendingTurn.current = useAssistant.getState().turns.at(-1)?.id ?? null;
   };
   const submit = () => {
-    if (!draft.trim() || busy) return;
-    send(draft);
+    if (!canSend || busy) return;
+    send(draft, images.files);
+    images.clear();
     setDraft("");
     input.current?.focus();
   };
@@ -83,7 +88,8 @@ export function AiSidebar() {
   if (mode !== "ai") return null;
   const composer = <form className={`ai-side-composer ${open ? "" : "is-compact"}`} aria-busy={busy}
     onSubmit={(event) => { event.preventDefault(); submit(); }}>
-    <textarea ref={input} rows={open ? 3 : 1} maxLength={4000} value={draft}
+    {images.preview}
+    <textarea onPaste={images.paste} ref={input} rows={open ? 3 : 1} maxLength={4000} value={draft}
       aria-label={tr("Message to music assistant", "给音乐助手的消息")}
       placeholder={busy ? tr("Thinking…", "正在思考…") : tr("Ask the music assistant…", "和音乐助手聊聊…")}
       onChange={(event) => setDraft(event.target.value)}
@@ -95,7 +101,7 @@ export function AiSidebar() {
       {!open && <IconButton label={tr("Expand AI chat", "展开 AI 聊天")} variant="ghost" size="sm" onClick={() => setOpen(true)}><Maximize2 size={15} /></IconButton>}
       {busy
         ? <IconButton label={tr("Stop generating", "停止生成")} variant="ghost" size="sm" onClick={() => useAssistant.getState().cancel()}><Square size={14} /></IconButton>
-        : <button type="submit" className="ai-side-send" aria-label={tr("Send message", "发送消息")} disabled={!draft.trim()}><ArrowUp size={17} /></button>}
+        : <button type="submit" className="ai-side-send" aria-label={tr("Send message", "发送消息")} disabled={!canSend}><ArrowUp size={17} /></button>}
     </div>
   </form>;
 

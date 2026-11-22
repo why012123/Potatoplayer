@@ -539,3 +539,104 @@ test('Queries about download status and available quality cannot enqueue an oper
   }
   assert.ok(taskPolicy('把这首歌的音质升级到无损').writes.includes('upgrade_track_quality'));
 });
+
+test('A passage question pins the sent lyric, retrieves both score sources and passes the visible pages to vision', async t => {
+ const seen = [];
+ const modelCalls = [];
+ const b = backend();
+ b.state.tracks[0].neteaseId = '301';
+ b.state.playback = {trackId:'b', time:3, playing:true};
+ const s = setup(async (url, options) => {
+   const body = JSON.parse(options.body);
+   if (url.endsWith('/v1/tools/search')) {
+     assert.match(body.query, /鳥の詩 Lia/);
+     assert.doesNotMatch(body.query, /line|private/i);
+     return Response.json({results:[{url:'https://score.example/song',title:'鳥の詩 Lia chords',content:'Key: D major\nD G A\nsecond line'}]});
+   }
+   modelCalls.push(body);
+   if (Array.isArray(body.messages.at(-1).content)) {
+     assert.equal(body.model, 'deepseek-flash');
+     assert.equal(body.messages.at(-1).content[1].image_url.url, 'https://p1.music.126.net/page.png');
+     return sse({content:'可见第二句上行三度。'});
+   }
+   return sse({content:'这份谱在第二句上行三度。'});
+ }, {invoke:async(method, args) => {
+   seen.push({method,args});
+   if (method === 'lyrics.get') return {lines:['first line','second line','third line'].map((text,i)=>({time:10*(i+1),text}))};
+   if (method === 'netease.scoreList') return [{id:9822,name:'人声谱',musicKey:'D',playVersion:'原调',totalPageSize:2}];
+   if (method === 'netease.scorePreview') return [{imageUrl:'http://p1.music.126.net/page.png'}];
+   return b.invoke(method,args);
+ }});
+ t.after(()=>fs.rmSync(s.dataDir,{recursive:true,force:true}));
+ await s.service.handle('ai.configure',{enabled:true, apiKey:'sk-test', model:'deepseek-pro'});
+ const result = await s.service.handle('ai.chat',{requestId:'passage',prompt:'分析这段旋律为什么好听',currentTrackId:'b',playbackCursor:{trackId:'a',time:21,playing:true}});
+ const toolData = modelCalls.at(-1).messages.filter(m=>m.role==='tool').map(m=>JSON.parse(m.content));
+ assert.equal(toolData[0].position,21);
+ assert.deepEqual([toolData[0].previous.text,toolData[0].current.text,toolData[0].next.text],['first line','second line','third line']);
+ assert.equal(toolData[1].netease.sheets[0].key,'D');
+ assert.match(toolData[1].web[0].nearLyric,/D G A/);
+ assert.match(toolData[2].observations,/上行三度/);
+ assert.equal(modelCalls.at(-1).model,'deepseek-pro');
+ assert.deepEqual(seen.find(row=>row.method==='lyrics.get').args,{trackId:'a'});
+ assert.deepEqual(seen.find(row=>row.method==='netease.scorePreview').args,{id:'9822'});
+ assert.equal(result.sources.length,2);
+ assert.deepEqual(result.actions.map(a=>a.name),['get_playing_passage','lookup_score','read_score_pages']);
+});
+
+test('A pasted image reaches Flash as image data without being stored or starting a score search',async t=>{
+ const img='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jOioAAAAASUVORK5CYII=';
+ const s=setup(async(url,opts)=>{
+   assert.match(url,/chat\/completions$/);
+   const body=JSON.parse(opts.body);
+   assert.equal(body.model,'deepseek-flash');
+   assert.deepEqual(body.messages.at(-1).content,[{type:'text',text:'分析附图中的旋律'},{type:'image_url',image_url:{url:img,detail:'high'}}]);
+   return sse({content:'看到了。'});
+ });
+ t.after(()=>fs.rmSync(s.dataDir,{recursive:true,force:true}));
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test',model:'deepseek-pro',webSearchEnabled:false});
+ const result=await s.service.handle('ai.chat',{requestId:'paste',prompt:'分析附图中的旋律',images:[img]});
+ const saved=await s.service.handle('ai.conversations.get',{id:result.conversationId});
+ assert.equal(saved.turns[0].imageCount,1);
+ assert.ok(!JSON.stringify(saved).includes('base64'));
+ await assert.rejects(s.service.handle('ai.chat',{requestId:'bad',prompt:'看图',images:['file:///private/etc']}),/图片/);
+});
+
+test('Offline passage questions only read the pinned local lyrics, including intro and missing lyrics',async t=>{
+ const {playbackPassage}=require('../electron/ai-score.cjs');
+ const track={id:'a',title:'Intro'};
+ assert.equal(playbackPassage(null,{},null).status,'no_playback');
+ assert.equal(playbackPassage(track,{time:13},null).status,'no_timed_lyrics');
+ const intro=playbackPassage(track,{time:0},{lines:[{time:10,text:'first'}]});
+ assert.equal(intro.current,null);assert.equal(intro.next.text,'first');
+ const s=setup(async(url,opts)=>{
+   assert.match(url,/chat\/completions$/);
+   const body=JSON.parse(opts.body);
+   assert.ok(!body.tools.some(t=>['lookup_score','read_score_pages','web_search'].includes(t.function.name)));
+   assert.equal(JSON.parse(body.messages.at(-1).content).status,'no_timed_lyrics');
+   return sse({content:'无法确认这一段的调。'});
+ });
+ t.after(()=>fs.rmSync(s.dataDir,{recursive:true,force:true}));
+ await s.service.handle('ai.configure',{enabled:true,apiKey:'sk-test'});
+ const r=await s.service.handle('ai.chat',{requestId:'offline',prompt:'不要联网。这段好好听，是什么调？',playbackCursor:{trackId:'a',time:9,playing:false}});
+ assert.deepEqual(r.actions.map(a=>a.name),['get_playing_passage']);
+});
+
+test('Web score pages survive NetEase failure; lyrics-only questions need no score search', async () => {
+ const {lookupScore}=require('../electron/ai-score.cjs');
+ const {taskPolicy}=require('../electron/ai-policy.cjs');
+ const score=await lookupScore({
+   track:{title:'Sample song',artist:'Test band',neteaseId:'301'},
+   passage:{current:{text:'Sample words'}},
+   invoke:async()=>{throw Error('service unavailable')},
+   searchWeb:async()=>({results:[{title:'Test band — Sample song sheet music',url:'https://scores.example/song',content:''}]}),
+   fetchWeb:async()=>({content:'Test band\nG Am\nSample words\n![sheet music page 2](/page2.png)'}),
+   registerPage:url=>url
+ });
+ assert.equal(score.netease.status,'unavailable');
+ assert.deepEqual(score.web[0].previewPages,['https://scores.example/page2.png']);
+ assert.ok(score.web[0].artistMentioned);
+ assert.match(score.web[0].nearLyric,/G Am/);
+ assert.equal(taskPolicy('现在唱到的这句歌词是什么意思？').lyricPassage,true);
+ assert.equal(taskPolicy('现在唱到的这句歌词是什么意思？').scorePassage,false);
+ assert.equal(taskPolicy('这段好好听，是什么调').scorePassage,true);
+});

@@ -1,4 +1,4 @@
-import type { Track } from "@/types";
+import type { PlaybackState, Track } from "@/types";
 
 export type AssistantIntent = "search" | "play" | "playlist" | "similar";
 
@@ -51,12 +51,16 @@ export interface AssistantResult {
 }
 
 export interface AssistantContext {
+  images?: File[];
+  playbackCursor?: Pick<PlaybackState, "trackId" | "time" | "playing">;
   tracks: Track[];
   favorites: string[];
   currentTrackId: string | null;
 }
 
 export interface AssistantTurn {
+  imageCount?: number;
+  retryImages?: File[];
   id: string;
   /** Stable within a live request, even after persistence assigns a history ID. */
   requestId?: string;
@@ -83,6 +87,7 @@ export interface ConversationSummary {
 }
 
 export interface ConversationTurn {
+  imageCount?: number;
   id: string;
   prompt: string;
   createdAt: number;

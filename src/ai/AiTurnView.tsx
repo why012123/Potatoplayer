@@ -13,7 +13,7 @@ function sourceHost(url: string, fallback: string) {
     }
 }
 export function AiTurnView({ turn, onRetry }: {
-    onRetry?: (prompt: string) => void;
+    onRetry?: (prompt: string, files?: File[]) => void;
     turn: AssistantTurn;
 }) {
     const tr = useTr();
@@ -46,15 +46,15 @@ export function AiTurnView({ turn, onRetry }: {
         if (turnId) requestAnimationFrame(() => document.getElementById(`ai-turn-${turnId}`)?.scrollIntoView({ block: "nearest" }));
     };
     return (<article className="ai-turn" id={`ai-turn-${turn.id}`}>
-      <div className="ai-user-message">{turn.prompt}</div>
+      <div className="ai-user-message">{turn.prompt}{!!turn.imageCount && <small>{tr("{n} attached image(s)", "附图 {n} 张", { n: turn.imageCount })}</small>}</div>
       <div className="ai-reply-label">
         <Sparkles size={13}/> {tr("POTATO ASSISTANT", "音乐助手")}
         {turn.provider === "deepseek" && <em>DEEPSEEK</em>}
       </div>
       {turn.error ? (<div className="ai-response-error">
           <p>{turn.error}</p>
-          <button disabled={busy} onClick={() => onRetry ? onRetry(turn.prompt) : void retry(turn.prompt)}>{tr("Try again", "重新尝试")}<RotateCcw size={13}/>
-          </button>
+          {turn.imageCount && !turn.retryImages?.length ? <small>{tr("Paste the image again to retry.", "重新粘贴图片即可重试。")}</small> : <button disabled={busy} onClick={() => onRetry ? onRetry(turn.prompt, turn.retryImages) : void retry(turn.prompt, {images: turn.retryImages})}>{tr("Try again", "重新尝试")}<RotateCcw size={13}/>
+          </button>}
         </div>) : turn.result ? (<>
           {turn.result.title && <h3>{turn.result.title}</h3>}
           <p className="ai-reply-explanation">{turn.result.explanation}</p>

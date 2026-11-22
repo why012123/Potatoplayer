@@ -12,7 +12,7 @@ PotatoMusic Super（原 Potatoplayer Super）是一个从旧 Potatoplayer Java �
 
 <p align="center">
   <a href="https://github.com/why012123/Potatoplayer/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/download-macOS%20Apple%20Silicon-111?style=flat-square"></a>
-  <img alt="当前版本" src="https://img.shields.io/badge/version-s2.1.4-c97b6b?style=flat-square">
+  <img alt="当前版本" src="https://img.shields.io/badge/version-s2.1.5-c97b6b?style=flat-square">
   <img alt="平台" src="https://img.shields.io/badge/platform-macOS%2013%2B-555?style=flat-square">
   <img alt="技术栈" src="https://img.shields.io/badge/Electron%20%2B%20React-Java%2021-4b8bbf?style=flat-square">
   <img alt="AI" src="https://img.shields.io/badge/AI-DeepSeek-6b5bd2?style=flat-square">
